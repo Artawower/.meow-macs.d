@@ -486,7 +486,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/close-all-folds))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-all-nodes))
         ((bound-and-true-p ts-fold-mode) (ts-fold-close-all))
-        (t (evil-close-folds))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-close ()
   "Close the fold under the cursor."
@@ -495,7 +495,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/close-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-node))
         ((bound-and-true-p ts-fold-mode) (ts-fold-close))
-        (t (evil-close-fold))))
+        (t (message "No folding mode found."))))
 
 
 (defun @fold-open-all ()
@@ -514,7 +514,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/open-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-open-node))
         ((bound-and-true-p ts-fold-mode) (ts-fold-open))
-        (t (evil-open-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-toggle-all ()
   "Toggle all folds."
@@ -523,7 +523,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-all-nodes))
         ((bound-and-true-p ts-fold-mode) (ts-fold-toggle-all))
-        (t (evil-toggle-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-toggle ()
   "Toggle fold at point."
@@ -534,8 +534,7 @@ This is a variadic `cl-pushnew'."
     (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
           ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-node))
           ((bound-and-true-p ts-fold-mode) (ts-fold-toggle))
-          (t (evil-toggle-fold)))))
-
+          (t (message "No folding mode found.")))))
 
 (defun @fold-next ()
   "Go to the next fold."
@@ -543,7 +542,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-next-fold))
         ((bound-and-true-p ts-fold-mode) (ts-fold-next))
-        (t (evil-next-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-previous ()
   "Go to the previous fold."
@@ -551,7 +550,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-previous-fold))
         ((bound-and-true-p ts-fold-mode) (ts-fold-previous))
-        (t (evil-previous-fold))))
+        (t (message "No folding mode found."))))
 #+END_SRC
 ** Doom libs (honestly spizjeno)
 #+BEGIN_SRC emacs-lisp 
@@ -765,6 +764,7 @@ This is a variadic `cl-pushnew'."
 (use-package avy
   :defer t
   :bind (("s-r" . (lambda () (interactive) (set-mark-command nil) (call-interactively 'avy-goto-char)))
+         ("C-c d l" . avy-kill-whole-line)
          :map meow-normal-state-keymap
          ("f" . avy-goto-word-1)
          ("\\f" . avy-goto-chaavy-goto-charr))
@@ -888,7 +888,7 @@ Bookmark for navigation inside file
                                     :repo "balloneij/selection-highlight-mode")
   :config (selection-highlight-mode))
 
-;; (advice-add 'selection-highlight-mode-get-selection :override #'@selection-highlight-mode-get-selection)
+(advice-add 'selection-highlight-mode-get-selection :override #'@selection-highlight-mode-get-selection)
 #+END_SRC
 ** Icons
 #+BEGIN_SRC emacs-lisp
@@ -1217,22 +1217,22 @@ Override meow keypad parsing
 
 ** Autopairs
 #+BEGIN_SRC emacs-lisp 
-;; (use-package electric
-;;   :ensure nil
-;;   :hook
-;;   (html-mode . sgml-electric-tag-pair-mode)
-;;   (ng2-html-mode . sgml-electric-tag-pair-mode)
-;;   :config
-;;   (setq electric-pair-preserve-balance t
-;;         electric-pair-delete-adjacent-pairs t
-;;         electric-pair-skip-whitespace nil
-;;         electric-pair-open-newline-between-pairs t)
-;;   (electric-pair-mode))
+(use-package electric
+  :ensure nil
+  :hook
+  (html-mode . sgml-electric-tag-pair-mode)
+  (ng2-html-mode . sgml-electric-tag-pair-mode)
+  :config
+  (setq electric-pair-preserve-balance t
+        electric-pair-delete-adjacent-pairs t
+        electric-pair-skip-whitespace nil
+        electric-pair-open-newline-between-pairs t)
+  (electric-pair-mode))
 
 (use-package smartparens
   :config
   (require 'smartparens-config)
-  (smartparens-global-mode t)
+  ;; (smartparens-global-mode t)
   (show-smartparens-global-mode t))
 #+END_SRC
 ** Surround paris. Wrap into smth new
@@ -2291,8 +2291,16 @@ Improved styles for git changes
 #+BEGIN_SRC emacs-lisp 
 (use-package git-timemachine
   :defer t
-  :bind (("C-M-t" . git-timemachine)))
+  :bind (("C-M-t" . git-timemachine)
+         :map git-timemachine-mode-map
+         ("C-k" . git-timemachine-show-previous-revision)
+         ("q" . git-timemachine-quit)
+         ("Q" . git-timemachine-quit)
+         ("C-j" . git-timemachine-show-next-revision)))
 #+END_SRC
+
+#+RESULTS:
+: [nil 26179 53502 86803 nil elpaca-process-queues nil nil 999999 nil]
 
 ** Smerge
 #+BEGIN_SRC emacs-lisp 
@@ -4058,7 +4066,6 @@ Didn't mange to start work
   (wakatime-ui-mode))
 #+END_SRC
 
-
 ** Projectile
 *** Projectile package
 #+BEGIN_SRC emacs-lisp :noweb yes
@@ -4101,6 +4108,14 @@ Didn't mange to start work
                (not (get-buffer-window buf 'visible)))
       ;; kill buffer
       (kill-buffer buf))))
+#+END_SRC
+
+** Rotate windows
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package rotate
+  :bind (("C-c w R" . rotate-layout)
+         ("C-c w r" . rotate-window))
+  :defer t)
 #+END_SRC
 
 * Emacs for everything

@@ -525,6 +525,7 @@ This is a variadic `cl-pushnew'."
    '("P" . meow-pop-selection)
    '("'" . repeat)
    '("=" . meow-indent)
+   '(":" . query-replace-regexp)
    '("<escape>" . ignore))
 
   (meow-define-keys 'normal
@@ -596,6 +597,7 @@ This is a variadic `cl-pushnew'."
 (use-package avy
   :defer t
   :bind (("s-r" . (lambda () (interactive) (set-mark-command nil) (call-interactively 'avy-goto-char)))
+         ("C-c d l" . avy-kill-whole-line)
          :map meow-normal-state-keymap
          ("f" . avy-goto-word-1)
          ("\\f" . avy-goto-chaavy-goto-charr))
@@ -690,7 +692,7 @@ This is a variadic `cl-pushnew'."
                                     :repo "balloneij/selection-highlight-mode")
   :config (selection-highlight-mode))
 
-;; (advice-add 'selection-highlight-mode-get-selection :override #'@selection-highlight-mode-get-selection)
+(advice-add 'selection-highlight-mode-get-selection :override #'@selection-highlight-mode-get-selection)
 
 (use-package all-the-icons
   :ensure t)
@@ -935,23 +937,23 @@ This is a variadic `cl-pushnew'."
   :config
   (global-undo-fu-session-mode))
 
-;; (use-package electric
-;;   :ensure nil
-;;   :hook
-;;   (html-mode . sgml-electric-tag-pair-mode)
-;;   (ng2-html-mode . sgml-electric-tag-pair-mode)
-;;   :config
-;;   (setq electric-pair-preserve-balance t
-;;         electric-pair-delete-adjacent-pairs t
-;;         electric-pair-skip-whitespace nil
-;;         electric-pair-open-newline-between-pairs t)
-;;   (electric-pair-mode))
-
-(use-package smartparens
+(use-package electric
+  :ensure nil
+  :hook
+  (html-mode . sgml-electric-tag-pair-mode)
+  (ng2-html-mode . sgml-electric-tag-pair-mode)
   :config
-  (require 'smartparens-config)
-  (smartparens-global-mode t)
-  (show-smartparens-global-mode t))
+  (setq electric-pair-preserve-balance t
+        electric-pair-delete-adjacent-pairs t
+        electric-pair-skip-whitespace nil
+        electric-pair-open-newline-between-pairs t)
+  (electric-pair-mode))
+
+;; (use-package smartparens
+;;   :config
+;;   (require 'smartparens-config)
+;;   (smartparens-global-mode t)
+;;   (show-smartparens-global-mode t))
 
 (use-package wrap-region
   :config
@@ -1756,7 +1758,12 @@ new project directory.")
 
 (use-package git-timemachine
   :defer t
-  :bind (("C-M-t" . git-timemachine)))
+  :bind (("C-M-t" . git-timemachine)
+         :map git-timemachine-mode-map
+         ("C-k" . git-timemachine-show-previous-revision)
+         ("q" . git-timemachine-quit)
+         ("Q" . git-timemachine-quit)
+         ("C-j" . git-timemachine-show-next-revision)))
 
 (global-set-key (kbd "C-c C-l") 'smerge-keep-lower)
 (global-set-key (kbd "C-c C-u") 'smerge-keep-upper)
