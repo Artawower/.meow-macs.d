@@ -149,6 +149,11 @@
   (scroll-on-jump-with-scroll-advice-add isearch-update)
   (scroll-on-jump-with-scroll-advice-add recenter-top-bottom))
 
+(use-package golden-ratio-scroll-screen
+  :config
+  (global-set-key [remap scroll-down-command] 'golden-ratio-scroll-screen-down)
+  (global-set-key [remap scroll-up-command] 'golden-ratio-scroll-screen-up))
+
 (use-package explain-pause-mode
   :ensure (explain-pause-mode :type git :host github :repo "lastquestion/explain-pause-mode")
   :defer t)
@@ -163,6 +168,17 @@
          ("C-h m" . describe-mode)
          ("C-h ." . helpful-at-point)
          ("C-h F" . describe-face)))
+
+(defun @kill-word-backward ()
+  "If `point' is followed by whitespace kill that.
+Otherwise call `kill-word'"
+  (interactive)
+  (if (looking-back "[ \t\n]")
+      (let ((pos (point)))
+        (re-search-backward "[^ \t\n]" nil t)
+        (forward-char)
+        (kill-region pos (point)))
+    (backward-kill-word 1)))
 
 (defun @bounce-paren ()
   "Will bounce between matching parens just like % in vi"
@@ -250,7 +266,7 @@ If FORCE-P, delete without confirmation."
     (previous-line)
     (end-of-line)
     (indent-according-to-mode)
-    (evil-insert 1)))
+    (meow-insert)))
 
 (defun @insert-todo-by-current-git-branch ()
   "Insert todo for current git branch."
@@ -350,7 +366,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/close-all-folds))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-all-nodes))
         ((bound-and-true-p ts-fold-mode) (ts-fold-close-all))
-        (t (evil-close-folds))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-close ()
   "Close the fold under the cursor."
@@ -359,7 +375,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/close-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-node))
         ((bound-and-true-p ts-fold-mode) (ts-fold-close))
-        (t (evil-close-fold))))
+        (t (message "No folding mode found."))))
 
 
 (defun @fold-open-all ()
@@ -378,7 +394,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/open-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-open-node))
         ((bound-and-true-p ts-fold-mode) (ts-fold-open))
-        (t (evil-open-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-toggle-all ()
   "Toggle all folds."
@@ -387,7 +403,7 @@ This is a variadic `cl-pushnew'."
   (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-all-nodes))
         ((bound-and-true-p ts-fold-mode) (ts-fold-toggle-all))
-        (t (evil-toggle-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-toggle ()
   "Toggle fold at point."
@@ -398,8 +414,7 @@ This is a variadic `cl-pushnew'."
     (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
           ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-node))
           ((bound-and-true-p ts-fold-mode) (ts-fold-toggle))
-          (t (evil-toggle-fold)))))
-
+          (t (message "No folding mode found.")))))
 
 (defun @fold-next ()
   "Go to the next fold."
@@ -407,7 +422,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-next-fold))
         ((bound-and-true-p ts-fold-mode) (ts-fold-next))
-        (t (evil-next-fold))))
+        (t (message "No folding mode found."))))
 
 (defun @fold-previous ()
   "Go to the previous fold."
@@ -415,7 +430,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-previous-fold))
         ((bound-and-true-p ts-fold-mode) (ts-fold-previous))
-        (t (evil-previous-fold))))
+        (t (message "No folding mode found."))))
 
 (use-package doom-lib
   :ensure (doom-lib
@@ -437,6 +452,17 @@ This is a variadic `cl-pushnew'."
   (interactive "p")
   (kill-line (- 1 arg)))
 (global-set-key "\C-u" 'backward-kill-line) ;; `C-c u'
+
+(defun @repeat-search-forward ()
+  "Repeat last search forward."
+  (interactive)
+  (search-forward (car consult--line-history)))
+
+
+(defun @repeat-search-backward ()
+  "Repeat last search backward."
+  (interactive)
+  (search-backward (car consult--line-history)))
 
 (defun meow-setup ()
   (setq meow-cheatsheet-layout meow-cheatsheet-layout-qwerty)
@@ -528,6 +554,10 @@ This is a variadic `cl-pushnew'."
    '(":" . query-replace-regexp)
    '("<escape>" . ignore))
 
+  (meow-define-keys 'motion
+    '("\\m" . @toggle-maximize-buffer)
+    '("\\q" . meow-quit))
+
   (meow-define-keys 'normal
     '("z M" . @fold-close-all)
     '("\\m" . @toggle-maximize-buffer)
@@ -579,8 +609,12 @@ This is a variadic `cl-pushnew'."
     '("u" . meow-undo)))
 
 (defun @meow-setup-state-per-modes ()
+  ;; (add-to-list 'meow-mode-state-list '(magit-mode . normal))
   (add-to-list 'meow-mode-state-list '(magit-process-mode . normal))
-  (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal)))
+  (add-to-list 'meow-mode-state-list '(compilation-mode . normal))
+  (add-to-list 'meow-mode-state-list '(detached-compilation-mode-map . normal))
+  (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal))
+  (add-to-list 'meow-mode-state-list '(grep-mode . normal)))
 
 (use-package meow
   :custom
@@ -670,9 +704,11 @@ This is a variadic `cl-pushnew'."
  (mapcar #'disable-theme custom-enabled-themes))
 
 (menu-bar-mode -1)
-(tool-bar-mode -1)
-(toggle-scroll-bar -1)
-(setq ring-bell-function 'ignore)
+  (tool-bar-mode -1)
+  (toggle-scroll-bar -1)
+  (setq ring-bell-function 'ignore)
+(setq scroll-step 1)
+(setq scroll-margin 1)
 
 (defun @selection-highlight-mode-get-selection ()
   "Get the active selection string or nil."
@@ -872,12 +908,23 @@ This is a variadic `cl-pushnew'."
 (global-set-key (kbd "C-c w v") 'split-window-horizontally)
 (global-set-key (kbd "C-c o l") '@open-messages)
 (global-set-key (kbd "C-c o M") '@open-clear-messages)
-(global-set-key (kbd "C-v") 'View-scroll-half-page-forward)
-(global-set-key (kbd "M-v") 'View-scroll-half-page-backward)
+;; (global-set-key (kbd "C-v") 'View-scroll-half-page-forward)
+;; (global-set-key (kbd "M-v") 'View-scroll-half-page-backward)
+(global-set-key (kbd "C-h t") 'load-theme)
 
 (global-set-key (kbd "C-c p m") 'elpaca-manager)
 (global-set-key (kbd "C-c p M") 'elpaca-log)
 (global-set-key (kbd "s-n") (lambda () (interactive) (switch-to-buffer (generate-new-buffer "Untitled"))))
+(global-set-key (kbd "s-<backspace>") '@kill-word-backward)
+
+(global-set-key (kbd "C-c t t") '@insert-todo-by-current-git-branch)
+(global-set-key (kbd "C-c t d") '@insert-debug-by-current-git-branch)
+(global-set-key (kbd "C-c t n") '@insert-note-by-current-git-branch)
+
+(global-set-key (kbd "C-c +") 'narrow-to-region)
+(global-set-key (kbd "C-c -") 'widen)
+
+
 
 ;; (global-set-key (kbd "C-w") 'backward-kill-word)
 
@@ -910,15 +957,11 @@ This is a variadic `cl-pushnew'."
 
 (set-default 'truncate-lines t)
 
-(use-package centered-cursor-mode
-  :hook ((prog-mode . centered-cursor-mode)
-         (org-mode . centered-cursor-mode))
-  :demand)
-
 (use-package origami
   :hook ((org-mode
           dart-mode
           web-mode
+          typescript-mode
           yaml-mode
           python-mode
           html-mode
@@ -949,11 +992,11 @@ This is a variadic `cl-pushnew'."
         electric-pair-open-newline-between-pairs t)
   (electric-pair-mode))
 
-;; (use-package smartparens
-;;   :config
-;;   (require 'smartparens-config)
-;;   (smartparens-global-mode t)
-;;   (show-smartparens-global-mode t))
+(use-package smartparens
+  :config
+  (require 'smartparens-config)
+  ;; (smartparens-global-mode t)
+  (show-smartparens-global-mode t))
 
 (use-package wrap-region
   :config
@@ -1208,13 +1251,14 @@ This is a variadic `cl-pushnew'."
     (call-interactively #'detached-shell-command)))
 
 (use-package detached
+  :defer 2
   :init
   (detached-init)
   :bind (;; Replace async-shell-command' with `detached-shell-command'
          ([remap async-shell-command] . detached-shell-command)
          ;; Replace `compile' with `detached-compile'
-         ([remap compile] . detached-compile)
-         ([remap recompile] . detached-compile-recompile)
+         ;; ([remap compile] . detached-compile)
+         ;; ([remap recompile] . detached-compile-recompile)
          ;; Replace built in completion of sessions with `consult'
          ([remap detached-open-session] . detached-consult-session))
   :custom ((detached-show-output-on-attach t)
@@ -1522,8 +1566,8 @@ new project directory.")
          ("C-c f R" . consult-recent-file)
          ("C-c f r" . projectile-recentf)
          ("C-c f f" . consult-projectile-find-file)
-         ("M-n" . (lambda () (interactive) (search-forward (car consult--line-history))))
-         ("M-p" . (lambda () (interactive) (search-backward (car consult--line-history)))))
+         ("M-n" . @repeat-search-forward)
+         ("M-p" . @repeat-search-backward))
   :init
   (setq recentf-max-menu-items 100)
   (recentf-mode 1)
@@ -1643,6 +1687,7 @@ new project directory.")
   (magit-get-current-branch)
   :bind
   (("C-M-g" . magit-status)
+   ("C-c g g" . magit-status)
    :map magit-mode-map
    ("s-<return>" . magit-diff-visit-worktree-file)
    ("C-1" . magit-section-show-level-1)
@@ -1659,6 +1704,8 @@ new project directory.")
    ("`" . magit-process-buffer)
    ("f" . avy-goto-word-1)
    ("x" . magit-discard)
+   ("M-n" . @repeat-search-forward)
+   ("M-p" . @repeat-search-backward)
    :map magit-status-mode-map
    ("C-j" . magit-section-forward)
    ("C-k" . magit-section-backward)
@@ -2256,12 +2303,22 @@ This need for correct highlighting of incorrect spell-fu faces."
   ;; React
   (add-to-list 'compilation-error-regexp-alist '("[[:blank:]]*\\([/_\\.[:alnum:]-]+\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\) - error.*$" 1 2 3))
   ;; Angular
-  (add-to-list 'compilation-error-regexp-alist '("^Error: \\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3))
+  (add-to-list 'compilation-error-regexp-alist '("^Error: \\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)$" 1 2 3))
+
+  ;; vue
+  ;; (add-to-list 'compilation-error-regexp-alist '(""FILE[[:blank:]]*\\(.*\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\)"" 1 2 3))
+  (add-to-list 'compilation-error-regexp-alist '("FILE[[:blank:]]*\\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3))
+
 
   ;; Flutter
   ;; (add-to-list 'compilation-error-regexp-alist '("[[:blank:]]*\\([/_\\.[:alnum:]-]+\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\): Error.*$"))
   (add-to-list 'compilation-error-regexp-alist 'dart-analyze)
   (add-to-list 'compilation-error-regexp-alist-alist '(dart-analyze "\\([^ ]*\\.dart\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3)))
+
+(require 'ansi-color)
+(defun colorize-compilation-buffer ()
+  (ansi-color-apply-on-region compilation-filter-start (point-max)))
+(add-hook 'compilation-filter-hook 'colorize-compilation-buffer)
 
 (use-package compile
   :defer t
@@ -2537,9 +2594,7 @@ This need for correct highlighting of incorrect spell-fu faces."
   :defer t)
 
 (use-package dockerfile-mode
-  :defer t
-  :config
-  (add-hook 'compilation-filter-hook #'my-remove-cr -90))
+  :defer t)
 
 (use-package docker
   :defer t
@@ -2997,11 +3052,11 @@ This need for correct highlighting of incorrect spell-fu faces."
   :bind
   (
    ("C-c n p" . orgnote-publish-file)
+   ("C-c n F" . orgnote-force-sync)
+   ("C-c n S" . orgnote-sync)
    :map org-mode-map
    ("C-c n P" . orgnote-publish-all)
-   ("C-c n L" . orgnote-load)
-   ("C-c n F" . orgnote-force-sync)
-   ("C-c n S" . orgnote-sync))
+   ("C-c n L" . orgnote-load))
   :custom
   (orgnote-debug-p t)
   (orgnote-execution-script "node /Users/darkawower/projects/pet/orgnote/orgnote-cli/dist/index.js"))
@@ -3191,6 +3246,11 @@ This need for correct highlighting of incorrect spell-fu faces."
                (not (get-buffer-window buf 'visible)))
       ;; kill buffer
       (kill-buffer buf))))
+
+(use-package rotate
+  :bind (("C-c w R" . rotate-layout)
+         ("C-c w r" . rotate-window))
+  :defer t)
 
 (use-package tramp
   :ensure nil
