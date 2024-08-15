@@ -555,6 +555,8 @@ This is a variadic `cl-pushnew'."
    '("<escape>" . ignore))
 
   (meow-define-keys 'motion
+    '("[" . meow-beginning-of-thing)
+    '("]" . meow-end-of-thing)
     '("\\m" . @toggle-maximize-buffer)
     '("\\q" . meow-quit))
 
@@ -564,6 +566,7 @@ This is a variadic `cl-pushnew'."
     '("\\q" . meow-quit)
     '("z m" . @fold-close)
     '("z R" . @fold-open-all)
+    '("z z" . recenter)
     '("z r" . @fold-open)
     '("z A" . @fold-toggle-all)
     '("z a" . @fold-toggle)
@@ -572,7 +575,7 @@ This is a variadic `cl-pushnew'."
     '("z k" . @fold-previous)))
 
 (defun @meow-thing-register ()
-  (meow-thing-register 'whitespace '(regexp " " " ") '(regexp " " " "))
+  (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n ") '(regexp " \\|\n " " \\|\n "))
   (add-to-list 'meow-char-thing-table '(?w . whitespace))
 
   (add-to-list 'meow-char-thing-table '(?\" . quoted))
@@ -628,9 +631,16 @@ This is a variadic `cl-pushnew'."
   (global-set-key (kbd "s-w") '+workspace/close-window-or-workspace)
   (meow-global-mode 1))
 
+(use-package meow-vterm
+  :ensure (meow-vterm :type git :host github :repo "accelbread/meow-vterm")
+  :after vterm
+  :config
+  (setq vterm-keymap-exceptions '("C-c"))
+  (meow-vterm-enable))
+
 (use-package avy
   :defer t
-  :bind (("s-r" . (lambda () (interactive) (set-mark-command nil) (call-interactively 'avy-goto-char)))
+  :bind (("s-r" . (lambda () (interactive) (set-mark-command nil) (call-interactively 'avy-goto-char) (right-char 1)))
          ("C-c d l" . avy-kill-whole-line)
          :map meow-normal-state-keymap
          ("f" . avy-goto-word-1)
@@ -682,8 +692,8 @@ This is a variadic `cl-pushnew'."
   (bm-face ((t (:foreground ,\@m-color-secondary :background unspecified))))
   :custom
   (bm-in-lifo-order t)
-  :bind (("C-M-n" . bm-next)
-         ("C-M-p" . bm-previous)
+  :bind (("M-s-n" . bm-next)
+         ("M-s-p" . bm-previous)
          ("s-b" . bm-toggle)))
 
 (defun @reset-nw-background ()
@@ -923,6 +933,14 @@ This is a variadic `cl-pushnew'."
 
 (global-set-key (kbd "C-c +") 'narrow-to-region)
 (global-set-key (kbd "C-c -") 'widen)
+(global-set-key (kbd "C-c q") 'kill-current-buffer)
+
+
+;; Minimap keybindings
+(define-key minibuffer-local-map (kbd "C-j") 'next-history-element)
+(define-key minibuffer-local-map (kbd "C-k") 'previous-history-element)
+(define-key read--expression-map (kbd "C-j") 'next-history-element)
+(define-key read--expression-map (kbd "C-k") 'previous-history-element)
 
 
 
@@ -960,13 +978,18 @@ This is a variadic `cl-pushnew'."
 (use-package origami
   :hook ((org-mode
           dart-mode
-          web-mode
-          typescript-mode
           yaml-mode
+          js-ts-mode
+          yaml-ts-mode
           python-mode
+          python-ts-mode
           html-mode
+          scss-mode
           ng2-html-mode
-          emacs-lisp-mode) . origami-mode)
+          emacs-lisp-mode
+          typescript-ts-mode
+          go-ts-mode
+          python-ts-mode) . origami-mode)
   :custom
   (origami-fold-replacement "{...}"))
 
@@ -998,14 +1021,9 @@ This is a variadic `cl-pushnew'."
   ;; (smartparens-global-mode t)
   (show-smartparens-global-mode t))
 
-(use-package wrap-region
-  :config
-  (wrap-region-mode))
-
-(use-package embrace
-  :bind (("C-c e a" . embrace-add)
-         ("C-c e d" . embrace-delete)
-         ("C-c e c" . embrace-change)))
+(use-package surround
+  :ensure t
+  :bind-keymap ("M-'" . surround-keymap))
 
 (use-package turbo-log
   :defer t
@@ -1871,6 +1889,7 @@ new project directory.")
         '("~/apps/pure-emacs/templates/common"
           "~/apps/pure-emacs/templates/readme"
           "~/apps/pure-emacs/templates/org-mode"
+          "~/apps/pure-emacs/templates/web-mode"
           "~/apps/pure-emacs/templates/emacs-lisp"
           "~/apps/pure-emacs/templates/golang")))
 
@@ -1905,54 +1924,221 @@ new project directory.")
   (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
   (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode))
 
-(use-package tree-sitter-langs
-  :after spell-fu)
+(defun @setup-typescript-highlights ()
+  "Setup TypeScript highlights via treesit."
+  (interactive)
 
-(defun init-tree-sitter-hl-mode ()
-  "Function for init tree-sitter-hl-mode in correct order.
+  (message "SETUP TS MODE")
 
-This need for correct highlighting of incorrect spell-fu faces."
-  (tree-sitter-hl-mode -1)
-  (my-set-spellfu-faces)
-  (tree-sitter-hl-mode)
-  (codemetrics-mode))
+  (setq typescript--treesit-settings
+        (treesit-font-lock-rules
+         :language 'typescript
+         :feature 'decorator-identifier
+         :override t
+         '((decorator (call_expression function: (identifier) @font-lock-number-face)))
 
-(use-package tree-sitter
-  :after (tree-sitter-langs)
-  :hook ((go-mode
-          typescript-mode
-          css-mode
-          typescript-tsx-mode
-          html-mode
-          scss-mode
-          ng2-mode
+
+         :language 'typescript
+         :feature 'decorator-identifier
+         :override t
+         '((decorator (identifier) @font-lock-number-face))
+
+
+         :language 'typescript
+         :feature 'named-import
+         :override t
+         '((import_specifier) @font-lock-number-face)
+
+         :language 'typescript
+         :feature 'this
+         :override t
+         '((member_expression object: (this) @font-lock-builtin-face))
+
+         :language 'typescript
+         :feature 'predefined
+         :override t
+         '((predefined_type) @font-lock-builtin-face)
+
+         :language 'typescript
+         :feature 'property
+         :override t
+         '((object (pair key: (property_identifier) @font-lock-object-key-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (string) @italic-string-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (true) @italic-string-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (false) @italic-builtin-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (true) @italic-builtin-face)))
+
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (null) @italic-builtin-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (undefined) @italic-builtin-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (number) @italic-builtin-face)))
+
+         :language 'typescript
+         :feature 'object-values
+         :override t
+         '((object (pair key: (property_identifier) value: (identifier) @italic)))
+
+
+         ;; :language 'typescript
+         ;; :feature 'class-property
+         ;; :override t
+         ;; '((accessibility_modifier) name: (property_identifier) @font-lock-variable-name-face)
+         ))
+
+  (setq-local treesit-font-lock-settings (append treesit-font-lock-settings typescript--treesit-settings))
+  ;; (setq-local treesit-font-lock-settings typescript--treesit-settings)
+  (setq-local treesit-font-lock-rules typescript--treesit-settings)
+  (setq-local treesit-font-lock-feature-list
+              '((comment declaration identifier class-property)
+                (keyword string escape-sequence named-import decorator-identifier type-annotation predefined_type decorator)
+                (constant expression identifier number pattern property predefined this)
+                (operator function bracket delimiter object-values)))
+
+  (treesit-major-mode-setup))
+
+(use-package combobulate
+  :after treesit
+  :ensure (:host github :repo "mickeynp/combobulate")
+  :preface
+  ;; You can customize Combobulate's key prefix here.
+  ;; Note that you may have to restart Emacs for this to take effect!
+  (setq combobulate-key-prefix "C-c o")
+  :hook
+  ((python-ts-mode . combobulate-mode)
+   (js-ts-mode . combobulate-mode)
+   (html-ts-mode . combobulate-mode)
+   (css-ts-mode . combobulate-mode)
+   (yaml-ts-mode . combobulate-mode)
+   (typescript-ts-mode . combobulate-mode)
+   (json-ts-mode . combobulate-mode)
+   (tsx-ts-mode . combobulate-mode))
+  ;; Amend this to the directory where you keep Combobulate's source
+  ;; code.
+  )
+
+(use-package treesit                    ;
+  :ensure nil
+  :hook
+  (go-ts-mode . (lambda () (setq-local tab-width 2)))
+  :custom
+  (go-ts-mode-indent-offset 2)
+  :config
+  (setq treesit-language-source-alist
+      '((go "https://github.com/tree-sitter/tree-sitter-go")
+        (gomod "https://github.com/camdencheek/tree-sitter-go-mod")))
+  (add-hook 'typescript-ts-mode-hook #'@setup-typescript-highlights)
+  (setq treesit-font-lock-level 4))
+
+(use-package treesit-auto
+  :config
+  (setq treesit-auto-install 'prompt)
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
+
+(defun @treesit-fold-init ()
+  "Init ts-fold."
+  (interactive)
+  (when (and (treesit-available-p)
+             (member major-mode '(ng2-ts-mode
+                                  typescript-mode
+                                  js-mode
+                                  python-mode
+                                  html-mode
+                                  json-mode
+                                  go-mode
+                                  scss-mode
+                                  css-mode
+                                  typescript-ts-mode
+                                  go-ts-mode
+                                  bash-ts-mode
+                                  python-ts-mode
+                                  json-ts-mode
+                                  html-ts-mode
+                                  scss-ts-mode
+                                  css-ts-mode
+                                  bash-mode)))
+    (treesit-fold-mode 1)))
+
+(use-package treesit-fold
+  :ensure (treesit-fold :type git :host github :repo "abougouffa/treesit-fold")
+  :hook ((web-mode
           ng2-html-mode
+          ng2-ts-mode
+          typescript-mode
           js-mode
           python-mode
-          rust-mode
-          ng2-ts-mode
-          ng2-html-mode) . init-tree-sitter-hl-mode)
+          html-mode
+          json-mode
+          go-mode
+          bash-mode
+          css-mode
+          scss-mode
+          go-ts-mode
+          typescript-ts-mode) . @treesit-fold-init)
   :config
-  (push '(ng2-html-mode . html) tree-sitter-major-mode-language-alist)
-  ;; (push '(web-mode . html) tree-sitter-major-mode-language-alist)
-  (push '(ng2-ts-mode . typescript) tree-sitter-major-mode-language-alist)
-  (push '(scss-mode . css) tree-sitter-major-mode-language-alist)
-  (push '(scss-mode . typescript) tree-sitter-major-mode-language-alist)
+  (add-to-list 'treesit-fold-range-alist '(ng2-ts-mode . ((export_clause . ts-fold-range-seq)
+                                                          (statement_block . treesit-fold-range-seq)
+                                                          (comment . treesit-fold-range-c-like-comment))) t)
 
-  ;; (push '(html-ts-mode . ng2-html-mode) treesit-auto-fallback-alist)
+  (add-to-list 'treesit-fold-range-alist '(web-mode . (html-mode
+                                                       (element . treesit-fold-range-html)
+                                                       (comment treesit-fold-range-seq 1 -1))))
 
-  ;; TODO: remove, 
-  (push '(typescript-ts-mode . typescript) tree-sitter-major-mode-language-alist)
-  (push '(go-ts-mode . go) tree-sitter-major-mode-language-alist)
-  (push '(python-ts-mode . python) tree-sitter-major-mode-language-alist)
-  (push '(css-ts-mode . css) tree-sitter-major-mode-language-alist)
-  (push '(html-ts-mode . ng2-html) tree-sitter-major-mode-language-alist)
+  (add-to-list 'treesit-fold-range-alist '(ng2-html-mode . (html-mode
+                                                            (element . treesit-fold-range-html)
+                                                            (comment treesit-fold-range-seq 1 -1))))
+  (add-to-list 'treesit-fold-range-alist '(scss-mode . ((keyframe_block_list . ts-fold-range-seq)
+                                                        (block . treesit-fold-range-seq)
+                                                        (comment . treesit-fold-range-c-like-comment))) t)
 
-  (tree-sitter-require 'tsx)
-  (add-to-list 'tree-sitter-major-mode-language-alist '(typescript-tsx-mode . tsx)))
 
-(use-package tree-edit
-  :defer t)
+  (add-to-list 'treesit-fold-range-alist '(typescript-ts-mode . ((export_clause . ts-fold-range-seq)
+                                                                 (statement_block . treesit-fold-range-seq)
+                                                                 (comment . treesit-fold-range-c-like-comment))))
+
+  (add-to-list 'treesit-fold-range-alist `(typescript-ts-mode . ,(treesit-fold-parsers-typescript)))
+  (add-to-list 'treesit-fold-range-alist `(go-ts-mode . ,(treesit-fold-parsers-go)))
+  ;; (add-to-list 'treesit-fold-range-alist '(go-ts-mode . ts-fold-summary-go))
+
+  ;; TODO: DOESN'T WORK for scss, needs another rules (check it later for custom pareser)
+  (add-to-list 'treesit-fold-range-alist '(scss-mode . (css-mode
+                                                        (keyframe_block_list . treesit-fold-range-seq)
+                                                        (block . treesit-fold-range-seq)
+                                                        (comment . treesit-fold-range-c-like-comment)))))
+
+
+;; TODO: check changes for correct mode cast
+;; (add-to-list 'treesit-fold-foldable-node-alist '(ng2-ts-mode comment statement_block export_clause))
+;; (add-to-list 'treesit-fold-foldable-node-alist '(web-mode comment element))
+;; (add-to-list 'treesit-fold-foldable-node-alist '(scss-mode comment block keyframe_block_list))
+;; (add-to-list 'treesit-fold-foldable-node-alist '(ng2-html-mode comment element)))
 
 (use-package corfu
   :defer 2
@@ -2034,27 +2220,6 @@ This need for correct highlighting of incorrect spell-fu faces."
 (custom-set-faces
  `(show-paren-mismatch ((t (:foreground ,\@m-color-secondary)))))
 
-(use-package lsp-sonarlint
-  :ensure (:files ("*.el" "languages" "languages/*/*.el" "server" "server/*"))
-  :after lsp-mode
-  :config
-  (setq lsp-sonarlint-server-path (expand-file-name "sonarlint-language-server.jar" (concat user-emacs-directory "/elpaca/builds/lsp-sonarlint/server")))
-  (add-to-list 'lsp-sonarlint-modes-enabled 'ng2-ts-mode)
-  (add-to-list 'lsp-sonarlint-modes-enabled 'ng2-html-mode)
-  (add-to-list 'lsp-sonarlint-modes-enabled 'ng2-mode)
-  (require 'lsp-sonarlint-go)
-  (setq lsp-sonarlint-go-enabled t)
-
-  (require 'lsp-sonarlint-html)
-  (setq lsp-sonarlint-html-enabled t)
-
-  (require 'lsp-sonarlint-javascript)
-  (setq lsp-sonarlint-javascript-enabled t)
-
-  (require 'lsp-sonarlint-typescript)
-  (setq lsp-sonarlint-typescript-enabled t)
-  (setq lsp-sonarlint-ng2-ts-enabled t))
-
 (defun @lsp/uninstall-server (dir)
   "Delete a LSP server from `lsp-server-install-dir'."
   (interactive
@@ -2066,7 +2231,7 @@ This need for correct highlighting of incorrect spell-fu faces."
 
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
-  :after (flycheck lsp-sonarlint)
+  :after (flycheck)
   :hook
   ((clojure-mode
     scss-mode
@@ -2096,11 +2261,11 @@ This need for correct highlighting of incorrect spell-fu faces."
    ("C-c g i" . p-goto-implementation)
    ("C-c l a" . lsp-execute-code-action)
    ("C-c i m" . lsp-ui-imenu)
-   ("C-c l r" . lsp-find-references)
+   ("C-c l f" . lsp-find-references)
    ("C-c l w" . lsp-workspace-restart)
    ("C-c r l" . lsp)
    ("C-c l a" . lsp-execute-code-action)
-   ("C-c c r" . lsp-rename)
+   ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
    ("gd" . @find-definition)
    ("\\l" . lsp-execute-code-action))
@@ -2112,6 +2277,7 @@ This need for correct highlighting of incorrect spell-fu faces."
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
+  (lsp-keymap-prefix "C-c l")
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
   (lsp-completion-provider :capf)
@@ -2166,7 +2332,9 @@ This need for correct highlighting of incorrect spell-fu faces."
   (set-face-foreground 'lsp-face-highlight-read @m-color-secondary)
   (set-face-foreground 'lsp-face-highlight-textual @m-color-secondary)
 
-
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.bun\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.npm\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.pnpm-store\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\venv\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\.cache\\'")
@@ -2304,6 +2472,12 @@ This need for correct highlighting of incorrect spell-fu faces."
   (add-to-list 'compilation-error-regexp-alist '("[[:blank:]]*\\([/_\\.[:alnum:]-]+\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\) - error.*$" 1 2 3))
   ;; Angular
   (add-to-list 'compilation-error-regexp-alist '("^Error: \\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)$" 1 2 3))
+  ;; Angular vite
+  (add-to-list 'compilation-error-regexp-alist '("\\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3))
+
+  ;; TSC
+  ;; [tsl] ERROR in /Users/darkawower/projects/pet/orgnote/orgnote-cli/src/commands/files-api.ts(1,46)
+  (add-to-list 'compilation-error-regexp-alist '("\\([_[:alnum:]-/.]*\\)(\\([0-9]+\\),\\([0-9]+\\))" 1 2 3))
 
   ;; vue
   ;; (add-to-list 'compilation-error-regexp-alist '(""FILE[[:blank:]]*\\(.*\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\)"" 1 2 3))
@@ -2344,11 +2518,6 @@ This need for correct highlighting of incorrect spell-fu faces."
           (inhibit-same-window . nil))
         display-buffer-alist)
   (@setup-compilation-errors))
-
-(use-package codemetrics
-  :hook (typescript-mode . codemetrics-mode)
-  :ensure (:host github :repo "jcs-elpa/codemetrics")
-  :defer t)
 
 (use-package dape
   :defer 2
@@ -2410,6 +2579,7 @@ This need for correct highlighting of incorrect spell-fu faces."
   :defer t)
 
 (use-package cider
+  :hook (clojure-mode . cider-mode)
   :defer t)
 
 (setenv "TSSERVER_LOG_FILE" "/tmp/tsserver.log")
@@ -2487,11 +2657,16 @@ This need for correct highlighting of incorrect spell-fu faces."
 
 (use-package python
   :defer t
-  :bind (("C-c r p" . @open-ipython-repl-here))
+  :bind (("C-c r p" . @open-ipython-repl-here)
+         :map inferior-python-mode-map
+         ("C-k" . comint-previous-input)
+         ("C-j" . comint-next-input))
   :config
-  
-  (setq python-shell-interpreter "ipython"
-        python-interpreter "python3"
+  (defun python-comint-filter (output)
+    (replace-regexp-in-string "__PYTHON_EL_eval.+\n" "" output))
+  (add-to-list 'comint-preoutput-filter-functions #'python-comint-filter)
+  (setq python-shell-interpreter "ipython" python-shell-interpreter-args "  -i ")
+  (setq python-interpreter "python3"
         python-shell-interpreter-args "--simple-prompt -i"))
 
 (use-package python-mode
@@ -2518,6 +2693,9 @@ This need for correct highlighting of incorrect spell-fu faces."
   (setq lsp-pyright-use-library-code-for-types t)
   ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
   (setq lsp-pyright-diagnostic-mode "workspace"))
+
+(use-package poetry
+ :ensure t)
 
 (use-package web-mode
   :defer t
@@ -2547,7 +2725,11 @@ This need for correct highlighting of incorrect spell-fu faces."
 
 (use-package emmet-mode
   :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode))
-  :bind (("s-e" . emmet-expand-line))
+  :bind (("s-e" . emmet-expand-line)
+         :map emmet-mode-keymap
+         ("C-j" . nil))
+  :config
+  (define-key emmet-mode-keymap (kbd "C-j") nil)
   :defer t)
 
 (use-package css-mode
@@ -2568,6 +2750,8 @@ This need for correct highlighting of incorrect spell-fu faces."
 
 (use-package json-mode
   :defer 5
+  :hook ((json-mode . format-all-mode)
+         (json-mode . json-ts-mode))
   :config
   (setq js-indent-level 2))
 
@@ -2815,6 +2999,8 @@ This need for correct highlighting of incorrect spell-fu faces."
                      (+org/dwim-at-point))))
         ("C-c h ]" . org-next-visible-heading)
         ("C-c h [" . org-previous-visible-heading)
+        :map meow-normal-state-keymap
+        ("\\o" . org-mode)
         :map org-read-date-minibuffer-local-map
         ("C-s" . org-goto-calendar)
         :map calendar-mode-map
