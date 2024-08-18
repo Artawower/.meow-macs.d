@@ -274,17 +274,48 @@ Otherwise call `kill-word'"
         (kill-region pos (point)))
     (backward-kill-word 1)))
 #+END_SRC
-** Bounce to paren
+** KILL Navigation
 #+BEGIN_SRC emacs-lisp
+(defun switch-to-first-matching-buffer (regex)
+  (switch-to-buffer (car (remove-if-not (apply-partially #'string-match-p regex)
+                                        (mapcar #'buffer-name (buffer-list))))))
+#+END_SRC
+
+#+RESULTS:
+: switch-to-first-matching-buffer
+** Jump tag
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @jump-to-matching-tag ()
+  "Jump to the matching opening/closing tag."
+  (interactive)
+  (if (looking-at "<") 
+      (sgml-skip-tag-backward 1)
+    (sgml-skip-tag-forward 1)))
+#+END_SRC
+** Bounce to paren
+evil like bounce to paren
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @forward-or-backward-sexp (&optional arg)
+ "Go to the matching parenthesis if on parenthesis, otherwise insert %.
+vi style of % jumping to matching brace."
+  (interactive "p")
+  (cond ((looking-at "\\s\(") (forward-list 1) (backward-char 1))
+        ((looking-at "\\s\)") (forward-char 1) (backward-list 1))
+        (t (self-insert-command (or arg 1)))))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :results silent
 (defun @bounce-paren ()
   "Will bounce between matching parens just like % in vi"
   (interactive)
   (let ((prev-char (char-to-string (preceding-char)))
         (next-char (char-to-string (following-char))))
-    (cond ((string-match "[[{(<]" next-char) (forward-sexp 1))
-          ((string-match "[\]})>]" prev-char) (backward-sexp 1))
-          ((eq major-mode 'web-mode) (web-mode-navigate))
-          ((eq major-mode 'html-mode) (web-mode-navigate))
+    (cond ((member (following-char) '(?\) ?\] ?\} ?\>)) (@forward-or-backward-sexp))
+          ((string-match "[[{(<]" next-char) (@forward-or-backward-sexp))
+          ((string-match "[\]})>]" prev-char) (@forward-or-backward-sexp))
+          ((eq major-mode 'web-mode) (@jump-to-matching-tag))
+          ((eq major-mode 'html-mode) (@jump-to-matching-tag))
+          ((eq major-mode 'ng2-html-mode) (@jump-to-matching-tag))
           (t (error "%s" "Not on a paren, brace, or bracket")))))
 #+END_SRC
 
@@ -502,7 +533,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((equal major-mode 'org-mode) (+org/close-all-folds))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-all-nodes))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-close-all))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-close-all))
         (t (message "No folding mode found."))))
 
 (defun @fold-close ()
@@ -511,7 +542,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((equal major-mode 'org-mode) (+org/close-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-close-node))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-close))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-close))
         (t (message "No folding mode found."))))
 
 
@@ -521,7 +552,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((equal major-mode 'org-mode) (+org/open-all-folds))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-open-all-nodes))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-open-all))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-open-all))
         (t (evil-open-folds))))
 
 (defun @fold-open ()
@@ -530,7 +561,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((equal major-mode 'org-mode) (+org/open-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-open-node))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-open))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-open))
         (t (message "No folding mode found."))))
 
 (defun @fold-toggle-all ()
@@ -539,7 +570,7 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
         ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-all-nodes))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-toggle-all))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-toggle-all))
         (t (message "No folding mode found."))))
 
 (defun @fold-toggle ()
@@ -550,7 +581,7 @@ This is a variadic `cl-pushnew'."
     (end-of-line)
     (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
           ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-node))
-          ((bound-and-true-p ts-fold-mode) (ts-fold-toggle))
+          ((bound-and-true-p treesit-fold-mode) (treesit-fold-toggle))
           (t (message "No folding mode found.")))))
 
 (defun @fold-next ()
@@ -558,7 +589,7 @@ This is a variadic `cl-pushnew'."
 
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-next-fold))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-next))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-next))
         (t (message "No folding mode found."))))
 
 (defun @fold-previous ()
@@ -566,7 +597,7 @@ This is a variadic `cl-pushnew'."
 
   (interactive)
   (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-previous-fold))
-        ((bound-and-true-p ts-fold-mode) (ts-fold-previous))
+        ((bound-and-true-p treesit-fold-mode) (treesit-fold-previous))
         (t (message "No folding mode found."))))
 #+END_SRC
 ** Doom libs (honestly spizjeno)
@@ -612,6 +643,14 @@ This is a variadic `cl-pushnew'."
 #+END_SRC
 * Navigation
 ** meow Modal editing.
+*** Meow functions
+**** Meow back till
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @meow-backward-till (n ch)
+  "Move backward till the first character that is not in the list of characters."
+  (interactive "p\ncTill:")
+  (meow-till -1 ch))
+#+END_SRC
 *** Keybindings
 #+BEGIN_SRC emacs-lisp
 (defun meow-setup ()
@@ -624,7 +663,7 @@ This is a variadic `cl-pushnew'."
    ;; C-c C-j C-/k will run the original command in MOTION state.
    '("j" . "H-j")
    '("k" . "H-k")
-   ;; Use C-c C-`C-0-9) for digit arguments.
+   ;; Use C-c C-`C-0-9 for digit arguments.
    '("1" . meow-digit-argument)
    '("2" . meow-digit-argument)
    '("3" . meow-digit-argument)
@@ -635,9 +674,13 @@ This is a variadic `cl-pushnew'."
    '("8" . meow-digit-argument)
    '("9" . meow-digit-argument)
    '("0" . meow-digit-argument)
-   '("/" . meow-keypad-describe-key)
-   '("?" . meow-cheatsheet))
+   '("?" . meow-keypad-describe-key))
   (meow-normal-define-key
+   '("*" . (lambda () (interactive)
+             (call-interactively 'meow-mark-symbol)
+             (call-interactively 'meow-search)
+             
+             ))
    '("0" . meow-expand-0)
    '("9" . meow-expand-9)
    '("8" . meow-expand-8)
@@ -688,6 +731,7 @@ This is a variadic `cl-pushnew'."
    '("R" . meow-swap-grab)
    '("s" . meow-kill)
    '("t" . meow-till)
+   '("T" . @meow-backward-till)
    '("u" . meow-undo)
    '("U" . meow-undo-in-selection)
    '("v" . meow-visit)
@@ -742,7 +786,7 @@ This is a variadic `cl-pushnew'."
  #+END_SRC
 
  #+RESULTS:
- : (round (#[0 \303\301\300\302#\207 [) ( t meow--thing-pair-function] 4] . #[0 \303\301\300\302#\207 [) ( nil meow--thing-pair-function] 4]) square (#[0 \303\301\300\302#\207 [] \[ t meow--thing-pair-function] 4] . #[0 \303\301\300\302#\207 [] \[ nil meow--thing-pair-function] 4]) curly (#[0 \303\301\300\302#\207 [} { t meow--thing-pair-function] 4] . #[0 \303\301\300\302#\207 [} { nil meow--thing-pair-function] 4]) paragraph (#[0 \301\300!\207 [paragraph bounds-of-thing-at-point] 2] . #[0 \301\300!\207 [paragraph bounds-of-thing-at-point] 2]) sentence (#[0 \301\300!\207 [sentence bounds-of-thing-at-point] 2] . #[0 \301\300!\207 [sentence bounds-of-thing-at-point] 2]) buffer (#[0 \301\300!\207 [buffer bounds-of-thing-at-point] 2] . #[0 \301\300!\207 [buffer bounds-of-thing-at-point] 2]) defun (#[0 \301\300!\207 [defun bounds-of-thing-at-point] 2] . #[0 \301\300!\207 [defun bounds-of-thing-at-point] 2]) symbol (meow--inner-of-symbol . meow--bounds-of-symbol) string (meow--inner-of-string . meow--bounds-of-string) window (meow--inner-of-window . meow--inner-of-window) line (meow--inner-of-line . #[0 \301\300!\207 [line bounds-of-thing-at-point] 2]) visual-line (meow--inner-of-visual-line . meow--inner-of-visual-line) whitespace (#[0 \303\301\300\302#\207 [    t meow--thing-regexp-function] 4] . #[0 \303\301\300\302#\207 [    nil meow--thing-regexp-function] 4]) quoted (#[0 \303\301\300\302#\207 ["\|'\|` "\|'\|` t meow--thing-regexp-function] 4] . #[0 \303\301\300\302#\207 ["\|'\|` "\|'\|` nil meow--thing-regexp-function] 4]) angle (#[0 \303\301\300\302#\207 [> < t meow--thing-regexp-function] 4] . #[0 \303\301\300\302#\207 [> < nil meow--thing-regexp-function] 4]))
+ : @meow-thing-register
 
 *** Custom states
 #+BEGIN_SRC emacs-lisp
@@ -1171,6 +1215,7 @@ Override function for auto-dark mode for applying function for nano theme changi
 (global-set-key (kbd "C-S-k") 'shrink-window)
 (global-set-key (kbd "C-c .") 'find-file)
 (global-set-key (kbd "C-c w s") 'split-window-vertically)
+(global-set-key (kbd "C-c f D") '@delete-this-file)
 (global-set-key (kbd "C-c w v") 'split-window-horizontally)
 (global-set-key (kbd "C-c o l") '@open-messages)
 (global-set-key (kbd "C-c o M") '@open-clear-messages)
@@ -1551,13 +1596,16 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
     ;; (save-window-excursion
       (vterm-toggle-show)
       (switch-to-first-matching-buffer "vterm")
-      (evil-insert 0)
       (vterm-send-C-c)
       (vterm-send-string (concat "cd " file-dir))
       (vterm-send-return)
       ;; )
-    (evil-window-down 1)))
+    ))
 #+END_SRC
+
+#+RESULTS:
+: @vterm-change-current-directory-to-active-buffer-pwd
+
 *** Open vterm at bottom position
 #+NAME: vterm-open-bottom-config
 #+BEGIN_SRC emacs-lisp  :tangle no :exports no
@@ -1582,6 +1630,7 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
   :defer t
   :hook (vterm-mode . (lambda () (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
   :bind (("C-c o t" . vterm-toggle)
+         ("C-c o T" . @vterm-change-current-directory-to-active-buffer-pwd)
          ("C-c o v" . vterm)
          ("C-c o V" . @vterm-open-here)
          ("C-c o L" . @vterm-open-last)
@@ -1695,6 +1744,7 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
    ("C-c pS" . +workspace/save)
    ("C-c ps" . persp-save-state-to-file)
    ("C-c pL" . +workspace/load)
+   ("C-c ki" . @persp-kill-other-buffers)
    ("C-c pl" . persp-load-state-from-file)
    ("C-c pd" . +workspace/delete)
    ("C-c <tab>d" . +workspace/delete)
@@ -1926,6 +1976,8 @@ new project directory.")
 (elpaca-wait)
 #+END_SRC
 
+#+RESULTS:
+
 
 ** Ibuffer. Manage buffers in currenct workspace.
 #+BEGIN_SRC emacs-lisp 
@@ -2067,6 +2119,7 @@ Function for search in buffer depends or visual or normal line
          ("C-c b B" . consult-buffer)
          ("C-c f P" . @open-emacs-config)
          ("C-c f p" . consult-ripgrep)
+         ("C-c /" . consult-ripgrep)
          ("C-c *" . (lambda () (interactive) (consult-ripgrep nil (thing-at-point 'symbol))))
          ("C-c s i" . consult-imenu)
          ("C-c RET" . consult-bookmark)
@@ -2106,7 +2159,7 @@ Function for search in buffer depends or visual or normal line
 #+END_SRC
 
 #+RESULTS:
-: [nil 26184 32062 112693 nil elpaca-process-queues nil nil 999999 nil]
+: [nil 26303 24009 924136 nil elpaca-process-queues nil nil 999999 nil]
 
 *** Consult flycheck
 #+BEGIN_SRC emacs-lisp
@@ -2382,12 +2435,13 @@ Improved styles for git changes
          :map git-timemachine-mode-map
          ("C-k" . git-timemachine-show-previous-revision)
          ("q" . git-timemachine-quit)
+         ("<escape>" . git-timemachine-quit)
          ("Q" . git-timemachine-quit)
          ("C-j" . git-timemachine-show-next-revision)))
 #+END_SRC
 
 #+RESULTS:
-: [nil 26179 53502 86803 nil elpaca-process-queues nil nil 999999 nil]
+: [nil 26306 15148 792559 nil elpaca-process-queues nil nil 999999 nil]
 
 ** Smerge
 #+BEGIN_SRC emacs-lisp 
@@ -2548,7 +2602,7 @@ Another all formtter. Based on prettier and black
          :language 'typescript
          :feature 'property
          :override t
-         '((object (pair key: (property_identifier) @font-lock-object-key-face)))
+         '((object (pair key: (property_identifier) @web-mode-json-key-face)))
 
          :language 'typescript
          :feature 'object-values
@@ -2618,6 +2672,8 @@ Another all formtter. Based on prettier and black
   ;; You can customize Combobulate's key prefix here.
   ;; Note that you may have to restart Emacs for this to take effect!
   (setq combobulate-key-prefix "C-c o")
+  :bind (:map combobulate-key-map
+              ("C-M-t" . nil))
   :hook
   ((python-ts-mode . combobulate-mode)
    (js-ts-mode . combobulate-mode)
@@ -3228,7 +3284,7 @@ By default ~compile-goto-error~ open new window. Its redundant.
   :defer t
   :ensure nil
   :bind
-  (("C-c a c" . projectile-compile-project)
+  (("C-c a c " . projectile-compile-project)
    ("C-c a r" . recompile)
    ("C-c a v" . (lambda ()
                   (interactive)
@@ -3298,7 +3354,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
          ("C-c o n" . outline-toggle-children)
          ("C-c o b" . outline-cycle-buffer)
          ;; TODO: eval buffer or region
-         ("C-c C-c" . eval-buffer))
+         ("C-c C-c c" . eval-buffer))
 
   :config
   (add-hook 'emacs-lisp-mode-hook (lambda () (setq rainbow-delimiters-mode -1))))
@@ -3313,6 +3369,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+END_SRC
 
 #+RESULTS:
+: [nil 26305 61473 477667 nil elpaca-process-queues nil nil 999999 nil]
 *** Formatter. Elisp autofmt
 #+BEGIN_SRC emacs-lisp 
 (use-package elisp-autofmt
