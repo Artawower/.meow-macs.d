@@ -1,6 +1,6 @@
 #+STARTUP: content
 #+DESCRIPTION: Minimalistic emacs.
-
+#+PROPERTY: header-args :results silent
 
 #+TITLE: Emacs config for minimalist.
 
@@ -194,9 +194,12 @@ No littering
 #+BEGIN_SRC emacs-lisp 
 (when (eq system-type 'darwin)
   (setq browse-url-firefox-program nil)
-  (setq browse-url-generic-program "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
-        browse-url-browser-function 'browse-url-generic))
+  (setq browse-url-browser-function 'browse-url-default-macosx-browser))
 #+END_SRC
+
+#+RESULTS:
+: browse-url-default-macosx-browser
+
 ** Disable auto revert
 #+BEGIN_SRC emacs-lisp :results silent
 (setq global-auto-revert-mode nil)
@@ -641,6 +644,20 @@ This is a variadic `cl-pushnew'."
   (interactive)
   (search-backward (car consult--line-history)))
 #+END_SRC
+** Vim like navigation
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @edit-after-eol ()
+  "Edit the current line to the end of the line like A in the VIM."
+  (interactive)
+  (meow-line 1)
+  (meow-append))
+
+(defun @edit-before-bol ()
+  "Edit the current line to the beginning of the line like I in the VIM."
+  (interactive)
+  (meow-join 0)
+  (meow-append))
+#+END_SRC
 * Navigation
 ** meow Modal editing.
 *** Meow functions
@@ -698,8 +715,8 @@ This is a variadic `cl-pushnew'."
    '("." . meow-bounds-of-thing)
    '("[" . meow-beginning-of-thing)
    '("]" . meow-end-of-thing)
-   '("a" . meow-append)
-   '("A" . meow-open-below)
+   '("i" . meow-append)
+   '("o" . meow-open-below)
    '("b" . meow-back-word)
    '("B" . meow-back-symbol)
    '("c" . meow-change)
@@ -713,8 +730,8 @@ This is a variadic `cl-pushnew'."
    '("G" . meow-grab)
    '("h" . meow-left)
    '("H" . meow-left-expand)
-   '("i" . meow-insert)
-   '("I" . meow-open-above)
+   '("a" . meow-insert)
+   '("O" . meow-open-above)
    '("j" . meow-next)
    '("J" . meow-next-expand)
    '("k" . meow-prev)
@@ -723,8 +740,8 @@ This is a variadic `cl-pushnew'."
    '("L" . meow-right-expand)
    '("m" . meow-join)
    '("n" . meow-search)
-   '("o" . meow-block)
-   '("O" . meow-to-block)
+   '("/" . meow-block)
+   '("?" . meow-to-block)
    '("p" . meow-yank)
    '("Q" . meow-goto-line)
    '("r" . meow-replace)
@@ -746,6 +763,8 @@ This is a variadic `cl-pushnew'."
    '("'" . repeat)
    '("=" . meow-indent)
    '(":" . query-replace-regexp)
+   '("A" . @edit-after-eol)
+   '("I" . @edit-before-bol)
    '("<escape>" . ignore))
 
   (meow-define-keys 'motion
@@ -2544,7 +2563,7 @@ Another all formtter. Based on prettier and black
          ("C-k" . flycheck-previous-error)
          ("C-c f ]" . flycheck-next-error)
          ("C-c f [" . flycheck-previous-error)
-         ("C-c f l" . flycheck-list-errors))
+         ("C-c f e" . flycheck-list-errors))
   :init
   (global-flycheck-mode)
   :config
@@ -2561,6 +2580,10 @@ Another all formtter. Based on prettier and black
   (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
   (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode))
 #+END_SRC
+
+#+RESULTS:
+: [nil 26306 20414 44768 nil elpaca-process-queues nil nil 999999 nil]
+
 ** Tree Sitter
 *** Treesit colors presets
 #+BEGIN_SRC emacs-lisp :results silent
@@ -2802,6 +2825,18 @@ Another all formtter. Based on prettier and black
 
 #+RESULTS:
 : [nil 26300 26309 151386 nil elpaca-process-queues nil nil 999999 nil]
+*** Treesit imenu
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @typescript-ts-mode-setup ()
+  (setq-local treesit-simple-imenu-settings
+              '(("Function" "\\'function_declaration\\'" nil nil)
+                ("Function" "\\'identifier\\'" nil nil)
+                ("Variable"  "\\'variable_declarator\\'" nil nil)))
+  (treesit-major-mode-setup))
+
+(use-package imenu
+  :ensure nil)
+#+END_SRC
 
 
 
@@ -3284,13 +3319,18 @@ By default ~compile-goto-error~ open new window. Its redundant.
   :defer t
   :ensure nil
   :bind
-  (("C-c a c " . projectile-compile-project)
+  (("C-c a c" . projectile-compile-project)
+   ("C-c C-c c" . projectile-compile-project)
    ("C-c a r" . recompile)
+   ("C-c C-c r" . recompile)
    ("C-c a v" . (lambda ()
                   (interactive)
                   (compilation-display-error)
                   (+select-window-by-name "*compilation.*")))
-   :map compilation-mode-map
+   ("C-c C-c v" . (lambda ()
+                  (interactive)
+                  (compilation-display-error)
+                  (+select-window-by-name "*compilation.*"))):map compilation-mode-map
    ("C-j" . compilation-next-error)
    ("C-k" . compilation-previous-error))
   :config
@@ -3354,7 +3394,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
          ("C-c o n" . outline-toggle-children)
          ("C-c o b" . outline-cycle-buffer)
          ;; TODO: eval buffer or region
-         ("C-c C-c c" . eval-buffer))
+         ("C-c C-c e" . eval-buffer))
 
   :config
   (add-hook 'emacs-lisp-mode-hook (lambda () (setq rainbow-delimiters-mode -1))))
@@ -3369,7 +3409,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+END_SRC
 
 #+RESULTS:
-: [nil 26305 61473 477667 nil elpaca-process-queues nil nil 999999 nil]
+: [nil 26306 16651 670287 nil elpaca-process-queues nil nil 999999 nil]
 *** Formatter. Elisp autofmt
 #+BEGIN_SRC emacs-lisp 
 (use-package elisp-autofmt
