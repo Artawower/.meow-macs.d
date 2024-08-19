@@ -291,9 +291,13 @@ Otherwise call `kill-word'"
 (defun @jump-to-matching-tag ()
   "Jump to the matching opening/closing tag."
   (interactive)
-  (if (looking-at "<") 
-      (sgml-skip-tag-backward 1)
-    (sgml-skip-tag-forward 1)))
+  (let* ((line-text (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+         (bacward-p (string-match-p "</" line-text))
+         (forward-p (string-match-p "<" line-text)))
+
+    (if bacward-p
+        (sgml-skip-tag-backward 1)
+      (sgml-skip-tag-forward 1))))
 #+END_SRC
 ** Bounce to paren
 evil like bounce to paren
@@ -313,13 +317,16 @@ vi style of % jumping to matching brace."
   (interactive)
   (let ((prev-char (char-to-string (preceding-char)))
         (next-char (char-to-string (following-char))))
-    (cond ((member (following-char) '(?\) ?\] ?\} ?\>)) (@forward-or-backward-sexp))
+    (cond ((eq major-mode 'web-mode) (@jump-to-matching-tag))
+          ((eq major-mode 'html-mode) (@jump-to-matching-tag))
+          ((eq major-mode 'html-ts-mode) (@jump-to-matching-tag))
+          ((eq major-mode 'ng2-html-mode) (@jump-to-matching-tag))
+          ((member (following-char) '(?\) ?\] ?\} ?\>)) (@forward-or-backward-sexp))
           ((string-match "[[{(<]" next-char) (@forward-or-backward-sexp))
           ((string-match "[\]})>]" prev-char) (@forward-or-backward-sexp))
-          ((eq major-mode 'web-mode) (@jump-to-matching-tag))
-          ((eq major-mode 'html-mode) (@jump-to-matching-tag))
-          ((eq major-mode 'ng2-html-mode) (@jump-to-matching-tag))
-          (t (error "%s" "Not on a paren, brace, or bracket")))))
+
+          (t (progn (message "%s" "Not on a paren, brace, or bracket")
+                    nil)))))
 #+END_SRC
 
 ** Always open message Messages in the vertical column
@@ -658,6 +665,15 @@ This is a variadic `cl-pushnew'."
   (meow-join 0)
   (meow-append))
 #+END_SRC
+** Meow additional functions
+*** Yank below
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @meow-yank-below ()
+  "Yank below the current line."
+  (interactive)
+  (forward-line)
+  (meow-yank))
+#+END_SRC
 * Navigation
 ** meow Modal editing.
 *** Meow functions
@@ -742,8 +758,8 @@ This is a variadic `cl-pushnew'."
    '("n" . meow-search)
    '("/" . meow-block)
    '("?" . meow-to-block)
-   '("p" . meow-yank)
-   '("Q" . meow-goto-line)
+   '("P" . meow-yank)
+   '("p" . @meow-yank-below)
    '("r" . meow-replace)
    '("R" . meow-swap-grab)
    '("s" . meow-kill)
@@ -752,6 +768,7 @@ This is a variadic `cl-pushnew'."
    '("u" . meow-undo)
    '("U" . meow-undo-in-selection)
    '("v" . meow-visit)
+   '("V" . meow-visual-line)
    '("w" . meow-mark-word)
    '("W" . meow-mark-symbol)
    '("x" . meow-line)
@@ -759,7 +776,7 @@ This is a variadic `cl-pushnew'."
    '("y" . meow-save)
    '("Y" . meow-sync-grab)
    '("gf" . @avy-go-to-definition)
-   '("P" . meow-pop-selection)
+   '("Q" . meow-pop-selection)
    '("'" . repeat)
    '("=" . meow-indent)
    '(":" . query-replace-regexp)
@@ -1221,11 +1238,20 @@ Override function for auto-dark mode for applying function for nano theme changi
 #+BEGIN_SRC emacs-lisp 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 #+END_SRC
+** Buffer colors. Solaire
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package solaire-mode
+  :ensure t
+  :config
+  (solaire-global-mode +1))
+#+END_SRC
 
 * Keybindings
 ** Common keybindings
 #+BEGIN_SRC emacs-lisp
 (define-key global-map (kbd "C-h") (make-sparse-keymap))
+(global-set-key (kbd "s-[") 'forward-word)
+(global-set-key (kbd "s-]") 'backward-word)
 (global-set-key (kbd "C-S-l") 'enlarge-window-horizontally)
 (global-set-key (kbd "C-S-h") 'shrink-window-horizontally)
 (global-set-key (kbd "<C-S-up>") 'shrink-window)
@@ -2294,6 +2320,21 @@ Delete project
   :bind ("C-c C-w" . wgrep-change-to-wgrep-mode)
   :after vertico)
 #+END_SRC
+** Vertico posframe
+#+BEGIN_SRC emacs-lisp
+(use-package vertico-posframe
+  :ensure t
+  :config
+  (setq vertico-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
+  (setq vertico-posframe-min-width 1920)
+  (setq vertico-posframe-parameters
+        '((left-fringe . 8)
+          (right-fringe . 8)))
+  (vertico-posframe-mode 1))
+
+
+#+END_SRC
+
 * GIT
 ** Magit
 Dependencies
