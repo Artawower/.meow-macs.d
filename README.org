@@ -114,7 +114,6 @@ This variables are required for quick start without any errors
 (use-package transient :ensure t)
 #+END_SRC
 
-
 *** Posframe
 #+BEGIN_SRC emacs-lisp
 (use-package posframe
@@ -264,19 +263,6 @@ No littering
 : [nil 26179 20864 37543 nil elpaca-process-queues nil nil 999999 nil]
 
 * Custom functions
-** Kill backword word
-#+BEGIN_SRC emacs-lisp :results silent
-(defun @kill-word-backward ()
-  "If `point' is followed by whitespace kill that.
-Otherwise call `kill-word'"
-  (interactive)
-  (if (looking-back "[ \t\n]")
-      (let ((pos (point)))
-        (re-search-backward "[^ \t\n]" nil t)
-        (forward-char)
-        (kill-region pos (point)))
-    (backward-kill-word 1)))
-#+END_SRC
 ** KILL Navigation
 #+BEGIN_SRC emacs-lisp
 (defun switch-to-first-matching-buffer (regex)
@@ -286,67 +272,6 @@ Otherwise call `kill-word'"
 
 #+RESULTS:
 : switch-to-first-matching-buffer
-** Jump tag
-#+BEGIN_SRC emacs-lisp :results silent
-(defun @jump-to-matching-tag ()
-  "Jump to the matching opening/closing tag."
-  (interactive)
-  (let* ((line-text (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
-         (bacward-p (string-match-p "</" line-text))
-         (forward-p (string-match-p "<" line-text)))
-
-    (if bacward-p
-        (sgml-skip-tag-backward 1)
-      (sgml-skip-tag-forward 1))))
-#+END_SRC
-** Bounce to paren
-evil like bounce to paren
-#+BEGIN_SRC emacs-lisp :results silent
-(defun @forward-or-backward-sexp (&optional arg)
- "Go to the matching parenthesis if on parenthesis, otherwise insert %.
-vi style of % jumping to matching brace."
-  (interactive "p")
-  (cond ((looking-at "\\s\(") (forward-list 1) (backward-char 1))
-        ((looking-at "\\s\)") (forward-char 1) (backward-list 1))
-        (t (self-insert-command (or arg 1)))))
-#+END_SRC
-
-#+BEGIN_SRC emacs-lisp :results silent
-(defun @bounce-paren ()
-  "Will bounce between matching parens just like % in vi"
-  (interactive)
-  (let ((prev-char (char-to-string (preceding-char)))
-        (next-char (char-to-string (following-char))))
-    (cond ((eq major-mode 'web-mode) (@jump-to-matching-tag))
-          ((eq major-mode 'html-mode) (@jump-to-matching-tag))
-          ((eq major-mode 'html-ts-mode) (@jump-to-matching-tag))
-          ((eq major-mode 'ng2-html-mode) (@jump-to-matching-tag))
-          ((member (following-char) '(?\) ?\] ?\} ?\>)) (@forward-or-backward-sexp))
-          ((string-match "[[{(<]" next-char) (@forward-or-backward-sexp))
-          ((string-match "[\]})>]" prev-char) (@forward-or-backward-sexp))
-
-          (t (progn (message "%s" "Not on a paren, brace, or bracket")
-                    nil)))))
-#+END_SRC
-
-** Always open message Messages in the vertical column
-#+BEGIN_SRC emacs-lisp
-(defun @open-messages ()
-  "Open *Messages* buffer."
-  (interactive)
-  (if (one-window-p)
-      (split-window-horizontally))
-  (pop-to-buffer "*Messages*"))
-
-(defun @open-clear-messages ()
-  "Open *Messages* buffer and clear it."
-  (interactive)
-  (if (one-window-p)
-      (split-window-horizontally))
-  (pop-to-buffer "*Messages*")
-  (read-only-mode -1)
-  (erase-buffer))
-#+END_SRC
 ** Remove cr in terminal
 #+BEGIN_SRC emacs-lisp
 (defun my-remove-cr (&optional begin end)
@@ -357,34 +282,6 @@ BEGIN END specifies region, otherwise works on entire buffer."
     (goto-char (or begin (point-min)))
     (while (re-search-forward "^.*\033\\[2K\033\\[1G" end t)
       (replace-match ""))))
-#+END_SRC
-** Delete current file
-#+BEGIN_SRC emacs-lisp 
-(defun @delete-this-file (&optional path force-p)
-  "Delete PATH, kill its buffers and expunge it from vc/magit cache.
-If PATH is not specified, default to the current buffer's file.
-If FORCE-P, delete without confirmation."
-  (interactive
-   (list (buffer-file-name (buffer-base-buffer))
-         current-prefix-arg))
-  (let* ((path (or path (buffer-file-name (buffer-base-buffer))))
-         (short-path (and path (abbreviate-file-name path))))
-    (unless path
-      (user-error "Buffer is not visiting any file"))
-    (unless (file-exists-p path)
-      (error "File doesn't exist: %s" path))
-    (unless (or force-p (y-or-n-p (format "Really delete %S?" short-path)))
-      (user-error "Aborted"))
-    (let ((buf (current-buffer)))
-      (unwind-protect
-          (progn (delete-file path t) t)
-        (if (file-exists-p path)
-            (error "Failed to delete %S" short-path)
-          ;; Ensures that windows displaying this buffer will be switched to
-          ;; real buffers (`doom-real-buffer-p')
-          (doom/kill-this-buffer-in-all-windows buf t)
-          (doom-files--update-refs path)
-          (message "Deleted %S" short-path))))))
 #+END_SRC
 ** Toggle transparency
 #+BEGIN_SRC emacs-lisp
@@ -399,40 +296,6 @@ If FORCE-P, delete without confirmation."
     (progn
       (set-frame-parameter (selected-frame) 'alpha `(,alpha . ,alpha))
       (add-to-list 'default-frame-alist `(alpha . (,alpha . ,alpha))))))
-#+END_SRC
-** Insert TODO attached to current git branch
-Base function
-#+BEGIN_SRC emacs-lisp
-(defun @insert--todo-by-current-git-branch (todo-type)
-  "Insert todo for current git branch."
-  (let* ((branch-name (magit-get-current-branch))
-         (vw (string-match "\\(?1:[A-Za-z0-9]+\/\\)\\(?2:VW-[0-9]+\\)" branch-name))
-         (task-number (match-string 2 branch-name))
-         (todo-msg (or task-number branch-name)))
-    (insert (format "%s: %s " todo-type todo-msg))
-    (comment-line 1)
-    ;; (forward-line 1)
-    (previous-line)
-    (end-of-line)
-    (indent-according-to-mode)
-    (meow-insert)))
-#+END_SRC
-
-#+BEGIN_SRC emacs-lisp
-(defun @insert-todo-by-current-git-branch ()
-  "Insert todo for current git branch."
-  (interactive)
-  (@insert--todo-by-current-git-branch "TODO"))
-
-(defun @insert-debug-by-current-git-branch ()
-  "Insert debug for current git branch."
-  (interactive)
-  (@insert--todo-by-current-git-branch "DEBUG"))
-
-(defun @insert-note-by-current-git-branch ()
-  "Insert note for current git branch."
-  (interactive)
-  (@insert--todo-by-current-git-branch "NOTE"))
 #+END_SRC
 ** Open fodler with emacs config
 TODO: check why it doesn;t work
@@ -459,73 +322,7 @@ TODO: check why it doesn;t work
         (other-window 1)
         (switch-to-buffer (other-buffer))))))
 #+END_SRC
-** LSP. Go to definition
-#+BEGIN_SRC emacs-lisp 
-(defun @find-definition ()
-  "Find lsp definition when lsp exist and enabled, or find evil definition."
-  (interactive)
-  (cond ((bound-and-true-p lsp-bridge-mode) (lsp-bridge-find-def))
-        ((and (bound-and-true-p eglot--managed-mode) eglot--managed-mode) (evil-goto-definition))
-        ((and (bound-and-true-p lsp-mode) (bound-and-true-p lsp-ui-mode) lsp-ui-mode) (lsp-ui-peek-find-definitions))
-        ((and (bound-and-true-p lsp-mode) lsp-mode) (lsp-find-definition))
-        (t (call-interactively 'xref-find-definitions))))
-#+END_SRC
 
-#+RESULTS:
-: @find-definition
-
-** AVY + lsp goto definition
-#+BEGIN_SRC emacs-lisp
-(defun @avy-go-to-definition ()
-  (interactive)
-  (call-interactively 'avy-goto-word-1)
-  (@find-definition))
-#+END_SRC
-
-#+RESULTS:
-: @avy-go-to-definition
-
-** Register copy
-Copy selected text to special register
-#+BEGIN_SRC emacs-lisp
-(defun xah-copy-to-register-1 ()
-  "Copy current line or text selection to register 1.
-See also: `xah-paste-from-register-1', `copy-to-register'.
-
-;;;; Register copy past
-URL `http://xahlee.info/emacs/emacs/elisp_copy-paste_register_1.html'
-Version 2017-01-23"
-  (interactive)
-  (let ($p1 $p2)
-    (if (region-active-p)
-        (progn (setq $p1 (region-beginning))
-               (setq $p2 (region-end)))
-      (progn (setq $p1 (line-beginning-position))
-             (setq $p2 (l(defun xah-paste-from-register-1 ()
-                           "Paste text from register 1.
-See also: `xah-copy-to-register-1', `insert-register'.
-URL `http://xahlee.info/emacs/emacs/elisp_copy-paste_register_1.html'
-Version 2015-12-08"
-                           (interactive)
-                           (when (use-region-p)
-                             (delete-region (region-beginning) (region-end)))
-                           (insert-register ?1 t))ine-end-position))))
-    (copy-to-register ?1 $p1 $p2)
-    (message "Copied to register 1: 「%s」." (buffer-substring-no-properties $p1 $p2))))
-#+END_SRC
-Paste copied text from register
-#+BEGIN_SRC emacs-lisp
-(defun xah-paste-from-register-1 ()
-  "Paste text from register 1.
-See also: `xah-copy-to-register-1', `insert-register'.
-URL `http://xahlee.info/emacs/emacs/elisp_copy-paste_register_1.html'
-Version 2015-12-08"
-  (interactive)
-  (when (use-region-p)
-    (delete-region (region-beginning) (region-end)))
-  (insert-register ?1 t))
-#+END_SRC
-** Bulk push 
 #+BEGIN_SRC emacs-lisp 
 (defmacro pushnew! (place &rest values)
   "Push VALUES sequentially into PLACE, if they aren't already present.
@@ -534,81 +331,6 @@ This is a variadic `cl-pushnew'."
     `(dolist (,var (list ,@values) (with-no-warnings ,place))
        (cl-pushnew ,var ,place :test #'equal))))
 
-#+END_SRC
-** Functions for better folding depends on mode
-#+BEGIN_SRC emacs-lisp 
-(defun @fold-close-all ()
-  "Close all folds."
-
-  (interactive)
-  (cond ((equal major-mode 'org-mode) (+org/close-all-folds))
-        ((bound-and-true-p origami-mode) (call-interactively 'origami-close-all-nodes))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-close-all))
-        (t (message "No folding mode found."))))
-
-(defun @fold-close ()
-  "Close the fold under the cursor."
-
-  (interactive)
-  (cond ((equal major-mode 'org-mode) (+org/close-fold))
-        ((bound-and-true-p origami-mode) (call-interactively 'origami-close-node))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-close))
-        (t (message "No folding mode found."))))
-
-
-(defun @fold-open-all ()
-  "Open all folds."
-
-  (interactive)
-  (cond ((equal major-mode 'org-mode) (+org/open-all-folds))
-        ((bound-and-true-p origami-mode) (call-interactively 'origami-open-all-nodes))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-open-all))
-        (t (evil-open-folds))))
-
-(defun @fold-open ()
-  "Open the fold under the cursor."
-
-  (interactive)
-  (cond ((equal major-mode 'org-mode) (+org/open-fold))
-        ((bound-and-true-p origami-mode) (call-interactively 'origami-open-node))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-open))
-        (t (message "No folding mode found."))))
-
-(defun @fold-toggle-all ()
-  "Toggle all folds."
-
-  (interactive)
-  (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
-        ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-all-nodes))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-toggle-all))
-        (t (message "No folding mode found."))))
-
-(defun @fold-toggle ()
-  "Toggle fold at point."
-
-  (interactive)
-  (save-excursion
-    (end-of-line)
-    (cond ((equal major-mode 'org-mode) (+org/toggle-fold))
-          ((bound-and-true-p origami-mode) (call-interactively 'origami-toggle-node))
-          ((bound-and-true-p treesit-fold-mode) (treesit-fold-toggle))
-          (t (message "No folding mode found.")))))
-
-(defun @fold-next ()
-  "Go to the next fold."
-
-  (interactive)
-  (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-next-fold))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-next))
-        (t (message "No folding mode found."))))
-
-(defun @fold-previous ()
-  "Go to the previous fold."
-
-  (interactive)
-  (cond ((bound-and-true-p origami-mode) (call-interactively 'origami-previous-fold))
-        ((bound-and-true-p treesit-fold-mode) (treesit-fold-previous))
-        (t (message "No folding mode found."))))
 #+END_SRC
 ** Doom libs (honestly spizjeno)
 #+BEGIN_SRC emacs-lisp 
@@ -674,6 +396,74 @@ This is a variadic `cl-pushnew'."
   (forward-line)
   (meow-yank))
 #+END_SRC
+*** Meow change till EOL
+#+BEGIN_SRC emacs-lisp
+(defun @meow-change-till-eol ()
+  "Change till the end of line."
+  (interactive)
+  (let ((meow-eol-thing 108))
+    (meow-end-of-thing meow-eol-thing)
+    (meow-change)))
+#+END_SRC
+*** Meow select till EOL
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @meow-select-till-eol ()
+  "Select till the end of line."
+  (interactive)
+  (let ((meow-eol-thing 108))
+    (meow-end-of-thing meow-eol-thing)))
+#+END_SRC
+** Open youtrack
+#+BEGIN_SRC emacs-lisp :results silent
+(defvar @youtrack-url "https://verifika.youtrack.cloud/issue")
+(defconst @youtrack-url-regexp "VW-[[:digit:]]*")
+
+(defun @open-current-task-youtrack-url ()
+  "Open current task in YouTrack"
+  (interactive)
+  (when-let* ((branch-name (magit-get-current-branch))
+              (matched-res (string-match @youtrack-url-regexp branch-name))
+              (task-name (substring branch-name (match-beginning 0) (match-end 0))))
+
+    (browse-url (concat @youtrack-url "/" task-name))))
+#+END_SRC
+** Open current dir in the right sidebar
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @get-visible-buffers-cnt ()
+  "Get the number of visible buffers"
+  (let ((visible-buffers 0)
+        (buffer-list (buffer-list)))
+    (dolist (buffer buffer-list)
+      (if (get-buffer-window buffer)
+          (cl-incf visible-buffers)))
+    visible-buffers))
+
+(defun @open-file-from-current-dir-to-the-side ()
+  "Open file from current directory to the side"
+  (interactive)
+
+  (when (not (= 1 (length (window-list))))
+    (@toggle-maximize-buffer))
+
+  
+  (split-window-horizontally)
+  (call-interactively 'ace-window)
+  (call-interactively 'find-file))
+
+
+(defun @open-file-from-to-the-side ()
+  "Open file from current directory to the side"
+  (interactive)
+
+  (when (not (= 1 (length (window-list))))
+    (@toggle-maximize-buffer))
+
+  
+  (split-window-horizontally)
+  (call-interactively 'ace-window)
+  (call-interactively 'consult-projectile-find-file))
+#+END_SRC
+
 * Navigation
 ** meow Modal editing.
 *** Meow functions
@@ -724,8 +514,8 @@ This is a variadic `cl-pushnew'."
    '("3" . meow-expand-3)
    '("2" . meow-expand-2)
    '("1" . meow-expand-1)
-   '("%" . @bounce-paren)
    '("-" . negative-argument)
+   '("$" . @meow-select-till-eol)
    '(";" . meow-reverse)
    '("," . meow-inner-of-thing)
    '("." . meow-bounds-of-thing)
@@ -759,6 +549,7 @@ This is a variadic `cl-pushnew'."
    '("/" . meow-block)
    '("?" . meow-to-block)
    '("P" . meow-yank)
+   '("C" . @meow-change-till-eol)
    '("p" . @meow-yank-below)
    '("r" . meow-replace)
    '("R" . meow-swap-grab)
@@ -775,10 +566,10 @@ This is a variadic `cl-pushnew'."
    '("X" . meow-goto-line)
    '("y" . meow-save)
    '("Y" . meow-sync-grab)
-   '("gf" . @avy-go-to-definition)
    '("Q" . meow-pop-selection)
    '("'" . repeat)
-   '("=" . meow-indent)
+   '("=" . indent-for-tab-command)
+   ;; '("=" . meow-indent)
    '(":" . query-replace-regexp)
    '("A" . @edit-after-eol)
    '("I" . @edit-before-bol)
@@ -788,21 +579,18 @@ This is a variadic `cl-pushnew'."
     '("[" . meow-beginning-of-thing)
     '("]" . meow-end-of-thing)
     '("\\m" . @toggle-maximize-buffer)
-    '("\\q" . meow-quit))
+    '("\\q" . kill-current-buffer))
+
+  (meow-define-keys 'insert
+    '("s-p" . xah-paste-from-register-1))
 
   (meow-define-keys 'normal
-    '("z M" . @fold-close-all)
     '("\\m" . @toggle-maximize-buffer)
-    '("\\q" . meow-quit)
-    '("z m" . @fold-close)
-    '("z R" . @fold-open-all)
+    '("\\q" . kill-current-buffer)
+    '("s-y" . xah-copy-to-register-1)
+    '("s-p" . xah-paste-from-register-1)
     '("z z" . recenter)
-    '("z r" . @fold-open)
-    '("z A" . @fold-toggle-all)
-    '("z a" . @fold-toggle)
-    '("z j" . @fold-next)
-    '("g c" . comment-or-uncomment-region)
-    '("z k" . @fold-previous)))
+    '("g c" . comment-or-uncomment-region)))
 
 (defun @meow-thing-register ()
   (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n ") '(regexp " \\|\n " " \\|\n "))
@@ -827,6 +615,8 @@ This is a variadic `cl-pushnew'."
 *** Custom states
 #+BEGIN_SRC emacs-lisp
 (defun @meow-setup-custom-modes ()
+  (add-to-list 'meow-mode-state-list '(elpaca-info-mode . normal))
+  (add-to-list 'meow-mode-state-list '(flycheck-error-list-mode . normal))
   (setq meow-paren-keymap (make-keymap))
   (meow-define-state paren
     "meow state for interacting with smartparens"
@@ -856,6 +646,8 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'meow-mode-state-list '(compilation-mode . normal))
   (add-to-list 'meow-mode-state-list '(detached-compilation-mode-map . normal))
   (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal))
+  (add-to-list 'meow-mode-state-list '(debug-mode . normal))
+  ;; (add-to-list 'meow-mode-state-list '(special-mode . normal))
   (add-to-list 'meow-mode-state-list '(grep-mode . normal)))
 #+END_SRC
 
@@ -869,11 +661,9 @@ This is a variadic `cl-pushnew'."
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
-  ;; (global-set-key (kbd "s-w") 'meow-quit)
   (global-set-key (kbd "s-w") '+workspace/close-window-or-workspace)
+  (advice-add #'meow-change :after (lambda () (indent-for-tab-command)))
   (meow-global-mode 1))
-
-
 #+END_SRC
 
 #+RESULTS:
@@ -895,6 +685,7 @@ This is a variadic `cl-pushnew'."
   :defer t
   :bind (("s-r" . (lambda () (interactive) (set-mark-command nil) (call-interactively 'avy-goto-char) (right-char 1)))
          ("C-c d l" . avy-kill-whole-line)
+         ("M-l" . avy-goto-line)
          :map meow-normal-state-keymap
          ("f" . avy-goto-word-1)
          ("\\f" . avy-goto-chaavy-goto-charr))
@@ -944,7 +735,10 @@ This is a variadic `cl-pushnew'."
   <<better-jump-fn>>
   (advice-add 'evil-next-line :around #'@better-jump-preserve-pos-advice)
   (advice-add 'evil-previous-line :around #'@better-jump-preserve-pos-advice)
-  (advice-add '@find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
+  (advice-add 'meow-end-of-thing :around #'@better-jump-preserve-pos-advice)
+  ;; (advice-add 'find-file :around #'@better-jump-preserve-pos-advice)
+  (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
+  (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
   (better-jumper-mode 1))
 #+END_SRC
@@ -1092,6 +886,11 @@ Very pretty titlebar for Mac os
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode"))
             
 #+END_SRC
+** HOLD Rainbow delimiters
+#+BEGIN_SRC emacs-lisp :results silent :tangle no
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
+#+END_SRC
 ** Fringes
 #+BEGIN_SRC emacs-lisp
 (use-package spacious-padding
@@ -1133,6 +932,26 @@ Doesn't work for mac os unfortunately ;c
   ;; Corrects (and improves) org-mode's native fontification.
   (doom-themes-org-config))
 #+END_SRC
+** HOLD Github theme
+#+BEGIN_SRC emacs-lisp :results silent :tangle no
+(use-package autothemer)
+(use-package github-dark-dimmed-theme
+  :ensure (github-dark-dimmed-theme :type git :host github :repo "ladroid/github-emacs-theme")
+  :after vertico-posframe
+  :config
+  
+  (defun customize-github-theme ()
+    "customize monokai theme"
+    (when (member (car custom-enabled-themes) '(github-dark github-light))
+      (set-face-background 'vertico-posframe 'unspecified)
+      ;; Set vertico group title face
+      (set-face-attribute 'vertico-group-title nil :weight 'bold :background (face-background 'default) :foreground (face-foreground 'default))
+      (set-face-attribute 'vertico-group-separator nil :weight 'bold :background (face-background 'default) :foreground (face-foreground 'default))))
+
+
+  (add-hook 'after-load-theme-hook 'customize-github-theme))
+
+#+END_SRC
 ** Catppuccin theme
 #+BEGIN_SRC emacs-lisp :results silent
 (defun @set-catppucin-theme ()
@@ -1148,7 +967,6 @@ Doesn't work for mac os unfortunately ;c
   (add-hook 'auto-dark-dark-mode-hook #'@set-catppucin-theme)
   (add-hook 'auto-dark-light-mode-hook #'@set-catppucin-theme)
   (@set-catppucin-theme)
-  (set-face-attribute 'highlight nil :background "#dce0e8")
 
   ;; https://github.com/catppuccin/emacs/issues/55
   (add-hook 'yaml-mode-hook
@@ -1162,8 +980,6 @@ Function for setting terminal color after theme switch
 (defun @set-colors-after-theme-loaded ()
   "Change color of autocomplete inside vterm"
   (interactive)
-  ;; Face for completion navigation
-  (set-face-attribute 'highlight nil :background "#dce0e8")
   (when (facep 'vterm-color-black)
     (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
 #+END_SRC
@@ -1238,8 +1054,9 @@ Override function for auto-dark mode for applying function for nano theme changi
 #+BEGIN_SRC emacs-lisp 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 #+END_SRC
-** Buffer colors. Solaire
-#+BEGIN_SRC emacs-lisp :results silent
+** HOLD Buffer colors. Solaire
+Pretty, but has conflicts with padding mode, which is more necessary
+#+BEGIN_SRC emacs-lisp :results silent :tangle no
 (use-package solaire-mode
   :ensure t
   :config
@@ -1252,6 +1069,8 @@ Override function for auto-dark mode for applying function for nano theme changi
 (define-key global-map (kbd "C-h") (make-sparse-keymap))
 (global-set-key (kbd "s-[") 'forward-word)
 (global-set-key (kbd "s-]") 'backward-word)
+(global-set-key (kbd "s-,") '@open-file-from-current-dir-to-the-side)
+(global-set-key (kbd "s-<") '@open-file-from-to-the-side)
 (global-set-key (kbd "C-S-l") 'enlarge-window-horizontally)
 (global-set-key (kbd "C-S-h") 'shrink-window-horizontally)
 (global-set-key (kbd "<C-S-up>") 'shrink-window)
@@ -1271,7 +1090,6 @@ Override function for auto-dark mode for applying function for nano theme changi
 (global-set-key (kbd "C-c p m") 'elpaca-manager)
 (global-set-key (kbd "C-c p M") 'elpaca-log)
 (global-set-key (kbd "s-n") (lambda () (interactive) (switch-to-buffer (generate-new-buffer "Untitled"))))
-(global-set-key (kbd "s-<backspace>") '@kill-word-backward)
 
 (global-set-key (kbd "C-c t t") '@insert-todo-by-current-git-branch)
 (global-set-key (kbd "C-c t i") '@insert-todo-by-current-git-branch)
@@ -1354,6 +1172,7 @@ Override meow keypad parsing
           dart-mode
           yaml-mode
           js-ts-mode
+          web-mode
           yaml-ts-mode
           python-mode
           python-ts-mode
@@ -1365,7 +1184,7 @@ Override meow keypad parsing
           go-ts-mode
           python-ts-mode) . origami-mode)
   :custom
-  (origami-fold-replacement "{...}"))
+  (origami-fold-replacement "..."))
 #+END_SRC
 ** Undo redo
 *** Undo mode
@@ -1424,11 +1243,11 @@ Override meow keypad parsing
          ("C-s-[" . turbo-log-paste-as-logger)
          ("C-s-]" . turbo-log-paste-as-logger-immediately))
   :custom
-  (turbo-log-allow-insert-without-tree-sitter-p t)
   ;; (turbo-log-payload-format-template "")
   ;; (turbo-log-payload-format-template "\x1b[35m%s: ")
   (turbo-log-payload-format-template "%s: ")
   :config
+  (setq turbo-log-allow-insert-without-treesit-p t)
   (turbo-log-configure
    :modes (typescript-ts-mode tsx-ts-mode typescript-mode js2-mode web-mode ng2-ts-mode js-mode)
    :strategy merge
@@ -1673,7 +1492,9 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
 #+BEGIN_SRC emacs-lisp  :noweb yes
 (use-package vterm
   :defer t
-  :hook (vterm-mode . (lambda () (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
+  :hook ((vterm-mode . (lambda () (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
+        ;; (vterm-mode . compilation-minor-mode)
+)
   :bind (("C-c o t" . vterm-toggle)
          ("C-c o T" . @vterm-change-current-directory-to-active-buffer-pwd)
          ("C-c o v" . vterm)
@@ -1708,6 +1529,14 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
   
   (projectile-with-default-dir (projectile-acquire-root)
     (call-interactively #'detached-shell-command)))
+
+(defun @projectile-detached-compile ()
+  "Execute detached shell command at the project root."
+  (interactive)
+  
+  (projectile-with-default-dir (projectile-acquire-root)
+    (call-interactively #'detached-compile)))
+
 
 (use-package detached
   :defer 2
@@ -1986,21 +1815,28 @@ new project directory.")
    ("C-c bO" . @persp-kill-other-buffers)
    ("C-c bb" . consult-projectile-switch-to-buffer)
    ("C-c bkp" . persp-kill-buffer)
-   ("C-c pc" . persp-copy)
-   ("C-c pk" . persp-kill)
-   ("C-c pS" . +workspace/save)
-   ("C-c ps" . persp-save-state-to-file)
-   ("C-c pL" . +workspace/load)
-   ("C-c pl" . persp-load-state-from-file)
-   ("C-c pd" . +workspace/delete)
+   ("C-c <tab>c" . persp-copy)
+   ("C-c TAB c" . persp-copy)
+   ("C-c <tab>k" . persp-kill)
+   ("C-c TAB k" . persp-kill)
+   ("C-c <tab>S" . +workspace/save)
+   ("C-c TAB S" . +workspace/save)
+   ("C-c <tab>s" . persp-save-state-to-file)
+   ("C-c TAB s" . persp-save-state-to-file)
+   ("C-c <tab>L" . +workspace/load)
+   ("C-c TAB L" . +workspace/load)
+   ("C-c <tab>l" . persp-load-state-from-file)
+   ("C-c TAB l" . persp-load-state-from-file)
    ("C-c <tab>d" . +workspace/delete)
    ("C-c TAB d" . +workspace/delete)
-   ("C-c pr" . +workspace/rename)
-   ("C-c pj" . persp-switch)
-   ("C-c pn" . +workspace/quick-new)
+   ("C-c <tab>r" . +workspace/rename)
+   ("C-c TAB r" . +workspace/rename)
+   ("C-c <tab>j" . persp-switch)
+   ("C-c TAB j" . persp-switch)
    ("C-c <tab>n" . +workspace/quick-new)
    ("C-c TAB n" . +workspace/quick-new)
-   ("C-c po" . +workspace/other)
+   ("C-c <tab>o" . +workspace/other)
+   ("C-c TAB o" . +workspace/other)
    ("C-c b O" . @persp-kill-other-buffers)
    ("C-c <tab> <tab>" . +workspace/display)
    ("C-c TAB TAB" . +workspace/display)
@@ -2029,6 +1865,7 @@ new project directory.")
 (use-package ibuffer
   :defer t
   :ensure nil
+  :hook (ibuffer-mode . hl-line-mode)
   :bind
   (("C-c b I" . projectile-ibuffer)
    ("C-c b i" . ibuffer)
@@ -2415,7 +2252,8 @@ Dependencies
 (use-package magit-todos
   :defer t
   :bind (("C-c g n" . magit-todos-list)
-         ("C-c l t" . magit-todos-list)))
+         ("C-c l T" . magit-todos-list)
+         ("C-c t l" . magit-todos-list)))
 #+END_SRC
 
 ** Gitgutter
@@ -2510,11 +2348,8 @@ Improved styles for git changes
 (global-set-key (kbd "C-c C-a") 'smerge-keep-all)
 (global-set-key (kbd "C-c C-j") 'smerge-next)
 (global-set-key (kbd "C-c C-k") 'smerge-prev)
- 
 #+END_SRC
 
-#+RESULTS:
-: smerge-prev
 
 ** Browse at remote
 #+BEGIN_SRC emacs-lisp 
@@ -2577,6 +2412,7 @@ Improved styles for git changes
           "~/apps/pure-emacs/templates/readme"
           "~/apps/pure-emacs/templates/org-mode"
           "~/apps/pure-emacs/templates/web-mode"
+          "~/apps/pure-emacs/templates/contribution-guide"
           "~/apps/pure-emacs/templates/emacs-lisp"
           "~/apps/pure-emacs/templates/golang")))
 #+END_SRC
@@ -2604,6 +2440,7 @@ Another all formtter. Based on prettier and black
          ("C-k" . flycheck-previous-error)
          ("C-c f ]" . flycheck-next-error)
          ("C-c f [" . flycheck-previous-error)
+         ("C-c l e" . flycheck-list-errors)
          ("C-c f e" . flycheck-list-errors))
   :init
   (global-flycheck-mode)
@@ -2627,6 +2464,57 @@ Another all formtter. Based on prettier and black
 
 ** Tree Sitter
 *** Treesit colors presets
+**** Html ts mode
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @setup-html-highlights ()
+  "Setup Html highlights via treesit."
+  (interactive)
+
+  (message "SETUP HTML TS HIGHLIGHTS")
+
+  (setq html--treesit-settings
+        (treesit-font-lock-rules
+         :language 'html
+         :feature 'tag
+         :override t
+         '((tag_name) @web-mode-html-tag-custom-face)
+         
+         :language 'html
+         :feature 'properties
+         :override t
+         '((attribute_name) @font-lock-function-name-face)
+
+         :language 'html
+         :feature 'properties
+         :override t
+         '(((attribute_name) @font-lock-type-face (:match "\\`\\[.*\\]\\'" @font-lock-type-face)))
+         
+
+         :language 'html
+         :feature 'properties
+         :override t
+         '((attribute_value) @font-lock-string-face)
+
+         :language 'html
+         :feature 'comment
+         :override t
+         '((comment) @font-lock-comment-face)
+
+         
+         :language 'html
+         :feature 'properties
+         :override t
+         '(((attribute_name) @font-lock-number-face (:match "\\`(.*)\\'" @font-lock-number-face)))))
+
+  (setq-local treesit-font-lock-settings (append treesit-font-lock-settings html--treesit-settings))
+  ;; (setq-local treesit-font-lock-settings html--treesit-settings)
+  (setq-local treesit-font-lock-rules html--treesit-settings)
+  (setq-local treesit-font-lock-feature-list
+              '((tag properties comment)))
+
+  (treesit-major-mode-setup))
+#+END_SRC
+**** Typescript
 #+BEGIN_SRC emacs-lisp :results silent
 (defun @setup-typescript-highlights ()
   "Setup TypeScript highlights via treesit."
@@ -2736,8 +2624,12 @@ Another all formtter. Based on prettier and black
   ;; You can customize Combobulate's key prefix here.
   ;; Note that you may have to restart Emacs for this to take effect!
   (setq combobulate-key-prefix "C-c o")
-  :bind (:map combobulate-key-map
-              ("C-M-t" . nil))
+  :bind (("s-q" . combobulate-mark-node-dwim)
+         ("s-d" . combobulate-kill-node-dwim)
+         ("s-<down>" . combobulate-navigate-logical-next)
+         ("s-<up>" . combobulate-navigate-logical-previous)
+         :map combobulate-key-map
+         ("C-M-t" . nil))
   :hook
   ((python-ts-mode . combobulate-mode)
    (js-ts-mode . combobulate-mode)
@@ -2755,7 +2647,7 @@ Another all formtter. Based on prettier and black
 *** Treesit core
 # Right not its not supporteed well. Moreover, tree-sitter-hl-mode is really better then built in functionality
 #+BEGIN_SRC emacs-lisp 
-(use-package treesit                    ;
+(use-package treesit
   :ensure nil
   :hook
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
@@ -2763,9 +2655,11 @@ Another all formtter. Based on prettier and black
   (go-ts-mode-indent-offset 2)
   :config
   (setq treesit-language-source-alist
-      '((go "https://github.com/tree-sitter/tree-sitter-go")
-        (gomod "https://github.com/camdencheek/tree-sitter-go-mod")))
+        '((go "https://github.com/tree-sitter/tree-sitter-go")
+          (gomod "https://github.com/camdencheek/tree-sitter-go-mod")
+          (scss "https://github.com/serenadeai/tree-sitter-scss")))
   (add-hook 'typescript-ts-mode-hook #'@setup-typescript-highlights)
+  (add-hook 'html-ts-mode-hook #'@setup-html-highlights)
   (setq treesit-font-lock-level 4))
 #+END_SRC
 
@@ -2778,7 +2672,20 @@ Another all formtter. Based on prettier and black
   :config
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode))
+  (global-treesit-auto-mode)
+
+  
+  (setq my-js-tsauto-config
+        (make-treesit-auto-recipe
+         :lang 'scss-mode
+         :ts-mode 'scss-ts-mode
+         :remap '(scss-mode)
+         :url "https://github.com/serenadeai/tree-sitter-scss"
+         :revision "master"
+         :source-dir "src"
+         :ext "\\.scss\\'"))
+
+  (add-to-list 'treesit-auto-recipe-list my-js-tsauto-config))
 #+END_SRC
 *** Init hook
 #+BEGIN_SRC emacs-lisp 
@@ -3069,16 +2976,16 @@ Temporary doesn't work. Lsp become so laggy
   (lsp-completion-mode . my/lsp-mode-setup-completion)
   :bind
   (("C-c f n" . flycheck-next-error)
-   ("C-c g i" . p-goto-implementation)
    ("C-c l a" . lsp-execute-code-action)
    ("C-c i m" . lsp-ui-imenu)
+   ("C-c l t" . lsp-find-type-definition)
    ("C-c l f" . lsp-find-references)
+   ("C-c l i" . lsp-find-implementation)
    ("C-c l w" . lsp-workspace-restart)
    ("C-c r l" . lsp)
    ("C-c l a" . lsp-execute-code-action)
    ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
-   ("gd" . @find-definition)
    ("\\l" . lsp-execute-code-action))
   :init
   (setq lsp-headerline-breadcrumb-enable nil)
@@ -3360,21 +3267,29 @@ By default ~compile-goto-error~ open new window. Its redundant.
   :defer t
   :ensure nil
   :bind
-  (("C-c a c" . projectile-compile-project)
+  (("C-c p c" . projectile-compile-project)
    ("C-c C-c c" . projectile-compile-project)
    ("C-c a r" . recompile)
+   ("C-c C-c C-r" . recompile)
    ("C-c C-c r" . recompile)
    ("C-c a v" . (lambda ()
                   (interactive)
                   (compilation-display-error)
                   (+select-window-by-name "*compilation.*")))
    ("C-c C-c v" . (lambda ()
-                  (interactive)
-                  (compilation-display-error)
-                  (+select-window-by-name "*compilation.*"))):map compilation-mode-map
+                    (interactive)
+                    (compilation-display-error)
+                    (+select-window-by-name "*compilation.*"))):map compilation-mode-map
+   ("C-j" . compilation-next-error)
+   ("C-k" . compilation-previous-error)
+   :map compilation-minor-mode-map
    ("C-j" . compilation-next-error)
    ("C-k" . compilation-previous-error))
+  :custom
+  (compile-command "bun run build")
   :config
+  ;; (setcdr compilation-minor-mode-map nil)
+  
   <<display-compilation-buffer>>
   (@setup-compilation-errors))
 #+END_SRC
@@ -3384,10 +3299,10 @@ By default ~compile-goto-error~ open new window. Its redundant.
 
 ** Codemetrics
 #+BEGIN_SRC emacs-lisp :results silent :tangle no
-(use-package codemetrics
-  :hook (typescript-mode . codemetrics-mode)
-  :ensure (:host github :repo "jcs-elpa/codemetrics")
-  :defer t)
+(use-package cognitive-complexity
+  :ensure (:host github :repo "abougouffa/cognitive-complexity")
+  :config
+  (cognitive-complexity-mode 1))
 #+END_SRC
 ** Debugger DAPE
 Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
@@ -3409,6 +3324,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
          ("C-c d t" . dape-select-thread)
          ("C-c d x" . dape-breakpoint-remove-all))
   :config
+  ;; (add-hook 'dape-stopped-hook 'dape-repl)
   (setq dape-inline-variables t))
 #+END_SRC
 * Programming languages
@@ -3495,11 +3411,11 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :ensure t)
 #+END_SRC
 ** Angular
-#+BEGIN_SRC emacs-lisp :tangle no
+#+BEGIN_SRC emacs-lisp 
 (use-package ng2-mode
   :after typescript-mode
-  :hook
-  (ng2-html-mode . web-mode)
+  ;; :hook
+  ;; (ng2-html-mode . html-ts-mode)
   :config
   (setq lsp-clients-angular-language-server-command
         '("node"
@@ -3656,6 +3572,7 @@ Function for open repl in the current buffer
   ("\\.tsx\\'" . web-mode)
   ("\\.jsx\\'" . web-mode)
   ("\\.astro\\'" . web-mode)
+  ;; ("\\.html\\'" . web-mode)
   :config
   (setq web-mode-enable-auto-quoting nil)
   (setq web-mode-comment-formats
@@ -3829,9 +3746,6 @@ Function for open repl in the current buffer
 #+BEGIN_SRC emacs-lisp
 (use-package grip-mode
   :defer t
-  :custom
-  (browse-url-browser-function 'browse-url-generic)
-  ;; (grip-url-browser #'browse-url-firefox-program)
   :config
   (let ((credential (auth-source-user-and-password "api.github.com")))
     (setq grip-github-user (car credential)
@@ -3861,7 +3775,7 @@ TODO: check copilot + blamer
 #+BEGIN_SRC emacs-lisp 
 (use-package copilot
   :defer 5
-  :ensure (copilot :host github :repo "zerolfx/copilot.el" :files ("dist" "copilot.el" "copilot-balancer.el"))
+  :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
   :hook
   (prog-mode . copilot-mode)
   (text-mode . copilot-mode)
@@ -3870,7 +3784,7 @@ TODO: check copilot + blamer
    ("s-[" . copilot-previous-completion)
    ("s-l" . copilot-accept-completion)
    ("s-k" . copilot-accept-completion)
-   ("s-j" . copilot-complete)
+   ("s-S-j" . copilot-complete)
    ("s-;" . copilot-accept-completion-by-word)
    ("s-/" . copilot-accept-completion-by-line))
   :custom
@@ -3881,11 +3795,12 @@ TODO: check copilot + blamer
   (copilot-diagnose)
   ;; (global-copilot-mode)
   (add-hook 'meow-insert-enter-hook (lambda ()
-                                            (setq blamer--block-render-p t)
-                                            (blamer--clear-overlay)))
+                                      (setq blamer--block-render-p t)
+                                      (blamer--clear-overlay)))
   (add-hook 'meow-insert-exit-hook (lambda ()
-                                            (setq blamer--block-render-p nil)
-                                            (copilot-clear-overlay))))
+                                     (setq blamer--block-render-p nil)
+                                     (copilot-clear-overlay)))
+  )
 
 #+END_SRC
 
@@ -3893,7 +3808,72 @@ TODO: check copilot + blamer
 : [nil 26300 51638 753524 nil elpaca-process-queues nil nil 999999 nil]
 
 
+** Copilot chat
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package copilot-chat
+  :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
+  :defer t
+  :bind (("C-c a c" . copilot-chat-display)
+         ("C-c a x" . copilot-chat-reset)
+         ("C-c a e" . copilot-chat-explain)
+         ("C-c a t" . copilot-chat-test)
+         ("C-c a o" . copilot-chat-optimize)
+         ("C-c a d" . copilot-chat-doc)
+         ("C-c a f" . copilot-chat-fix)
+         ("C-c a r" . copilot-chat-review))
+  :custom
+  (copilot-chat-frontend 'shell-maker)
+  :config
+  (require 'copilot-chat-shell-maker)
+  (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
+  (copilot-chat-shell-maker-init))
+#+END_SRC
 
+** Codemium
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/codeium ()
+  "Decouple codeium from other completions"
+  (interactive)
+  (cape-interactive #'codeium-completion-at-point))
+
+(use-package codeium
+  :ensure (:host github :repo "Exafunction/codeium.el")
+    :init
+    (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
+    :bind ("s-j" . my/codeium)
+    :config
+    ;; (lsp-completion-at-point codeium-completion-at-point tags-completion-at-point-function)
+    (setq use-dialog-box nil) ;; do not use popup boxes
+    ;; use M-x codeium-diagnose to see apis/fields that would be sent to the local language server
+    (setq codeium-api-enabled
+        (lambda (api)
+            (memq api '(GetCompletions Heartbeat CancelRequest GetAuthToken RegisterUser auth-redirect AcceptCompletion))))
+    (setq codeium/metadata/api_key "eyJhbGciOiJSUzI1NiIsImtpZCI6IjAyMTAwNzE2ZmRkOTA0ZTViNGQ0OTExNmZmNWRiZGZjOTg5OTk0MDEiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiQXJ0YXdvd2VyIOKAnEFsdGF3b3dlcuKAnSBMSCIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NLb0FRTzk0YWdSbE9VUC05MlRKaEdncFFLazZ3OGUyemF3VldlaUpZb0xSZjdKUjFyMz1zOTYtYyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9leGEyLWZiMTcwIiwiYXVkIjoiZXhhMi1mYjE3MCIsImF1dGhfdGltZSI6MTcyNjI2NTA1MSwidXNlcl9pZCI6IjRNYmljQVo5R21XSm1sektrMmZDUXFKdGJoaTEiLCJzdWIiOiI0TWJpY0FaOUdtV0ptbHpLazJmQ1FxSnRiaGkxIiwiaWF0IjoxNzI2MzA1NjkyLCJleHAiOjE3MjYzMDkyOTIsImVtYWlsIjoiYXJ0YXdvd2VyMzNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZ29vZ2xlLmNvbSI6WyIxMDUwNDcyNTg2MDIzNDM2NTQzNzgiXSwiZW1haWwiOlsiYXJ0YXdvd2VyMzNAZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoiZ29vZ2xlLmNvbSJ9fQ.TzQVV5yDKpSMX7SagCcc9ZCG1aOpQyoO5A8c_wQCuETqG0jV54SWCpgTMzce66KSVwBiTGohOUGdXv8DHFiP1dXCDh0EjTFmOMxav_Z-JLmtlYNt80Pr7w8HHF6g9iHY49ySjpBv9V1G4pATt8AnTiVELa9R3zFtWJ93p5imzbv65RFAsYlnAKe2u2YyB2A5EWNN4gfYHvRz28Ua8KeRket4zoEfdCLVvOEiVSpAohjr-0Y4pwoE9J2GjEAOUQ8aF0_XEWjZ0x_XLsuUVbaa9THyQx1CGnL7BJgI-U434cZVdebWox120sb7FWynKcT63LS-E_2a2P-TPtnrG-y2bw")
+
+    ;; (add-hook 'lsp-mode-hook
+    ;;     (lambda ()
+    ;;         (setq-local completion-at-point-functions
+    ;;             (list (cape-capf-super #'codeium-completion-at-point #'lsp-completion-at-point #'cape-dabbrev)))))
+
+    ;; you can also set a config for a single buffer like this:
+    ;; (add-hook 'python-mode-hook
+    ;;     (lambda ()
+    ;;         (setq-local codeium/editor_options/tab_size 4)))
+
+    ;; You can overwrite all the codeium configs!
+    ;; for example, we recommend limiting the string sent to codeium for better performance
+    (defun my-codeium/document/text ()
+        (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (min (+ (point) 1000) (point-max))))
+    ;; if you change the text, you should also change the cursor_offset
+    ;; warning: this is measured by UTF-8 encoded bytes
+    (defun my-codeium/document/cursor_offset ()
+        (codeium-utf8-byte-length
+            (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (point))))
+    (setq codeium/document/text 'my-codeium/document/text)
+    (setq codeium/document/cursor_offset 'my-codeium/document/cursor_offset))
+
+
+#+END_SRC
 * Collaborations
 ** Pair programming
 #+BEGIN_SRC emacs-lisp
@@ -3949,6 +3929,16 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
   ;; GPG key to use for encryption
   ;; Either the Key ID or set to nil to use symmetric encryption.
   (setq org-crypt-key nil))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package epa-file
+  :ensure nil
+  :config
+  (epa-file-enable)
+  ;; Ask for passphrase
+  (setq epg-pinentry-mode 'loopback)
+  (setq epa-file-encrypt-to "artawower33@gmail.com"))
 #+END_SRC
 ** Org babels
 *** async code
@@ -4171,7 +4161,13 @@ Init org mode faces for headlines
 #+RESULTS:
 : org-calendar-select
 
-
+** Org menu
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-menu
+  :defer t
+  :ensure (:host github :repo "sheijk/org-menu")
+  :bind (("C-c o a" . org-menu)))
+#+END_SRC
 ** Org modern indent
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-modern-indent
@@ -4765,6 +4761,34 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
   (setq persistent-scratch-backup-directory "~/apps/pure-emacs/backups")
   (persistent-scratch-autosave-mode)
   (setq persistent-scratch-autosave-interval 5))
+#+END_SRC
+
+
+* Husky
+Swiss tool ;3
+#+BEGIN_SRC emacs-lisp 
+(use-package husky
+  :ensure (:type git :host github :repo "artawower/husky" :files ("lisp/*.el"))
+  :bind (("C-c t t" . husky-edit-insert-todo-by-current-git-branch)
+         ("C-c t i" . husky-edit-insert-todo-by-current-git-branch)
+         ("C-c t d" . husky-edit-insert-debug-by-current-git-branch)
+         ("C-c t n" . husky-edit-insert-note-by-current-git-branch)
+         ("C-c o l" . husky-actions-open-messages)
+         ("C-c o M" . husky-actions-open-clear-messages)
+         ("C-c f D" . husky-actions-delete-this-file)
+         ("s-<backspace>" . husky-edit-kill-word-backward)
+         :map meow-normal-state-keymap
+         ("gd" . husky-actions-find-definition)
+         ("%" . husky-navigation-bounce-paren)
+         ("g F" . husky-actions-avy-go-to-definition)
+         ("g f" . husky-actions-avy-go-to-definition)
+         ("z r" . husky-fold-open)
+         ("z R" . husky-fold-open-all)
+         ("z A" . husky-fold-toggle-all)
+         ("z a" . husky-fold-toggle)
+         ("z j" . husky-fold-next)
+         ("z M" . husky-fold-close-all)
+         ("z k" . husky-fold-previous)))
 #+END_SRC
 
 #+BEGIN_SRC emacs-lisp
