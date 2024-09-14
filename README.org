@@ -2795,11 +2795,11 @@ Another all formtter. Based on prettier and black
   :defer 2
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto t)                 ;; Enable auto completion
+  (corfu-auto nil)                 ;; Enable auto completion
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
   (corfu-quit-no-match t)        ;; Automatically quit if there is no match
-  (corfu-auto-delay 0.5)
+  (corfu-auto-delay 0.1)
   (corfu-echo-documentation nil) ;; Do not show documentation in the echo area
   (corfu-preselect-first t)
   (corfu-auto-prefix 2)
@@ -2895,6 +2895,29 @@ Another all formtter. Based on prettier and black
     :config
     (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter))
 
+#+END_SRC
+
+**** Corfu. Overlay
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package corfu-candidate-overlay
+  :ensure (:type git
+             :repo "https://code.bsdgeek.org/adam/corfu-candidate-overlay"
+             :files (:defaults "*.el"))
+  :after corfu
+  :config
+  (corfu-candidate-overlay-mode +1)
+  (global-set-key (kbd "s-l") 'corfu-candidate-overlay-complete-at-point))
+#+END_SRC
+
+**** Cape
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package cape
+  :bind ("C-c C-p" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
+  :init
+  (setq dabbrev-limit 3)
+  (add-hook 'completion-at-point-functions #'cape-dabbrev)
+  (add-hook 'completion-at-point-functions #'cape-file)
+  (add-hook 'completion-at-point-functions #'cape-elisp-block))
 #+END_SRC
 
 ** Paren checker
@@ -3848,7 +3871,6 @@ TODO: check copilot + blamer
     (setq codeium-api-enabled
         (lambda (api)
             (memq api '(GetCompletions Heartbeat CancelRequest GetAuthToken RegisterUser auth-redirect AcceptCompletion))))
-    (setq codeium/metadata/api_key "eyJhbGciOiJSUzI1NiIsImtpZCI6IjAyMTAwNzE2ZmRkOTA0ZTViNGQ0OTExNmZmNWRiZGZjOTg5OTk0MDEiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiQXJ0YXdvd2VyIOKAnEFsdGF3b3dlcuKAnSBMSCIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NLb0FRTzk0YWdSbE9VUC05MlRKaEdncFFLazZ3OGUyemF3VldlaUpZb0xSZjdKUjFyMz1zOTYtYyIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9leGEyLWZiMTcwIiwiYXVkIjoiZXhhMi1mYjE3MCIsImF1dGhfdGltZSI6MTcyNjI2NTA1MSwidXNlcl9pZCI6IjRNYmljQVo5R21XSm1sektrMmZDUXFKdGJoaTEiLCJzdWIiOiI0TWJpY0FaOUdtV0ptbHpLazJmQ1FxSnRiaGkxIiwiaWF0IjoxNzI2MzA1NjkyLCJleHAiOjE3MjYzMDkyOTIsImVtYWlsIjoiYXJ0YXdvd2VyMzNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZ29vZ2xlLmNvbSI6WyIxMDUwNDcyNTg2MDIzNDM2NTQzNzgiXSwiZW1haWwiOlsiYXJ0YXdvd2VyMzNAZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoiZ29vZ2xlLmNvbSJ9fQ.TzQVV5yDKpSMX7SagCcc9ZCG1aOpQyoO5A8c_wQCuETqG0jV54SWCpgTMzce66KSVwBiTGohOUGdXv8DHFiP1dXCDh0EjTFmOMxav_Z-JLmtlYNt80Pr7w8HHF6g9iHY49ySjpBv9V1G4pATt8AnTiVELa9R3zFtWJ93p5imzbv65RFAsYlnAKe2u2YyB2A5EWNN4gfYHvRz28Ua8KeRket4zoEfdCLVvOEiVSpAohjr-0Y4pwoE9J2GjEAOUQ8aF0_XEWjZ0x_XLsuUVbaa9THyQx1CGnL7BJgI-U434cZVdebWox120sb7FWynKcT63LS-E_2a2P-TPtnrG-y2bw")
 
     ;; (add-hook 'lsp-mode-hook
     ;;     (lambda ()
