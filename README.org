@@ -519,6 +519,8 @@ This is a variadic `cl-pushnew'."
    '(";" . meow-reverse)
    '("," . meow-inner-of-thing)
    '("." . meow-bounds-of-thing)
+   '("s-d" . meow-inner-of-thing)
+   '("s-D" . meow-bounds-of-thing)
    '("[" . meow-beginning-of-thing)
    '("]" . meow-end-of-thing)
    '("i" . meow-append)
@@ -584,6 +586,7 @@ This is a variadic `cl-pushnew'."
   (meow-define-keys 'insert
     '("s-p" . xah-paste-from-register-1))
 
+
   (meow-define-keys 'normal
     '("\\m" . @toggle-maximize-buffer)
     '("\\q" . kill-current-buffer)
@@ -599,6 +602,16 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'meow-char-thing-table '(?\" . quoted))
   (add-to-list 'meow-char-thing-table '(?' . quoted))
   (add-to-list 'meow-char-thing-table '(?< . angle))
+
+  (add-to-list 'meow-char-thing-table '(?( . round))
+  (add-to-list 'meow-char-thing-table '(?) . round))
+
+  (add-to-list 'meow-char-thing-table '(?{ . curly))
+  (add-to-list 'meow-char-thing-table '(?} . curly))
+  
+  (add-to-list 'meow-char-thing-table '(?[ . square))
+  (add-to-list 'meow-char-thing-table '(?] . square))
+
   (meow-thing-register 'quoted
                        '(regexp "\"\\|'\\|`" "\"\\|'\\|`")
                        '(regexp "\"\\|'\\|`" "\"\\|'\\|`"))
@@ -2625,7 +2638,6 @@ Another all formtter. Based on prettier and black
   ;; Note that you may have to restart Emacs for this to take effect!
   (setq combobulate-key-prefix "C-c o")
   :bind (("s-q" . combobulate-mark-node-dwim)
-         ("s-d" . combobulate-kill-node-dwim)
          ("s-<down>" . combobulate-navigate-logical-next)
          ("s-<up>" . combobulate-navigate-logical-previous)
          :map combobulate-key-map
@@ -2912,7 +2924,7 @@ Another all formtter. Based on prettier and black
 **** Cape
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package cape
-  :bind ("C-c C-p" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
+  :bind ("C-c C-e" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
   :init
   (setq dabbrev-limit 3)
   (add-hook 'completion-at-point-functions #'cape-dabbrev)
@@ -3830,7 +3842,6 @@ TODO: check copilot + blamer
 #+RESULTS:
 : [nil 26300 51638 753524 nil elpaca-process-queues nil nil 999999 nil]
 
-
 ** Copilot chat
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package copilot-chat
@@ -3852,7 +3863,7 @@ TODO: check copilot + blamer
   (copilot-chat-shell-maker-init))
 #+END_SRC
 
-** Codemium
+** Codeium
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/codeium ()
   "Decouple codeium from other completions"
