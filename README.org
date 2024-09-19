@@ -100,7 +100,6 @@ This variables are required for quick start without any errors
                           ( "jcs-elpa" . "https://jcs-emacs.github.io/jcs-elpa/packages/")
                           ("melpa-stable" . "http://stable.melpa.org/packages/")
                           ("org" . "https://orgmode.org/elpa/")
-                          ;; ("emacswiki" . "https://mirrors.tuna.tsinghua.edu.cn/elpa/emacswiki/")
                           ))
 (customize-set-variable 'package-enable-at-startup nil)
 ;; (package-initialize)
@@ -701,7 +700,7 @@ This is a variadic `cl-pushnew'."
          ("M-l" . avy-goto-line)
          :map meow-normal-state-keymap
          ("f" . avy-goto-word-1)
-         ("\\f" . avy-goto-chaavy-goto-charr))
+         ("\\f" . avy-goto-char-timer))
   :custom
   (avy-single-candidate-jump t)
   (avy-keys '(?q ?w ?e ?r ?t ?y ?u ?i ?o ?p ?a ?s ?d ?f ?h ?j ?k ?l ?z ?x ?c ?v ?b ?n ?m)))
@@ -806,6 +805,37 @@ Bookmark for navigation inside file
   (setq ring-bell-function 'ignore)
 (setq scroll-step 1)
 (setq scroll-margin 1)
+#+END_SRC
+** Indent bar
+Unfornunately emacs-plus does not support stipple
+https://debbugs.gnu.org/cgi/bugreport.cgi?bug=73082
+#+BEGIN_SRC emacs-lisp :results silent 
+(use-package indent-bars
+  :ensure (:host github :repo "jdtsmith/indent-bars")
+  :config
+  (require 'indent-bars-ts) 		; not needed with straight
+  :custom
+  ;; (indent-bars-color '(highlight :face-bg t :blend 0.1))
+  (indent-bars-width-frac 0.1)
+  (indent-bars-pad-frac 0.1)
+  ;; (indent-bars-zigzag nil)
+  ;; (indent-bars-pattern ".")
+  ;; (indent-bars-prefer-character t)
+  
+  ;; (indent-bars-color-by-depth '(:regexp "outline-\\([0-9]+\\)" :blend 1)) ; blend=1: blend with BG only
+  ;; (indent-bars-highlight-current-depth '(:blend 0.5)) ; pump up the BG blend on current
+  ;; (indent-bars-display-on-blank-lines nil)
+  (indent-bars-treesit-support t)
+  (indent-bars-treesit-ignore-blank-lines-types '("module"))
+  ;; Add other languages as needed
+  (indent-bars-treesit-scope '((python function_definition class_definition for_statement
+	                                     if_statement with_statement while_statement)))
+  ;; Note: wrap may not be needed if no-descend-list is enough
+  ;;(indent-bars-treesit-wrap '((python argument_list parameters ; for python, as an example
+  ;;				      list list_comprehension
+  ;;				      dictionary dictionary_comprehension
+  ;;				      parenthesized_expression subscript)))
+  :hook ((python-base-mode yaml-mode html-mode html-ts-mode ng2-html-mode) . indent-bars-mode))
 #+END_SRC
 ** Highlight selected text
 #+BEGIN_SRC emacs-lisp
@@ -1167,6 +1197,13 @@ Override meow keypad parsing
 #+END_SRC
 
 * Editing
+** Narrowing
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package narrow-indirect
+  :ensure (:host github :repo "emacsmirror/narrow-indirect")
+  :bind (("C-c 0" . ni-narrow-to-region-indirect-other-window))
+  :defer t)
+#+END_SRC
 ** Truncate lines
 #+BEGIN_SRC emacs-lisp
 (set-default 'truncate-lines t)
@@ -1195,6 +1232,7 @@ Override meow keypad parsing
           emacs-lisp-mode
           typescript-ts-mode
           go-ts-mode
+          json-mode
           python-ts-mode) . origami-mode)
   :custom
   (origami-fold-replacement "..."))
@@ -1923,6 +1961,12 @@ new project directory.")
         read-buffer-completion-ignore-case t
         completion-ignore-case t)
   (require 'vertico-repeat)
+  (setq completion-in-region-function
+        (lambda (&rest args)
+          (apply (if vertico-mode
+                     #'consult-completion-in-region
+                   #'completion--in-region)
+                 args)))
   (add-hook 'minibuffer-setup-hook 'vertico-repeat-save))
 
 
@@ -2342,6 +2386,7 @@ Improved styles for git changes
 #+BEGIN_SRC emacs-lisp 
 (use-package git-timemachine
   :defer t
+  :hook (git-timemachine-mode . font-lock-mode)
   :bind (("C-M-t" . git-timemachine)
          :map git-timemachine-mode-map
          ("C-k" . git-timemachine-show-previous-revision)
@@ -3059,7 +3104,7 @@ Temporary doesn't work. Lsp become so laggy
   (setq lsp-json-schemas
         `[
           (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
-          (:fileMatch ["package.json"] :url "http://json-schema.org/draft-07/schema")
+          (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
           ])
   (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
   ;; Flycheck patch checkers
@@ -4285,13 +4330,13 @@ Init org mode faces for headlines
 #+END_SRC
 
 ** Org roam
-One of the best Zettelkasten implementation
-#+BEGIN_SRC emacs-lisp 
+One of the best Zettelkasten implementation. Unused cause of ~org-node~
+#+BEGIN_SRC emacs-lisp  :tangle no
 (use-package org-roam
   ;; :ensure (:package "org-roam" :protocol https :inherit t :depth 1 :fetcher github :repo "org-roam/org-roam")
-  :bind
-  (("C-c n r i" . org-roam-node-insert)
-   ("C-c n r f" . org-roam-node-find))
+  ;; :bind
+  ;; (("C-c n r i" . org-roam-node-insert)
+  ;;  ("C-c n r f" . org-roam-node-find))
   :init
   (setq org-roam-v2-ack t)
   :config
@@ -4313,6 +4358,33 @@ One of the best Zettelkasten implementation
   :after org-roam)
 #+END_SRC
 
+** Org node. Fast org roam alternative
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-node
+  :after org
+  :bind
+  (("C-c n r f" . org-node-find)
+   ("C-c n r i" . org-node-insert-link))
+  :config 
+  (setq org-node-extra-id-dirs `(,(file-truename "~/org-roam")))
+  (setq org-node-alter-candidates t)
+  (setq org-node-affixation-fn
+        (defun @prefix-with-tag (node title)
+          "Let NODE's tags prefix TITLE."
+          (list title
+                (when-let ((tags (org-node-get-tags node)))
+                  (propertize (concat "(" (string-join tags ", ") ") ")
+                              'face `(:foreground ,\@m-color-main :weight bold :slant italic)))
+                nil)))
+  (org-node-cache-mode))
+
+(use-package org-node-fakeroam
+  :defer
+  :config
+  (setq org-node-creation-fn #'org-node-fakeroam-new-via-roam-capture)
+  (setq org-node-slug-fn #'org-node-fakeroam-slugify-via-roam)
+  (setq org-node-datestamp-format "%Y%m%d%H%M%S-"))
+#+END_SRC
 ** Image inserting to org documents
 #+BEGIN_SRC emacs-lisp
 (use-package org-yt
@@ -4560,7 +4632,8 @@ Didn't mange to start work
   :ensure nil
   :bind
   (("C-c p a" . projectile-add-known-project)
-   ("C-c b k i" . @kill-invisible-buffers))
+   ("C-c b k i" . @kill-invisible-buffers)
+   ("C-c p d" . projectile-remove-known-project))
   :config
   <<projectile-persp-hook>>
   (projectile-mode +1))
