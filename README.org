@@ -461,6 +461,18 @@ This is a variadic `cl-pushnew'."
   (split-window-horizontally)
   (call-interactively 'ace-window)
   (call-interactively 'consult-projectile-find-file))
+
+
+(defun @open-consult-projectile-switch-to-buffer ()
+  "Open project buffer from current directory to the side"
+  (interactive)
+  (when (not (= 1 (length (window-list))))
+    (@toggle-maximize-buffer))
+
+  
+  (split-window-horizontally)
+  (call-interactively 'ace-window)
+  (call-interactively 'consult-projectile-switch-to-buffer))
 #+END_SRC
 
 * Navigation
@@ -589,8 +601,6 @@ This is a variadic `cl-pushnew'."
   (meow-define-keys 'normal
     '("\\m" . @toggle-maximize-buffer)
     '("\\q" . kill-current-buffer)
-    '("s-y" . xah-copy-to-register-1)
-    '("s-p" . xah-paste-from-register-1)
     '("z z" . recenter)
     '("g c" . comment-or-uncomment-region)))
 
@@ -659,6 +669,7 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'meow-mode-state-list '(detached-compilation-mode-map . normal))
   (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal))
   (add-to-list 'meow-mode-state-list '(debug-mode . normal))
+  (add-to-list 'meow-mode-state-list '(debugger-mode . normal))
   ;; (add-to-list 'meow-mode-state-list '(special-mode . normal))
   (add-to-list 'meow-mode-state-list '(grep-mode . normal)))
 #+END_SRC
@@ -816,8 +827,8 @@ https://debbugs.gnu.org/cgi/bugreport.cgi?bug=73082
   (require 'indent-bars-ts) 		; not needed with straight
   :custom
   ;; (indent-bars-color '(highlight :face-bg t :blend 0.1))
-  (indent-bars-width-frac 0.1)
-  (indent-bars-pad-frac 0.1)
+  (indent-bars-width-frac 0.2)
+  (indent-bars-pad-frac 1.0)
   ;; (indent-bars-zigzag nil)
   ;; (indent-bars-pattern ".")
   ;; (indent-bars-prefer-character t)
@@ -831,11 +842,12 @@ https://debbugs.gnu.org/cgi/bugreport.cgi?bug=73082
   (indent-bars-treesit-scope '((python function_definition class_definition for_statement
 	                                     if_statement with_statement while_statement)))
   ;; Note: wrap may not be needed if no-descend-list is enough
-  ;;(indent-bars-treesit-wrap '((python argument_list parameters ; for python, as an example
-  ;;				      list list_comprehension
-  ;;				      dictionary dictionary_comprehension
-  ;;				      parenthesized_expression subscript)))
-  :hook ((python-base-mode yaml-mode html-mode html-ts-mode ng2-html-mode) . indent-bars-mode))
+  (indent-bars-treesit-wrap '((python argument_list parameters ; for python, as an example
+  				                            list list_comprehension
+  				                            dictionary dictionary_comprehension
+  				                            parenthesized_expression subscript)
+                              (html element)))
+  :hook ((python-base-mode yaml-mode yaml-ts-mode html-mode) . indent-bars-mode))
 #+END_SRC
 ** Highlight selected text
 #+BEGIN_SRC emacs-lisp
@@ -926,8 +938,9 @@ Very pretty titlebar for Mac os
 ** Highlight colors. Rainbow extension
 #+BEGIN_SRC emacs-lisp
 (use-package colorful-mode
-  :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode"))
-            
+  :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
+  :hook ((html-mode css-mode scss-mode emacs-lisp-mode) . colorful-mode))
+
 #+END_SRC
 ** HOLD Rainbow delimiters
 #+BEGIN_SRC emacs-lisp :results silent :tangle no
@@ -969,6 +982,7 @@ Doesn't work for mac os unfortunately ;c
   (doom-themes-visual-bell-config)
   ;; Enable custom neotree theme (all-the-icons must be installed!)
   (doom-themes-neotree-config)
+  (setq custom-theme-directory "~/.doom.d/themes")
   ;; or for treemacs users
   (setq doom-themes-treemacs-theme "doom-atom") ; use "doom-colors" for less minimal icon theme
   (doom-themes-treemacs-config)
@@ -1106,6 +1120,18 @@ Pretty, but has conflicts with padding mode, which is more necessary
   (solaire-global-mode +1))
 #+END_SRC
 
+** Auto zoom windows
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package zoom
+  :defer 0.2
+  :config
+  (custom-set-variables
+   '(zoom-size '(0.618 . 0.618))
+   '(zoom-mode t)
+   '(zoom-ignored-buffer-name-regexps '("^*calc" "^*vterm"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode))
+   '(zoom-ignore-predicates nil)))
+#+END_SRC
 * Keybindings
 ** Common keybindings
 #+BEGIN_SRC emacs-lisp
@@ -2488,6 +2514,7 @@ Another all formtter. Based on prettier and black
            ("\\p" . apheleia-format-buffer))
   :config
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
+  (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
   (add-to-list 'apheleia-mode-alist '(html-mode . prettier)))
 #+END_SRC
 
@@ -4883,6 +4910,7 @@ Swiss tool ;3
          ("C-c o M" . husky-actions-open-clear-messages)
          ("C-c f D" . husky-actions-delete-this-file)
          ("s-<backspace>" . husky-edit-kill-word-backward)
+         ("s-B" . @open-consult-projectile-switch-to-buffer)
          :map meow-normal-state-keymap
          ("gd" . husky-actions-find-definition)
          ("%" . husky-navigation-bounce-paren)
@@ -4890,6 +4918,8 @@ Swiss tool ;3
          ("g f" . husky-actions-avy-go-to-definition)
          ("z r" . husky-fold-open)
          ("z R" . husky-fold-open-all)
+         ("s-y" . husky-actions-copy-to-register-1)
+         ("s-p" . husky-actions-paste-from-register-1)
          ("z A" . husky-fold-toggle-all)
          ("z a" . husky-fold-toggle)
          ("z j" . husky-fold-next)
