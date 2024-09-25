@@ -473,6 +473,16 @@ This is a variadic `cl-pushnew'."
   (split-window-horizontally)
   (call-interactively 'ace-window)
   (call-interactively 'consult-projectile-switch-to-buffer))
+
+(defun @husky-go-to-definition-by-side ()
+  "Go to definition under cursor by side, usgin `husky'"
+  (interactive)
+  
+  (when (not (= 1 (length (window-list))))
+    (@toggle-maximize-buffer))
+  
+  (split-window-horizontally)
+  (husky-actions-find-definition))
 #+END_SRC
 
 * Navigation
@@ -519,6 +529,7 @@ This is a variadic `cl-pushnew'."
    '("9" . meow-expand-9)
    '("8" . meow-expand-8)
    '("7" . meow-expand-7)
+   '("s-o" . meow-last-buffer)
    '("6" . meow-expand-6)
    '("5" . meow-expand-5)
    '("4" . meow-expand-4)
@@ -595,7 +606,8 @@ This is a variadic `cl-pushnew'."
     '("\\q" . kill-current-buffer))
 
   (meow-define-keys 'insert
-    '("s-p" . xah-paste-from-register-1))
+   '("s-o" . meow-last-buffer)
+   '("s-p" . xah-paste-from-register-1))
 
 
   (meow-define-keys 'normal
@@ -607,6 +619,14 @@ This is a variadic `cl-pushnew'."
 (defun @meow-thing-register ()
   (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n ") '(regexp " \\|\n " " \\|\n "))
   (add-to-list 'meow-char-thing-table '(?w . whitespace))
+
+  ;; (meow-thing-register 'between-space '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]") '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]"))
+  ;; (add-to-list 'meow-char-thing-table '(?e . between-space))
+
+  (meow-thing-register 'non-whitespace
+                         '(syntax . "-")
+                         '(syntax . "-"))
+  (add-to-list 'meow-char-thing-table '(?e . non-whitespace))
 
   (add-to-list 'meow-char-thing-table '(?\" . quoted))
   (add-to-list 'meow-char-thing-table '(?' . quoted))
@@ -1152,6 +1172,7 @@ Pretty, but has conflicts with padding mode, which is more necessary
 (global-set-key (kbd "C-c w v") 'split-window-horizontally)
 (global-set-key (kbd "C-c o l") '@open-messages)
 (global-set-key (kbd "C-c o M") '@open-clear-messages)
+(global-set-key (kbd "C-c o F") 'ns-open-file-using-panel)
 ;; (global-set-key (kbd "C-v") 'View-scroll-half-page-forward)
 ;; (global-set-key (kbd "M-v") 'View-scroll-half-page-backward)
 (global-set-key (kbd "C-h t") 'load-theme)
@@ -2883,7 +2904,7 @@ Another all formtter. Based on prettier and black
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
   (corfu-quit-no-match t)        ;; Automatically quit if there is no match
-  (corfu-auto-delay 0.1)
+  (corfu-auto-delay 0.02)
   (corfu-echo-documentation nil) ;; Do not show documentation in the echo area
   (corfu-preselect-first t)
   (corfu-auto-prefix 2)
@@ -4916,6 +4937,7 @@ Swiss tool ;3
          ("%" . husky-navigation-bounce-paren)
          ("g F" . husky-actions-avy-go-to-definition)
          ("g f" . husky-actions-avy-go-to-definition)
+         ("g D" . @husky-go-to-definition-by-side)
          ("z r" . husky-fold-open)
          ("z R" . husky-fold-open-all)
          ("s-y" . husky-actions-copy-to-register-1)
