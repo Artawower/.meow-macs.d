@@ -1267,8 +1267,6 @@ Vim like navigation
 ** Global keybindings
 #+BEGIN_SRC emacs-lisp
 (global-set-key "\C-u" 'backward-kill-line)
-(global-set-key (kbd "s-,") '@open-file-from-current-dir-to-the-side)
-(global-set-key (kbd "s-<") '@open-file-from-to-the-side)
 (global-set-key (kbd "C-S-l") 'enlarge-window-horizontally)
 (global-set-key (kbd "C-S-h") 'shrink-window-horizontally)
 (global-set-key (kbd "<C-S-up>") 'shrink-window)
@@ -3902,6 +3900,9 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward)
          ("C-c b k i" . husky-buffers-kill-invisible-buffers)
+         ("C-c f F" . husky-buffers-side-find-file)
+         ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
+         ("C-c >" . husky-buffers-side-find-file)
          :map meow-normal-state-keymap
          ("gd" . husky-lsp-find-definition)
          ("%" . husky-navigation-bounce-paren)

@@ -234,13 +234,13 @@ This is a variadic `cl-pushnew'."
   :config
   ;; TODO: main need to get all from directory.
   (setq tempel-path
-        '("~/apps/pure-emacs/templates/common"
-          "~/apps/pure-emacs/templates/readme"
-          "~/apps/pure-emacs/templates/org-mode"
-          "~/apps/pure-emacs/templates/web-mode"
-          "~/apps/pure-emacs/templates/contribution-guide"
-          "~/apps/pure-emacs/templates/emacs-lisp"
-          "~/apps/pure-emacs/templates/golang")))
+        '("~/apps/flat-emacs/templates/common"
+          "~/apps/flat-emacs/templates/readme"
+          "~/apps/flat-emacs/templates/org-mode"
+          "~/apps/flat-emacs/templates/web-mode"
+          "~/apps/flat-emacs/templates/contribution-guide"
+          "~/apps/flat-emacs/templates/emacs-lisp"
+          "~/apps/flat-emacs/templates/golang")))
 
 (use-package apheleia
   :hook (prog-mode . apheleia-global-mode)
@@ -1384,12 +1384,19 @@ This is a variadic `cl-pushnew'."
 
 (add-to-list 'display-buffer-alist
              '("^\\*compilation\\*$"
-               (display-buffer-in-side-window)
-               ;; (side . right)  ;; or (side . left) for the left side
+               (display-buffer-reuse-window display-buffer-in-side-window)
+               (side . right)  ;; or (side . left) for the left side
                (slot . 0)
                (window-width . 0.4)))
 
-(defun @display-buffer-other-vertical (buffer &optional alist)
+(defun @get-visible-buffers-cnt ()
+  "Get the number of visible buffers"
+  (let ((visible-buffers 0)
+        (buffer-list (buffer-list)))
+    (dolist (buffer buffer-list)
+      (if (get-buffer-window buffer)
+          (cl-incf visible-buffers)))
+    visible-buffers))(defun @display-buffer-other-vertical (buffer &optional alist)
   "Display BUFFER in another window. If only one window, split vertical before."
 (message "is one window? %s " (one-window-p))
     (if (one-window-p)
@@ -2002,6 +2009,8 @@ This is a variadic `cl-pushnew'."
 
 (use-package transient-posframe
   :ensure (:type git :host github :repo "yanghaoxie/transient-posframe")
+  :custom
+  (transient-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
   :config
   (transient-posframe-mode))
 
@@ -2317,6 +2326,7 @@ This is a variadic `cl-pushnew'."
   (mini-frame-resize-min-height 12)
   :config
   (setq mini-frame-internal-border-color (face-foreground 'font-lock-bracket-face))
+  (defun mini-frame-get-background-color () (face-background 'default))
   (custom-set-variables
    '(mini-frame-show-parameters
      '((top . 0.74)
@@ -2368,6 +2378,7 @@ This is a variadic `cl-pushnew'."
    ("3" . meow-expand-3)
    ("4" . meow-expand-4)
    ("q" . kill-current-buffer)
+   ("<escape>" . kill-current-buffer)
    ("Q" . bury-buffer)
    (";" . meow-reverse)
    ("Z" . magit-stash)
