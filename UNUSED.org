@@ -841,39 +841,66 @@ Unused, cause support of key navigation is not so good? check
 #+END_SRC
 
 * Completion
-** Vertico posframe                                               
-*** HOLD Posframe
-:PROPERTIES:
-:header-args: :tangle no
-:END:
+** COMMENT Vertico posframe :unused:
 #+BEGIN_SRC emacs-lisp
-        (use-package vertico-posframe
-          :ensure t
-          :config
-          (setq vertico-posframe-parameters
-              '((left-fringe . 8)
-                (right-fringe . 8)))
-          (vertico-posframe-mode 1))
+(use-package vertico-posframe
+  :ensure t
+  :config
+  (setq vertico-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
+  (setq vertico-posframe-min-width 1920)
+  (setq vertico-posframe-parameters
+        '((left-fringe . 8)
+          (right-fringe . 8)))
+  (vertico-posframe-mode 1))
 #+END_SRC
-
-*** Mini frame
-:PROPERTIES:
-:header-args: :tangle no
-:END:
-
-#+BEGIN_SRC emacs-lisp 
+** COMMENT Miniframe
+Accidentaly lost focus
+#+BEGIN_SRC emacs-lisp :results silent
 (use-package mini-frame
-  :defer 2
   :custom
   (mini-frame-color-shift-step 10)
+  (mini-frame-resize-min-height 12)
   :config
+  (setq mini-frame-internal-border-color (face-foreground 'font-lock-bracket-face))
+  (defun mini-frame-get-background-color () (face-background 'default))
   (custom-set-variables
    '(mini-frame-show-parameters
-     '((top . 0.7)
-       (width . 0.7)
-       (left . 0.5))))
+     '((top . 0.74)
+       (width . 0.96)
+       (left . 0.5)
+       (right . 0.0)
+       (height . 1))))
   (mini-frame-mode))
-#+END_SRC
+
+
+
+  #+END_SRC
+
+  Override make frame function cause it has lack of the border width settings
+
+  #+BEGIN_SRC emacs-lisp :results silent
+(defun @mini-frame--make-frame (parameters)
+  "Make frame with common parameters and PARAMETERS."
+  (let ((frame (make-frame (append parameters
+                                   '((visibility . nil)
+                                     (user-position . t)
+                                     (user-size . t)
+                                     (keep-ratio . t)
+                                     (undecorated . t)
+                                     (desktop-dont-save . t)
+                                     (child-frame-border-width . 1)
+                                     (internal-border-width . 1)
+                                     (drag-internal-border . t)
+                                     (z-group . above))))))
+    (set-face-background 'fringe nil frame)
+    (when mini-frame-internal-border-color
+      (set-face-background 'child-frame-border mini-frame-internal-border-color frame)
+      (set-face-background 'internal-border mini-frame-internal-border-color frame))
+    frame))
+
+
+(advice-add 'mini-frame--make-frame :override #'@mini-frame--make-frame)
+  #+END_SRC
 
 ** Fuzzy search
 :PROPERTIES:

@@ -917,7 +917,7 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
            (detached-terminal-data-command system-type)))
 #+END_SRC
 * Workspaces
-** Core package
+** Core package. Tabspaces
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package tabspaces
   ;; use this next line only if you also use straight, otherwise ignore it. 
@@ -1372,6 +1372,17 @@ Override meow keypad parsing
       (better-jumper-set-jump old-pos))))
 #+END_SRC
 
+
+Function for preserve better jump befor buffer changed only for prog mode.
+
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @better-jump-save-prog-mode-pos (&rest args)
+  "Function for preserve better jump befor buffer changed only for prog mode"
+  (when (or (derived-mode-p 'prog-mode)
+            (eq major-mode 'html-ts-mode))
+    (call-interactively #'better-jumper-set-jump)))
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp :noweb yes
 (use-package better-jumper
   :demand t
@@ -1386,10 +1397,14 @@ Override meow keypad parsing
   (advice-add 'evil-next-line :around #'@better-jump-preserve-pos-advice)
   (advice-add 'evil-previous-line :around #'@better-jump-preserve-pos-advice)
   (advice-add 'meow-end-of-thing :around #'@better-jump-preserve-pos-advice)
-  ;; (advice-add 'find-file :around #'@better-jump-preserve-pos-advice)
   (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
   (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
+  (advice-add 'find-file :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'project-find-file :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'consult-buffer :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'lsp-find-references :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'husky-lsp-find-definition :before #'@better-jump-save-prog-mode-pos)
   (better-jumper-mode 1))
 #+END_SRC
 ** Bookmarks
@@ -3028,65 +3043,6 @@ Function for search in buffer depends or visual or normal line
             '(persp-switch-to-buffer . buffer)))
 
 #+END_SRC
-** COMMENT Vertico posframe :unused:
-#+BEGIN_SRC emacs-lisp
-(use-package vertico-posframe
-  :ensure t
-  :config
-  (setq vertico-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
-  (setq vertico-posframe-min-width 1920)
-  (setq vertico-posframe-parameters
-        '((left-fringe . 8)
-          (right-fringe . 8)))
-  (vertico-posframe-mode 1))
-#+END_SRC
-** Miniframe
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package mini-frame
-  :custom
-  (mini-frame-color-shift-step 10)
-  (mini-frame-resize-min-height 12)
-  :config
-  (setq mini-frame-internal-border-color (face-foreground 'font-lock-bracket-face))
-  (defun mini-frame-get-background-color () (face-background 'default))
-  (custom-set-variables
-   '(mini-frame-show-parameters
-     '((top . 0.74)
-       (width . 0.96)
-       (left . 0.5)
-       (right . 0.0)
-       (height . 1))))
-  (mini-frame-mode))
-
-
-
-  #+END_SRC
-
-  Override make frame function cause it has lack of the border width settings
-
-  #+BEGIN_SRC emacs-lisp :results silent
-(defun @mini-frame--make-frame (parameters)
-  "Make frame with common parameters and PARAMETERS."
-  (let ((frame (make-frame (append parameters
-                                   '((visibility . nil)
-                                     (user-position . t)
-                                     (user-size . t)
-                                     (keep-ratio . t)
-                                     (undecorated . t)
-                                     (desktop-dont-save . t)
-                                     (child-frame-border-width . 1)
-                                     (internal-border-width . 1)
-                                     (drag-internal-border . t)
-                                     (z-group . above))))))
-    (set-face-background 'fringe nil frame)
-    (when mini-frame-internal-border-color
-      (set-face-background 'child-frame-border mini-frame-internal-border-color frame)
-      (set-face-background 'internal-border mini-frame-internal-border-color frame))
-    frame))
-
-
-(advice-add 'mini-frame--make-frame :override #'@mini-frame--make-frame)
-  #+END_SRC
 * GIT
 ** Magit
 Dependencies
@@ -3908,7 +3864,7 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
          ("%" . husky-navigation-bounce-paren)
          ("g F" . husky-lsp-avy-go-to-definition)
          ("g f" . husky-lsp-avy-go-to-definition)
-         ("g D" . @husky-go-to-definition-by-side)
+         ("g D" . husky-buffers-side-husky-actions-find-definition)
          ("z r" . husky-fold-open)
          ("z R" . husky-fold-open-all)
          ("s-y" . husky-lsp-copy-to-register-1)

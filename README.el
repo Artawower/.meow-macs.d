@@ -1013,8 +1013,6 @@ This is a variadic `cl-pushnew'."
   (meow-vterm-enable))
 
 (global-set-key "\C-u" 'backward-kill-line)
-(global-set-key (kbd "s-,") '@open-file-from-current-dir-to-the-side)
-(global-set-key (kbd "s-<") '@open-file-from-to-the-side)
 (global-set-key (kbd "C-S-l") 'enlarge-window-horizontally)
 (global-set-key (kbd "C-S-h") 'shrink-window-horizontally)
 (global-set-key (kbd "<C-S-up>") 'shrink-window)
@@ -1097,6 +1095,11 @@ This is a variadic `cl-pushnew'."
   :config
   (setq aw-ignored-buffers (delq 'treemacs-mode aw-ignored-buffers)))
 
+(defun @better-jump-save-prog-mode-pos (&rest args)
+  "Function for preserve better jump befor buffer changed only for prog mode"
+  (when (derived-mode-p 'prog-mode)
+    (call-interactively #'better-jumper-set-jump)))
+
 (use-package better-jumper
   :demand t
   :bind
@@ -1120,6 +1123,11 @@ This is a variadic `cl-pushnew'."
   (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
   (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
+  (advice-add 'find-file :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'project-find-file :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'consult-buffer :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'lsp-find-references :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'husky-lsp-find-definition :before #'@better-jump-save-prog-mode-pos)
   (better-jumper-mode 1))
 
 (use-package bm
@@ -2320,44 +2328,6 @@ This is a variadic `cl-pushnew'."
           '(flycheck-error-list-set-filter . builtin)
           '(persp-switch-to-buffer . buffer)))
 
-(use-package mini-frame
-  :custom
-  (mini-frame-color-shift-step 10)
-  (mini-frame-resize-min-height 12)
-  :config
-  (setq mini-frame-internal-border-color (face-foreground 'font-lock-bracket-face))
-  (defun mini-frame-get-background-color () (face-background 'default))
-  (custom-set-variables
-   '(mini-frame-show-parameters
-     '((top . 0.74)
-       (width . 0.96)
-       (left . 0.5)
-       (right . 0.0)
-       (height . 1))))
-  (mini-frame-mode))
-
-(defun @mini-frame--make-frame (parameters)
-  "Make frame with common parameters and PARAMETERS."
-  (let ((frame (make-frame (append parameters
-                                   '((visibility . nil)
-                                     (user-position . t)
-                                     (user-size . t)
-                                     (keep-ratio . t)
-                                     (undecorated . t)
-                                     (desktop-dont-save . t)
-                                     (child-frame-border-width . 1)
-                                     (internal-border-width . 1)
-                                     (drag-internal-border . t)
-                                     (z-group . above))))))
-    (set-face-background 'fringe nil frame)
-    (when mini-frame-internal-border-color
-      (set-face-background 'child-frame-border mini-frame-internal-border-color frame)
-      (set-face-background 'internal-border mini-frame-internal-border-color frame))
-    frame))
-
-
-(advice-add 'mini-frame--make-frame :override #'@mini-frame--make-frame)
-
 (use-package magit
   :defer t
   :commands
@@ -3021,12 +2991,15 @@ This is a variadic `cl-pushnew'."
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward)
          ("C-c b k i" . husky-buffers-kill-invisible-buffers)
+         ("C-c f F" . husky-buffers-side-find-file)
+         ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
+         ("C-c >" . husky-buffers-side-find-file)
          :map meow-normal-state-keymap
          ("gd" . husky-lsp-find-definition)
          ("%" . husky-navigation-bounce-paren)
          ("g F" . husky-lsp-avy-go-to-definition)
          ("g f" . husky-lsp-avy-go-to-definition)
-         ("g D" . @husky-go-to-definition-by-side)
+         ("g D" . husky-buffers-side-husky-actions-find-definition)
          ("z r" . husky-fold-open)
          ("z R" . husky-fold-open-all)
          ("s-y" . husky-lsp-copy-to-register-1)
