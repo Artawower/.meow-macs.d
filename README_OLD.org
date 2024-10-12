@@ -4928,6 +4928,8 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
 #+END_SRC
 
 
+** Obsidian
+
 * Husky
 Swiss tool ;3
 #+BEGIN_SRC emacs-lisp 

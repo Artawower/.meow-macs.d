@@ -82,6 +82,54 @@
 (customize-set-variable 'package-enable-at-startup nil)
 ;; (package-initialize)
 
+;;; Code to replace exec-path-from-shell
+;; Need to create file in $HOME/.emacs.d/.local/env
+;; use this command to create the file  `printenv > $home/.emacs.d/.local/env'
+(defconst my-local-dir (concat user-emacs-directory ".local/"))
+
+(defconst my-env-file (concat my-local-dir "env"))
+
+(defun my-load-envvars-file (file &optional noerror)
+  "Read and set envvars from FILE.
+If NOERROR is non-nil, don't throw an error if the file doesn't exist or is
+unreadable. Returns the names of envvars that were changed."
+  (if (not (file-readable-p file))
+      (unless noerror
+        (signal 'file-error (list "Couldn't read envvar file" file)))
+    (let (envvars environment)
+      (with-temp-buffer
+        (save-excursion
+          (insert "\n")
+          (insert-file-contents file))
+        (while (re-search-forward "\n *\\([^#= \n]*\\)=" nil t)
+          (push (match-string 1) envvars)
+          (push (buffer-substring
+                 (match-beginning 1)
+                 (1- (or (save-excursion
+                           (when (re-search-forward "^\\([^= ]+\\)=" nil t)
+                             (line-beginning-position)))
+                         (point-max))))
+                environment)))
+      (when environment
+        (setq process-environment
+              (append (nreverse environment) process-environment)
+              exec-path
+              (if (member "PATH" envvars)
+                  (append (split-string (getenv "PATH") path-separator t)
+                          (list exec-directory))
+                exec-path)
+              shell-file-name
+              (if (member "SHELL" envvars)
+                  (or (getenv "SHELL") shell-file-name)
+                shell-file-name))
+        envvars))))
+
+(when (and (or (display-graphic-p)
+               (daemonp))
+           (file-exists-p my-env-file))
+  (my-load-envvars-file my-env-file))
+;;; Code to replace exec-path-from-shell
+
 (when cnfg/backup-dir
   (setq backup-directory-alist `(("." . ,cnfg/backup-dir))))
 (setq lock-file-name-transforms
@@ -344,9 +392,12 @@ This is a variadic `cl-pushnew'."
           ng2-ts-mode
           typescript-mode
           js-mode
+          js-ts-mode
+          python-ts-mode
           python-mode
           html-mode
           json-mode
+          json-ts-mode
           go-mode
           bash-mode
           css-mode
@@ -759,6 +810,7 @@ This is a variadic `cl-pushnew'."
 
 (use-package tab-bar
   :defer t
+  :bind (("C-c TAB w" . tab-switch))
   :ensure nil
   :custom
   (tab-bar-show nil))
@@ -1097,7 +1149,8 @@ This is a variadic `cl-pushnew'."
 
 (defun @better-jump-save-prog-mode-pos (&rest args)
   "Function for preserve better jump befor buffer changed only for prog mode"
-  (when (derived-mode-p 'prog-mode)
+  (when (or (derived-mode-p 'prog-mode)
+            (eq major-mode 'html-ts-mode))
     (call-interactively #'better-jumper-set-jump)))
 
 (use-package better-jumper
@@ -1119,7 +1172,6 @@ This is a variadic `cl-pushnew'."
   (advice-add 'evil-next-line :around #'@better-jump-preserve-pos-advice)
   (advice-add 'evil-previous-line :around #'@better-jump-preserve-pos-advice)
   (advice-add 'meow-end-of-thing :around #'@better-jump-preserve-pos-advice)
-  ;; (advice-add 'find-file :around #'@better-jump-preserve-pos-advice)
   (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
   (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
@@ -1128,6 +1180,8 @@ This is a variadic `cl-pushnew'."
   (advice-add 'consult-buffer :before #'@better-jump-save-prog-mode-pos)
   (advice-add 'lsp-find-references :before #'@better-jump-save-prog-mode-pos)
   (advice-add 'husky-lsp-find-definition :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'flycheck-next-error :before #'@better-jump-save-prog-mode-pos)
+  (advice-add 'flycheck-previous-error :before #'@better-jump-save-prog-mode-pos)
   (better-jumper-mode 1))
 
 (use-package bm
@@ -1404,7 +1458,9 @@ This is a variadic `cl-pushnew'."
     (dolist (buffer buffer-list)
       (if (get-buffer-window buffer)
           (cl-incf visible-buffers)))
-    visible-buffers))(defun @display-buffer-other-vertical (buffer &optional alist)
+    visible-buffers))
+
+(defun @display-buffer-other-vertical (buffer &optional alist)
   "Display BUFFER in another window. If only one window, split vertical before."
 (message "is one window? %s " (one-window-p))
     (if (one-window-p)
@@ -1493,17 +1549,16 @@ This is a variadic `cl-pushnew'."
   :custom
   (compile-command "bun run build")
   :config
-  ;; (setcdr compilation-minor-mode-map nil)
   
-  ;; (defun display-buffer-from-compilation-p (_buffer-name _action)
-  ;;   (unless current-prefix-arg
-  ;;     (with-current-buffer (window-buffer)
-  ;;       (derived-mode-p 'compilation-mode))))
-  ;; 
-  ;; (push '(display-buffer-from-compilation-p
-  ;;         display-buffer-use-least-recent-window
-  ;;         (inhibit-same-window . nil))
-  ;;       display-buffer-alist)
+  (defun display-buffer-from-compilation-p (_buffer-name _action)
+    (unless current-prefix-arg
+      (with-current-buffer (window-buffer)
+        (derived-mode-p 'compilation-mode))))
+  
+  (push '(display-buffer-from-compilation-p
+          display-buffer-use-least-recent-window
+          (inhibit-same-window . nil))
+        display-buffer-alist)
   (@setup-compilation-errors))
 
 (use-package cognitive-complexity
@@ -1629,6 +1684,7 @@ This is a variadic `cl-pushnew'."
         rustic-format-display-method 'ignore))
 
 (use-package python
+  :ensure nil
   :defer t
   :bind (("C-c r p" . @open-ipython-repl-here)
          :map inferior-python-mode-map
@@ -1755,6 +1811,48 @@ This is a variadic `cl-pushnew'."
 
 (use-package jinja2-mode
   :defer t)
+
+(use-package markdown-mode
+  :hook
+  (markdown-mode . nb/markdown-unhighlight)
+  :config
+  (defvar nb/current-line '(0 . 0)
+    "(start . end) of current line in current buffer")
+  (make-variable-buffer-local 'nb/current-line)
+
+  (defun nb/unhide-current-line (limit)
+    "Font-lock function"
+    (let ((start (max (point) (car nb/current-line)))
+          (end (min limit (cdr nb/current-line))))
+      (when (< start end)
+        (remove-text-properties start end
+                                '(invisible t display "" composition ""))
+        (goto-char limit)
+        t)))
+
+  (defun nb/refontify-on-linemove ()
+    "Post-command-hook"
+    (let* ((start (line-beginning-position))
+           (end (line-beginning-position 2))
+           (needs-update (not (equal start (car nb/current-line)))))
+      (setq nb/current-line (cons start end))
+      (when needs-update
+        (font-lock-fontify-block 3))))
+
+  (defun nb/markdown-unhighlight ()
+    "Enable markdown concealling"
+    (interactive)
+    (markdown-toggle-markup-hiding 'toggle)
+    (font-lock-add-keywords nil '((nb/unhide-current-line)) t)
+    (add-hook 'post-command-hook #'nb/refontify-on-linemove nil t))
+  :custom-face
+  (markdown-header-delimiter-face ((t (:foreground "#616161" :height 0.9))))
+  (markdown-header-face-1 ((t (:height 1.6  :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face))))
+  (markdown-header-face-2 ((t (:height 1.4  :foreground "#EBCB8B" :weight extra-bold :inherit markdown-header-face))))
+  (markdown-header-face-3 ((t (:height 1.2  :foreground "#D08770" :weight extra-bold :inherit markdown-header-face))))
+  (markdown-header-face-4 ((t (:height 1.15 :foreground "#BF616A" :weight bold :inherit markdown-header-face))))
+  (markdown-header-face-5 ((t (:height 1.1  :foreground "#b48ead" :weight bold :inherit markdown-header-face))))
+  (markdown-header-face-6 ((t (:height 1.05 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))))
 
 (defun @markdown-toc ()
   "Extract level 2 and 3 headings from the current Markdown buffer.
@@ -1918,7 +2016,7 @@ This is a variadic `cl-pushnew'."
                           '("->" "<-" "-->" "<--" "<-->"
                             "|>" "<|" "=>" "==>" "::" "<=" ">="
                             "~@" "&&"
-                            "||=" "!=" "!==" "||" "?=" ":="
+                            "||=" "!=" "!==" "||" "?=" ":=" "==="
                             "/**" "/*" "*/"
                             "..." ".." ";;" "--" "++" "::"
                             "##" "###" "###"))
@@ -2064,7 +2162,7 @@ This is a variadic `cl-pushnew'."
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^*calc" "^*vterm"))
+   '(zoom-ignored-buffer-name-regexps '("^*calc" "^*vterm" "^*combobulate-query-builder"))
    '(zoom-ignored-major-modes '(dired-mode markdown-mode))
    '(zoom-ignore-predicates nil)))
 
@@ -2103,10 +2201,48 @@ This is a variadic `cl-pushnew'."
   (setq tab-bar-echo-area-display-tab-names-format-string " %s ")
   (tab-bar-echo-area-mode 1))
 
+(use-package tab-bar-lost-commands
+  :ensure)
+
 (use-package rotate
   :bind (("C-c w R" . rotate-layout)
          ("C-c w r" . rotate-window))
   :defer t)
+
+(defun @treesit-html-breadcrumbs ()
+  "Return a string of breadcrumbs."
+  (let ((node (treesit-node-at (point) 'html))
+        result)
+    (while node
+      (when (string= "element" (treesit-node-type node))
+        (push (treesit-node-text (treesit-node-child
+                                  (treesit-node-child node 0) 1))
+              result))
+      (setq node (treesit-node-parent node)))
+    (s-join " > " result)))
+
+(defun @treesit-json-breadcrumbs ()
+  "Return a string of breadcrumbs for json."
+  (let ((node (treesit-node-parent (treesit-node-at (point) 'json)))
+        result
+        next-child-type)
+    (while node
+      (setq next-child-type (treesit-node-type (treesit-node-child node 2)))
+      (when (and (string= "pair" (treesit-node-type node))
+                 (or (string= "object" next-child-type)
+                     (string= "array" next-child-type)))
+        (push (treesit-node-text (treesit-node-child (treesit-node-child node 0) 1))
+              result))
+      (setq node (treesit-node-parent node)))
+    (s-join " > " result)))
+
+(use-package topsy
+  :hook
+  (prog-mode . topsy-mode)
+  (magit-section-mode . topsy-mode)
+  :config
+  (add-to-list 'topsy-mode-functions '(html-ts-mode . @treesit-html-breadcrumbs))
+  (add-to-list 'topsy-mode-functions '(json-ts-mode . @treesit-json-breadcrumbs)))
 
 (use-package vertico
   :ensure (:host github :repo "minad/vertico" :files ("vertico.el" "extensions/*.el"))
@@ -2261,6 +2397,13 @@ This is a variadic `cl-pushnew'."
         (consult-line substring))
     (consult-line)))
 
+(defun @consult-ripgrep-selected-p ()
+  "Run `consult-ripgrep' on selected region, or with empty string"
+  (interactive)
+  (if (use-region-p)
+      (consult-ripgrep nil (buffer-substring (region-beginning) (region-end)))
+    (consult-ripgrep)))
+
 (use-package consult
   :defer t
   :bind (("s-f" . @consult-line-or-region)
@@ -2268,21 +2411,20 @@ This is a variadic `cl-pushnew'."
          ("C-c b b" . consult-buffer)
          ("C-c f P" . @open-emacs-config)
          ("C-c f p" . consult-ripgrep)
-         ("C-c /" . consult-ripgrep)
+         ("C-c /" . @consult-ripgrep-selected-p)
          ("C-c *" . (lambda () (interactive) (consult-ripgrep nil (thing-at-point 'symbol))))
          ("C-c s i" . consult-imenu)
          ("C-c RET" . consult-bookmark)
          ("C-c c m" . consult-mark)
-         ("C-c f R" . consult-recent-file)
-         ("M-n" . @repeat-search-forward)
-         ("M-p" . @repeat-search-backward))
+         ("C-c f r" . consult-recent-file)
+         ("C-c f R" . consult-recent-file))
   :custom
   (consult-preview-key "C-SPC")
   :init
-  (setq recentf-max-menu-items 100)
+  (setq recentf-max-menu-items 3000)
   (recentf-mode 1)
   
-  (setq recentf-max-saved-items 1000)
+  (setq recentf-max-saved-items 3000)
   (setq register-preview-delay 0
         register-preview-function #'consult-register-format)
 
@@ -2328,6 +2470,20 @@ This is a variadic `cl-pushnew'."
           '(flycheck-error-list-set-filter . builtin)
           '(persp-switch-to-buffer . buffer)))
 
+(use-package transient)
+
+(defun @magit-worktree-create-project (path worktree &rest args)
+  "Register new project when magit worktree create a new branch"
+  (setq project--list (append project--list `((,path)))))
+
+(defun @magit-worktree-delete-project (worktree)
+  "Delete project when worktree deleted."
+  (project-forget-project worktree))
+
+(advice-add 'magit-worktree-checkout :after #'@magit-worktree-create-project)
+(advice-add 'magit-worktree-branch :after #'@magit-worktree-create-project)
+(advice-add 'magit-worktree-delete :after #'@magit-worktree-delete-project)
+
 (use-package magit
   :defer t
   :commands
@@ -2357,8 +2513,6 @@ This is a variadic `cl-pushnew'."
    ("`" . magit-process-buffer)
    ("f" . avy-goto-word-1)
    ("x" . magit-discard)
-   ("M-n" . @repeat-search-forward)
-   ("M-p" . @repeat-search-backward)
    :map magit-status-mode-map
    ("x" . meow-line)
    ("X" . magit-discard)
@@ -2815,7 +2969,7 @@ This is a variadic `cl-pushnew'."
 (use-package jinx
   :hook (emacs-startup . global-jinx-mode)
   :custom
-  (jinx-languages "ru_RU en_US")
+  (jinx-languages "en_US ru_RU")
   (jinx-camel-modes '(prog-mode org-mode))
   :bind (("C-c f w" . jinx-correct)
          ("C-c l c" . jinx-languages)
@@ -2991,7 +3145,7 @@ This is a variadic `cl-pushnew'."
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward)
          ("C-c b k i" . husky-buffers-kill-invisible-buffers)
-         ("C-c f F" . husky-buffers-side-find-file)
+         ("C-c f F" . husky-buffers-side-project-find-file)
          ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
          ("C-c >" . husky-buffers-side-find-file)
          :map meow-normal-state-keymap
@@ -3011,8 +3165,38 @@ This is a variadic `cl-pushnew'."
          ("z k" . husky-fold-previous)
          ("\\ m" . husky-window-manager-toggle-maximize-buffer)
          :map meow-motion-state-keymap
-         ("\\ m" . husky-window-manager-toggle-maximize-buffer))
+         ("\\ m" . husky-window-manager-toggle-maximize-buffer)
+         :map magit-status-mode-map
+         ("M-n" . husky-lsp-repeat-consult-search-forward)
+         ("M-p" . husky-lsp-repeat-consult-search-backward))
   :config
   (global-husky-treesit))
+
+(use-package obsidian
+  :ensure t
+  :demand t
+  :config
+  (obsidian-specify-path "/Users/darkawower/Library/Mobile Documents/iCloud~md~obsidian/Documents/brain")
+  (global-obsidian-mode t)
+  :custom
+  ;; This directory will be used for `obsidian-capture' if set.
+  (obsidian-inbox-directory "Inbox")
+  ;; Create missing files in inbox? - when clicking on a wiki link
+  ;; t: in inbox, nil: next to the file with the link
+  ;; default: t
+  ;(obsidian-wiki-link-create-file-in-inbox nil)
+  ;; The directory for daily notes (file name is YYYY-MM-DD.md)
+  (obsidian-daily-notes-directory "Daily Notes")
+  ;; Directory of note templates, unset (nil) by default
+  ;(obsidian-templates-directory "Templates")
+  ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
+  ;(obsidian-daily-note-template "Daily Note Template.md")
+  :bind (:map obsidian-mode-map
+  ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
+  ("C-c o o" . obsidian-follow-link-at-point)
+  ;; Jump to backlinks
+  ("C-c o b" . obsidian-backlink-jump)
+  ;; If you prefer you can use `obsidian-insert-link'
+  ("C-c o w" . obsidian-insert-wikilink)))
 
 (elpaca-wait)
