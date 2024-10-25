@@ -12,6 +12,11 @@
 brew install emacs-plus@31 --with-debug --with-xwidgets --with-imagemagick --with-native-comp --with-modern-doom3-icon --with-dbus
 #+END_SRC
 
+[[https://www.reddit.com/r/emacs/comments/1cu82z8/comment/l4izeij/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button][Move to applications folder]]
+#+BEGIN_SRC emacs-lisp :results silent :tangle no 
+osascript -e 'tell application "Finder" to make alias file to posix file "/opt/homebrew/opt/emacs-plus@29/Emacs.app" at POSIX file "/Applications" with properties {name:"Emacs.app"}'
+#+END_SRC
+
 * Required variables
 ** Default Emacs dir with configs
 #+BEGIN_SRC emacs-lisp
@@ -267,13 +272,35 @@ This is a variadic `cl-pushnew'."
   (kill-line (- 1 arg)))
 #+END_SRC
 
+** Toggle transparency
+#+BEGIN_SRC emacs-lisp
+(setq my-transparency-disabled-p t)
+(defun @toggle-transparency ()
+  "Toggle transparency"
+  (interactive)
+  (let* ((not-transparent-p (and (boundp 'my-transparency-disabled-p) my-transparency-disabled-p))
+         (alpha (if not-transparent-p 100 90)))
+    (setq my-transparency-disabled-p (not not-transparent-p))
+    (message "%s" alpha)
+    (progn
+      (set-frame-parameter (selected-frame) 'alpha `(,alpha . ,alpha))
+      (add-to-list 'default-frame-alist `(alpha . (,alpha . ,alpha))))))
+#+END_SRC
+
+
 * Editing
+** Expand region
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package expand-region
+  :bind (("s-x" . er/expand-region))
+  :defer t)
+#+END_SRC
 ** Narrowing
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package narrow-indirect
   :ensure (:host github :repo "emacsmirror/narrow-indirect")
   :bind (("C-c 0" . ni-narrow-to-region-indirect-other-window))
-  :defer t)
+  :defer 2)
 #+END_SRC
 ** Undo redo
 *** Undo mode
@@ -329,6 +356,7 @@ This is a variadic `cl-pushnew'."
   (turbo-log-payload-format-template "%s: ")
   :config
   (setq turbo-log-allow-insert-without-treesit-p t)
+  (setq turbo-log-allow-insert-without-tree-sitter-p t)
   (turbo-log-configure
    :modes (typescript-ts-mode tsx-ts-mode typescript-mode js2-mode web-mode ng2-ts-mode js-mode)
    :strategy merge
@@ -360,10 +388,15 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
 #+BEGIN_SRC emacs-lisp 
 (use-package persistent-kmacro
   :ensure (:host github :repo "artawower/persistent-kmacro.el")
+  :after meow
   :defer t
   :bind (("C-c m e" . persistent-kmacro-execute-macro)
          ("C-c m a" . persistent-kmacro-name-last-kbd-macro)
-         ("C-c m r" . persistent-kmacro-remove-macro)))
+         ("C-c m r" . persistent-kmacro-remove-macro)
+         :map meow-normal-state-keymap
+         ("#" . persistent-kmacro-apply))
+  :config
+  (setq persistent-kmacro-macro-file "persistent-kmacro-store.el"))
 #+END_SRC
 
 ** Default Tabs/spaces
@@ -396,6 +429,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
           "~/apps/flat-emacs/templates/org-mode"
           "~/apps/flat-emacs/templates/web-mode"
           "~/apps/flat-emacs/templates/contribution-guide"
+          "~/apps/flat-emacs/templates/angular"
           "~/apps/flat-emacs/templates/emacs-lisp"
           "~/apps/flat-emacs/templates/golang")))
 #+END_SRC
@@ -600,7 +634,6 @@ Another all formtter. Based on prettier and black
   :defer 2
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto nil)                 ;; Enable auto completion
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
   (corfu-quit-no-match t)        ;; Automatically quit if there is no match
@@ -702,7 +735,7 @@ Another all formtter. Based on prettier and black
 
 #+END_SRC
 
-**** Corfu. Overlay
+**** COMMENT Corfu. Overlay
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package corfu-candidate-overlay
   :ensure (:type git
@@ -710,6 +743,8 @@ Another all formtter. Based on prettier and black
              :files (:defaults "*.el"))
   :after corfu
   :config
+  (setq corfu-auto nil)                 ;; Enable auto completion
+
   (corfu-candidate-overlay-mode +1)
   (global-set-key (kbd "s-l") 'corfu-candidate-overlay-complete-at-point))
 #+END_SRC
@@ -775,6 +810,12 @@ Another all formtter. Based on prettier and black
   ;; (doom-themes-treemacs-config)
   ;; (doom-themes-org-config)
 )
+#+END_SRC
+
+All the icons
+
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package treemacs-all-the-icons :after treemacs :config (treemacs-load-theme "all-the-icons"))
 #+END_SRC
 
 *** Reveal in osx finder
@@ -1042,7 +1083,7 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
   :ensure nil
   :bind (("C-c p p" . project-switch-project)
          ("C-c p d" . project-forget-project)
-         ("C-c SPC SPC" . project-find-file)
+         ("C-c SPC" . project-find-file)
          ("C-c f f" . project-find-file)
          ("C-c f d" . project-find-dir)
          ("C-c p c" . project-compile)
@@ -1145,6 +1186,7 @@ Move to husky
    '("7" . meow-expand-7)
    '("s-o" . meow-last-buffer)
    '("6" . meow-expand-6)
+   '("@" . meow-end-or-call-kmacro)
    '("5" . meow-expand-5)
    '("4" . meow-expand-4)
    '("3" . meow-expand-3)
@@ -1648,6 +1690,7 @@ Bookmark for navigation inside file
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
+  (lsp-keymap-prefix "s-9")
   (lsp-keymap-prefix "C-c l")
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
@@ -1725,6 +1768,66 @@ Bookmark for navigation inside file
 
 #+RESULTS:
 : [nil 26300 53253 712612 nil elpaca-process-queues nil nil 999999 nil]
+
+*** COMMENT LSP eslint
+https://github.com/emacs-lsp/lsp-mode/issues/4341
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package lsp-eslint
+  :demand t
+  :after lsp-mode
+  :config
+  (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
+  (setq lsp-eslint-server-command `("node"
+                                    "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
+                                    "--stdio")))
+#+END_SRC
+*** LSP. Pyright
+#+BEGIN_SRC emacs-lisp
+(use-package lsp-pyright
+  :hook (python-ts-mode . (lambda ()
+                          (require 'lsp-pyright)
+                          (lsp-deferred)))
+  :config
+  (setq lsp-pyright-auto-import-completions t)
+  (setq lsp-pyright-auto-search-paths t)
+  (setq lsp-pyright-log-level "trace")
+  (setq lsp-pyright-multi-root nil)
+  (setq lsp-pyright-use-library-code-for-types t)
+  ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
+  (setq lsp-pyright-diagnostic-mode "workspace"))
+#+END_SRC
+
+*** Pipenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package pipenv
+  :defer t
+  :hook (python-mode . pipenv-mode)
+  :config
+  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
+  
+
+  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
+  ;; This hook will copy venv from pyvenv to lsp pyright
+  (add-hook 'pyvenv-post-activate-hooks (lambda ()
+                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
+                                          (lsp-restart-workspace)))
+
+  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
+#+END_SRC
+
+*** TODO Auto virtualenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package auto-virtualenv
+  :ensure t
+  :init
+  (use-package pyvenv
+    :ensure t)
+  :config
+  (add-hook 'python-mode-hook 'auto-virtualenv-set-virtualenv)
+  (add-hook 'python-ts-mode-hook 'auto-virtualenv-set-virtualenv)
+  (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-set-virtualenv)  ;; If using projectile
+  )
+  #+END_SRC
 
 *** YAML
 **** YAML PRO
@@ -2451,8 +2554,8 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+END_SRC
 
 * AI
-** Copilot :disabled:
-#+BEGIN_SRC emacs-lisp :tangle no
+** Copilot
+#+BEGIN_SRC emacs-lisp
 (use-package copilot
   :defer 5
   :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
@@ -2464,7 +2567,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
    ("s-[" . copilot-previous-completion)
    ("s-l" . copilot-accept-completion)
    ("s-k" . copilot-accept-completion)
-   ("s-S-j" . copilot-complete)
+   ("s-j" . copilot-complete)
    ("s-;" . copilot-accept-completion-by-word)
    ("s-/" . copilot-accept-completion-by-line))
   :custom
@@ -2519,7 +2622,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :ensure (:host github :repo "Exafunction/codeium.el")
     :init
     (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
-    :bind ("s-j" . my/codeium)
+    :bind ("s-J" . my/codeium)
     :config
     (setq use-dialog-box nil) ;; do not use popup boxes
     (setq codeium-api-enabled
@@ -2535,6 +2638,16 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
     (setq codeium/document/text 'my-codeium/document/text)
     (setq codeium/document/cursor_offset 'my-codeium/document/cursor_offset))
 
+
+#+END_SRC
+** Geptel
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package gptel
+  :config
+  (gptel-make-ollama "Ollama"
+                     :host "localhost:11434"
+                     :stream t
+                     :models '(llama3.2))) 
 
 #+END_SRC
 * Collaborations
@@ -2825,7 +2938,9 @@ Very pretty titlebar for Mac os
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
    . (lambda () (@set-catppucin-theme)))
-  :init (auto-dark-mode))
+  :init (auto-dark-mode)
+  :config
+  (@set-catppucin-theme))
 #+END_SRC
 ** Hide modeline mode
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3185,7 +3300,17 @@ Function for search in buffer depends or visual or normal line
   (("C-c p f" . consult-project-extra-find)
    ("C-c p o" . consult-project-extra-find-other-window)))
 #+END_SRC
-
+*** COMMENT Consult gh
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package consult-gh
+  :ensure (consult-gh :type git :host github :repo "armindarvish/consult-gh")
+  :after consult
+  :config
+  (require 'consult-gh-transient)
+  (require 'consult-gh-embark)
+  (consult-gh-embark-mode +1)
+  (consult-gh-forge-mode +1))
+#+END_SRC
 ** Bulk grep operation
 #+BEGIN_SRC emacs-lisp 
 (use-package wgrep
@@ -3275,6 +3400,8 @@ Dependencies
    ("x" . meow-line)
    ("X" . magit-discard)
    ("C-j" . magit-section-forward)
+   ("M-n" . husky-lsp-repeat-consult-search-forward)
+   ("M-p" . husky-lsp-repeat-consult-search-backward)
    ("C-k" . magit-section-backward)
    ("1" . meow-expand-1)
    ("2" . meow-expand-2)
@@ -3384,6 +3511,11 @@ Improved styles for git changes
 
   (global-blamer-mode 1))
 #+END_SRC
+** COMMENT Diff hl
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package diff-hl)
+#+END_SRC
+
 ** Timemachine
 #+BEGIN_SRC emacs-lisp 
 (use-package git-timemachine
@@ -4074,8 +4206,38 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward))
   :config
+  (require 'web-mode)
   (global-husky-treesit))
 #+END_SRC
+* Obsidian
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package obsidian
+  :ensure t
+  :demand t
+  :config
+  (obsidian-specify-path "/Users/darkawower/Library/Mobile Documents/iCloud~md~obsidian/Documents/brain")
+  (global-obsidian-mode t)
+  :custom
+  ;; This directory will be used for `obsidian-capture' if set.
+  (obsidian-inbox-directory "Inbox")
+  ;; Create missing files in inbox? - when clicking on a wiki link
+  ;; t: in inbox, nil: next to the file with the link
+  ;; default: t
+  ;(obsidian-wiki-link-create-file-in-inbox nil)
+  ;; The directory for daily notes (file name is YYYY-MM-DD.md)
+  (obsidian-daily-notes-directory "Daily Notes")
+  ;; Directory of note templates, unset (nil) by default
+  ;(obsidian-templates-directory "Templates")
+  ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
+  ;(obsidian-daily-note-template "Daily Note Template.md")
+  :bind (:map obsidian-mode-map
+  ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
+  ("C-c o o" . obsidian-follow-link-at-point)
+  ;; Jump to backlinks
+  ("C-c o b" . obsidian-backlink-jump)
+  ;; If you prefer you can use `obsidian-insert-link'
+  ("C-c o w" . obsidian-insert-wikilink)))
+  #+END_SRC
 * End config
 #+BEGIN_SRC emacs-lisp :results silent
 (elpaca-wait)

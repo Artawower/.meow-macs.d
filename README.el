@@ -186,10 +186,26 @@ This is a variadic `cl-pushnew'."
   (interactive "p")
   (kill-line (- 1 arg)))
 
+(setq my-transparency-disabled-p t)
+(defun @toggle-transparency ()
+  "Toggle transparency"
+  (interactive)
+  (let* ((not-transparent-p (and (boundp 'my-transparency-disabled-p) my-transparency-disabled-p))
+         (alpha (if not-transparent-p 100 90)))
+    (setq my-transparency-disabled-p (not not-transparent-p))
+    (message "%s" alpha)
+    (progn
+      (set-frame-parameter (selected-frame) 'alpha `(,alpha . ,alpha))
+      (add-to-list 'default-frame-alist `(alpha . (,alpha . ,alpha))))))
+
+(use-package expand-region
+  :bind (("s-g" . er/expand-region))
+  :defer t)
+
 (use-package narrow-indirect
   :ensure (:host github :repo "emacsmirror/narrow-indirect")
   :bind (("C-c 0" . ni-narrow-to-region-indirect-other-window))
-  :defer t)
+  :defer 2)
 
 (use-package undo-fu
   :defer t
@@ -234,6 +250,7 @@ This is a variadic `cl-pushnew'."
   (turbo-log-payload-format-template "%s: ")
   :config
   (setq turbo-log-allow-insert-without-treesit-p t)
+  (setq turbo-log-allow-insert-without-tree-sitter-p t)
   (turbo-log-configure
    :modes (typescript-ts-mode tsx-ts-mode typescript-mode js2-mode web-mode ng2-ts-mode js-mode)
    :strategy merge
@@ -256,10 +273,15 @@ This is a variadic `cl-pushnew'."
 
 (use-package persistent-kmacro
   :ensure (:host github :repo "artawower/persistent-kmacro.el")
+  :after meow
   :defer t
   :bind (("C-c m e" . persistent-kmacro-execute-macro)
          ("C-c m a" . persistent-kmacro-name-last-kbd-macro)
-         ("C-c m r" . persistent-kmacro-remove-macro)))
+         ("C-c m r" . persistent-kmacro-remove-macro)
+         :map meow-normal-state-keymap
+         ("#" . persistent-kmacro-apply))
+  :config
+  (setq persistent-kmacro-macro-file "persistent-kmacro-store.el"))
 
 (setq-default indent-tabs-mode nil)
 (setq-default tab-width 2)
@@ -287,6 +309,7 @@ This is a variadic `cl-pushnew'."
           "~/apps/flat-emacs/templates/org-mode"
           "~/apps/flat-emacs/templates/web-mode"
           "~/apps/flat-emacs/templates/contribution-guide"
+          "~/apps/flat-emacs/templates/angular"
           "~/apps/flat-emacs/templates/emacs-lisp"
           "~/apps/flat-emacs/templates/golang")))
 
@@ -456,7 +479,6 @@ This is a variadic `cl-pushnew'."
   :defer 2
   :custom
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-auto nil)                 ;; Enable auto completion
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
   (corfu-quit-no-match t)        ;; Automatically quit if there is no match
@@ -528,15 +550,6 @@ This is a variadic `cl-pushnew'."
   :config
   (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter))
 
-(use-package corfu-candidate-overlay
-  :ensure (:type git
-             :repo "https://code.bsdgeek.org/adam/corfu-candidate-overlay"
-             :files (:defaults "*.el"))
-  :after corfu
-  :config
-  (corfu-candidate-overlay-mode +1)
-  (global-set-key (kbd "s-l") 'corfu-candidate-overlay-complete-at-point))
-
 (use-package cape
   :bind ("C-c C-e" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
   :init
@@ -587,6 +600,8 @@ This is a variadic `cl-pushnew'."
   ;; (doom-themes-treemacs-config)
   ;; (doom-themes-org-config)
 )
+
+(use-package treemacs-all-the-icons :after treemacs :config (treemacs-load-theme "all-the-icons"))
 
 (use-package reveal-in-osx-finder
   :defer t
@@ -862,6 +877,10 @@ This is a variadic `cl-pushnew'."
   (interactive "p\ncTill:")
   (meow-till -1 ch))
 
+(defun switch-to-first-matching-buffer (regex)
+  (switch-to-buffer (car (remove-if-not (apply-partially #'string-match-p regex)
+                                        (mapcar #'buffer-name (buffer-list))))))
+
 (defun meow-setup ()
   (setq meow-cheatsheet-layout meow-cheatsheet-layout-qwerty)
   (meow-motion-overwrite-define-key
@@ -896,6 +915,7 @@ This is a variadic `cl-pushnew'."
    '("7" . meow-expand-7)
    '("s-o" . meow-last-buffer)
    '("6" . meow-expand-6)
+   '("@" . meow-end-or-call-kmacro)
    '("5" . meow-expand-5)
    '("4" . meow-expand-4)
    '("3" . meow-expand-3)
@@ -1262,6 +1282,7 @@ This is a variadic `cl-pushnew'."
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
+  (lsp-keymap-prefix "s-9")
   (lsp-keymap-prefix "C-c l")
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
@@ -1335,6 +1356,45 @@ This is a variadic `cl-pushnew'."
   (@setup-compilation-errors)
   (setq lsp-disabled-clients '(html-ls))
   (setq lsp-eldoc-hook nil))
+
+(use-package lsp-pyright
+  :hook (python-ts-mode . (lambda ()
+                          (require 'lsp-pyright)
+                          (lsp-deferred)))
+  :config
+  (setq lsp-pyright-auto-import-completions t)
+  (setq lsp-pyright-auto-search-paths t)
+  (setq lsp-pyright-log-level "trace")
+  (setq lsp-pyright-multi-root nil)
+  (setq lsp-pyright-use-library-code-for-types t)
+  ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
+  (setq lsp-pyright-diagnostic-mode "workspace"))
+
+(use-package pipenv
+  :defer t
+  :hook (python-mode . pipenv-mode)
+  :config
+  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
+  
+
+  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
+  ;; This hook will copy venv from pyvenv to lsp pyright
+  (add-hook 'pyvenv-post-activate-hooks (lambda ()
+                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
+                                          (lsp-restart-workspace)))
+
+  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
+
+(use-package auto-virtualenv
+  :ensure t
+  :init
+  (use-package pyvenv
+    :ensure t)
+  :config
+  (add-hook 'python-mode-hook 'auto-virtualenv-set-virtualenv)
+  (add-hook 'python-ts-mode-hook 'auto-virtualenv-set-virtualenv)
+  (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-set-virtualenv)  ;; If using projectile
+  )
 
 (use-package yaml-pro
   :defer t
@@ -1901,6 +1961,35 @@ This is a variadic `cl-pushnew'."
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
 
+(use-package copilot
+  :defer 5
+  :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
+  :hook
+  (prog-mode . copilot-mode)
+  (text-mode . copilot-mode)
+  :bind
+  (("s-]" . copilot-next-completion)
+   ("s-[" . copilot-previous-completion)
+   ("s-l" . copilot-accept-completion)
+   ("s-k" . copilot-accept-completion)
+   ("s-j" . copilot-complete)
+   ("s-;" . copilot-accept-completion-by-word)
+   ("s-/" . copilot-accept-completion-by-line))
+  :custom
+  (copilot-idle-delay 0.3)
+  :config
+  (setq copilot--previous-point nil)
+  (setq copilot--previous-window-width nil)
+  (copilot-diagnose)
+  ;; (global-copilot-mode)
+  (add-hook 'meow-insert-enter-hook (lambda ()
+                                      (setq blamer--block-render-p t)
+                                      (blamer--clear-overlay)))
+  (add-hook 'meow-insert-exit-hook (lambda ()
+                                     (setq blamer--block-render-p nil)
+                                     (copilot-clear-overlay)))
+  )
+
 (use-package copilot-chat
   :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
   :defer t
@@ -1928,7 +2017,7 @@ This is a variadic `cl-pushnew'."
   :ensure (:host github :repo "Exafunction/codeium.el")
     :init
     (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
-    :bind ("s-j" . my/codeium)
+    :bind ("s-J" . my/codeium)
     :config
     (setq use-dialog-box nil) ;; do not use popup boxes
     (setq codeium-api-enabled
@@ -1943,6 +2032,13 @@ This is a variadic `cl-pushnew'."
             (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (point))))
     (setq codeium/document/text 'my-codeium/document/text)
     (setq codeium/document/cursor_offset 'my-codeium/document/cursor_offset))
+
+(use-package gptel
+  :config
+  (gptel-make-ollama "Ollama"
+                     :host "localhost:11434"
+                     :stream t
+                     :models '(llama3.2)))
 
 (use-package floobits
   :defer t)
@@ -2148,7 +2244,9 @@ This is a variadic `cl-pushnew'."
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
    . (lambda () (@set-catppucin-theme)))
-  :init (auto-dark-mode))
+  :init (auto-dark-mode)
+  :config
+  (@set-catppucin-theme))
 
 (use-package hide-mode-line
   :hook
@@ -2517,6 +2615,8 @@ This is a variadic `cl-pushnew'."
    ("x" . meow-line)
    ("X" . magit-discard)
    ("C-j" . magit-section-forward)
+   ("M-n" . husky-lsp-repeat-consult-search-forward)
+   ("M-p" . husky-lsp-repeat-consult-search-backward)
    ("C-k" . magit-section-backward)
    ("1" . meow-expand-1)
    ("2" . meow-expand-2)
@@ -3170,6 +3270,7 @@ This is a variadic `cl-pushnew'."
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward))
   :config
+  (require 'web-mode)
   (global-husky-treesit))
 
 (use-package obsidian
