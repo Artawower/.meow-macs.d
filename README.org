@@ -1013,6 +1013,12 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
            (detached-terminal-data-command system-type)))
 #+END_SRC
 * Workspaces
+** Ibuffer
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package ibuffer
+  :ensure nil
+  :bind ("C-c i b" . ibuffer))
+#+END_SRC
 ** Core package. Tabspaces
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package tabspaces
@@ -1720,6 +1726,7 @@ Bookmark for navigation inside file
   :config
   (setq lsp-auto-execute-action nil)
   (setq lsp-javascript-display-return-type-hints t)
+  (setq keymap-global-unset "s-l")
   (setq lsp-json-schemas
         `[
           (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
