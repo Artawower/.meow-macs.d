@@ -633,6 +633,7 @@ Another all formtter. Based on prettier and black
 (use-package corfu
   :defer 2
   :custom
+  (corfu-auto t)
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
@@ -1086,6 +1087,7 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
 ** Project.el
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package project
+  :after meow
   :ensure nil
   :bind (("C-c p p" . project-switch-project)
          ("C-c p d" . project-forget-project)
@@ -2886,12 +2888,6 @@ Very pretty titlebar for Mac os
   :hook ((html-mode css-mode scss-mode emacs-lisp-mode) . colorful-mode))
 
 #+END_SRC
-** Fringes
-#+BEGIN_SRC emacs-lisp
-(use-package spacious-padding
-:config
-(spacious-padding-mode))
-#+END_SRC
 ** Transient posframe
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package transient-posframe
@@ -2926,10 +2922,7 @@ Very pretty titlebar for Mac os
   (catppuccin-reload))
 
 (use-package catppuccin-theme
-  :after auto-dark
   :config
-  (@set-catppucin-theme)
-
   ;; https://github.com/catppuccin/emacs/issues/55
   (add-hook 'yaml-mode-hook
             (lambda ()
@@ -2939,8 +2932,9 @@ Very pretty titlebar for Mac os
 *** Auto dark mode
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package auto-dark
-  :ensure t
   :custom
+  (auto-dark-dark-theme 'catppuccin)
+  (auto-dark-light-theme 'catppuccin)
   (auto-dark-themes '((catppuccin) (catppuccin)))
   (auto-dark-polling-interval-seconds 5)
   (auto-dark-allow-osascript nil)
@@ -2950,10 +2944,15 @@ Very pretty titlebar for Mac os
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
    . (lambda () (@set-catppucin-theme)))
-  :init (auto-dark-mode)
-  :config
-  (@set-catppucin-theme))
+  :init (auto-dark-mode))
 #+END_SRC
+** Fringes
+#+BEGIN_SRC emacs-lisp
+(use-package spacious-padding
+  :config
+  (spacious-padding-mode))
+#+END_SRC
+
 ** Hide modeline mode
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package hide-mode-line
