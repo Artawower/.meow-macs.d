@@ -1647,6 +1647,7 @@ Bookmark for navigation inside file
 
 *** LSP-mode Core package
 #+BEGIN_SRC emacs-lisp
+(setq lsp-keymap-prefix "s-9")
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   :after (flycheck)
@@ -1688,7 +1689,12 @@ Bookmark for navigation inside file
    ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
    ("\\l" . lsp-execute-code-action))
+  :bind-keymap
+  ("s-9" . lsp-command-map)
   :init
+  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
+  (setq lsp-keymap-prefix "s-9")
+
   (setq lsp-headerline-breadcrumb-enable nil)
   ;; Configuration for corfu
   ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
@@ -1696,8 +1702,6 @@ Bookmark for navigation inside file
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
-  (lsp-keymap-prefix "s-9")
-  (lsp-keymap-prefix "C-c l")
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
   (lsp-completion-provider :capf)
@@ -1726,7 +1730,6 @@ Bookmark for navigation inside file
   :config
   (setq lsp-auto-execute-action nil)
   (setq lsp-javascript-display-return-type-hints t)
-  (setq keymap-global-unset "s-l")
   (setq lsp-json-schemas
         `[
           (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
@@ -1847,6 +1850,7 @@ https://github.com/emacs-lsp/lsp-mode/issues/4341
 #+BEGIN_SRC emacs-lisp 
 (use-package lsp-ui
   :hook (lsp-mode . lsp-ui-mode)
+  :after lsp-mode
   :bind (:map meow-normal-state-keymap
          ("\\h" . lsp-ui-doc-toggle)
          :map lsp-ui-peek-mode-map
@@ -2582,6 +2586,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :config
   (setq copilot--previous-point nil)
   (setq copilot--previous-window-width nil)
+  (global-set-key (kbd "s-l") 'copilot-accept-completion)
   (copilot-diagnose)
   ;; (global-copilot-mode)
   (add-hook 'meow-insert-enter-hook (lambda ()
