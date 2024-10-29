@@ -1278,7 +1278,7 @@ Move to husky
     '("g c" . comment-or-uncomment-region)))
 
 (defun @meow-thing-register ()
-  (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n ") '(regexp " \\|\n " " \\|\n "))
+  (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n") '(regexp " \\|\n" " \\|\n"))
   (add-to-list 'meow-char-thing-table '(?w . whitespace))
 
   ;; (meow-thing-register 'between-space '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]") '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]"))
