@@ -478,7 +478,7 @@ Another all formtter. Based on prettier and black
   :preface
   ;; You can customize Combobulate's key prefix here.
   ;; Note that you may have to restart Emacs for this to take effect!
-  (setq combobulate-key-prefix "C-c o")
+  (setq combobulate-key-prefix "C-c C-c C-o")
   :bind (("s-q" . combobulate-mark-node-dwim)
          ("s-<down>" . combobulate-navigate-logical-next)
          ("s-<up>" . combobulate-navigate-logical-previous)
@@ -1053,6 +1053,8 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
          ("C-c TAB p" . tabspaces-open-or-create-project-and-workspace)
          ("C-c TAB n" . tabspaces-switch-or-create-workspace)
          ("C-c bt" . tabspaces-switch-to-buffer)
+         ("C-c TAB b" . tabspaces-switch-to-buffer)
+         ("C-c TAB B" . switch-to-buffer)
          ("s-w" . delete-window)
          ("C-c TAB d" . tabspaces-kill-buffers-close-workspace)
          ("C-c TAB S" . tabspaces-save-current-project-session)
@@ -1094,7 +1096,8 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package tab-bar
   :defer t
-  :bind (("C-c TAB w" . tab-switch))
+  :bind (("C-c TAB w" . tab-switch)
+         ("C-c w w" . tab-switch))
   :ensure nil
   :custom
   (tab-bar-show nil))
@@ -1107,11 +1110,10 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
   :bind (("C-c p p" . project-switch-project)
          ("C-c p d" . project-forget-project)
          ("C-c SPC" . project-find-file)
-         ("C-c f f" . project-find-file)
          ("C-c f d" . project-find-dir)
          ("C-c p c" . project-compile)
          ("C-c p r" . project-recompile)
-         ("C-c b b" . project-switch-to-buffer)))
+         ("C-c p b" . project-switch-to-buffer)))
 #+END_SRC
 * Navigation
 ** Meow 
@@ -1208,6 +1210,8 @@ Move to husky
    '("8" . meow-expand-8)
    '("7" . meow-expand-7)
    '("s-o" . meow-last-buffer)
+   '("ge" . end-of-buffer)
+   '("gg" . beginning-of-buffer)
    '("6" . meow-expand-6)
    '("@" . meow-end-or-call-kmacro)
    '("5" . meow-expand-5)
@@ -4207,7 +4211,7 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward)
          ("C-c b k i" . husky-buffers-kill-invisible-buffers)
-         ("C-c f F" . husky-buffers-side-project-find-file)
+         ("C-c S-SPC" . husky-buffers-side-project-find-file)
          ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
          ("C-c >" . husky-buffers-side-find-file)
          :map meow-normal-state-keymap

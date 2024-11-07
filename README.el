@@ -199,7 +199,7 @@ This is a variadic `cl-pushnew'."
       (add-to-list 'default-frame-alist `(alpha . (,alpha . ,alpha))))))
 
 (use-package expand-region
-  :bind (("s-g" . er/expand-region))
+  :bind (("s-x" . er/expand-region))
   :defer t)
 
 (use-package narrow-indirect
@@ -333,7 +333,7 @@ This is a variadic `cl-pushnew'."
   :preface
   ;; You can customize Combobulate's key prefix here.
   ;; Note that you may have to restart Emacs for this to take effect!
-  (setq combobulate-key-prefix "C-c o")
+  (setq combobulate-key-prefix "C-c C-c C-o")
   :bind (("s-q" . combobulate-mark-node-dwim)
          ("s-<down>" . combobulate-navigate-logical-next)
          ("s-<up>" . combobulate-navigate-logical-previous)
@@ -770,6 +770,10 @@ This is a variadic `cl-pushnew'."
   :custom ((detached-show-output-on-attach t)
            (detached-terminal-data-command system-type)))
 
+(use-package ibuffer
+  :ensure nil
+  :bind ("C-c i b" . ibuffer))
+
 (use-package tabspaces
   ;; use this next line only if you also use straight, otherwise ignore it. 
   :straight (:type git :host github :repo "mclear-tools/tabspaces")
@@ -786,6 +790,8 @@ This is a variadic `cl-pushnew'."
          ("C-c TAB p" . tabspaces-open-or-create-project-and-workspace)
          ("C-c TAB n" . tabspaces-switch-or-create-workspace)
          ("C-c bt" . tabspaces-switch-to-buffer)
+         ("C-c TAB b" . tabspaces-switch-to-buffer)
+         ("C-c TAB B" . switch-to-buffer)
          ("s-w" . delete-window)
          ("C-c TAB d" . tabspaces-kill-buffers-close-workspace)
          ("C-c TAB S" . tabspaces-save-current-project-session)
@@ -825,21 +831,22 @@ This is a variadic `cl-pushnew'."
 
 (use-package tab-bar
   :defer t
-  :bind (("C-c TAB w" . tab-switch))
+  :bind (("C-c TAB w" . tab-switch)
+         ("C-c w w" . tab-switch))
   :ensure nil
   :custom
   (tab-bar-show nil))
 
 (use-package project
+  :after meow
   :ensure nil
   :bind (("C-c p p" . project-switch-project)
          ("C-c p d" . project-forget-project)
-         ("C-c SPC SPC" . project-find-file)
-         ("C-c f f" . project-find-file)
+         ("C-c SPC" . project-find-file)
          ("C-c f d" . project-find-dir)
          ("C-c p c" . project-compile)
          ("C-c p r" . project-recompile)
-         ("C-c b b" . project-switch-to-buffer)))
+         ("C-c p b" . project-switch-to-buffer)))
 
 (defun @edit-after-eol ()
   "Edit the current line to the end of the line like A in the VIM."
@@ -914,6 +921,8 @@ This is a variadic `cl-pushnew'."
    '("8" . meow-expand-8)
    '("7" . meow-expand-7)
    '("s-o" . meow-last-buffer)
+   '("ge" . end-of-buffer)
+   '("gg" . beginning-of-buffer)
    '("6" . meow-expand-6)
    '("@" . meow-end-or-call-kmacro)
    '("5" . meow-expand-5)
