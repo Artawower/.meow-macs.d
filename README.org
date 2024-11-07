@@ -228,6 +228,9 @@ Currently i don't use it. But when necessary i just eval this code
   :defer t)
 #+END_SRC
 
+#+RESULTS:
+: [nil 26403 44225 767779 nil elpaca-process-queues nil nil 0 nil]
+
 
 * Custom functions
 ** Open youtrack
@@ -405,6 +408,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
 (setq-default tab-width 2)
 #+END_SRC
 ** Snippets
+Tempal
 #+BEGIN_SRC emacs-lisp
 (use-package tempel
   :bind
@@ -735,6 +739,7 @@ Another all formtter. Based on prettier and black
               ("C-m" . corfu-popupinfo-documentation))
   :custom
   (corfu-echo-delay nil)
+  (corfu-popupinfo-delay '(0.5 . 0.5))
   :after corfu
   :config
   (corfu-popupinfo-mode))
@@ -770,7 +775,6 @@ Another all formtter. Based on prettier and black
 (use-package cape
   :bind ("C-c C-e" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
   :init
-  (setq dabbrev-limit 3)
   (add-hook 'completion-at-point-functions #'cape-dabbrev)
   (add-hook 'completion-at-point-functions #'cape-file)
   (add-hook 'completion-at-point-functions #'cape-elisp-block))
@@ -1384,7 +1388,10 @@ Move to husky
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
-  (advice-add #'meow-change :after (lambda () (indent-for-tab-command)))
+  (advice-add #'meow-change :after 
+            (lambda ()
+              (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
+                (indent-for-tab-command))))
   (meow-global-mode 1))
 #+END_SRC
 
@@ -1757,6 +1764,11 @@ Bookmark for navigation inside file
           (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
           ])
   (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
+  ;; Eslint
+  (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
+  (setq lsp-eslint-server-command `("node"
+                                    "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
+                                    "--stdio"))
   ;; Flycheck patch checkers
   (require 'flycheck)
   (require 'lsp-diagnostics)
@@ -1849,14 +1861,13 @@ https://github.com/emacs-lsp/lsp-mode/issues/4341
 *** TODO Auto virtualenv
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package auto-virtualenv
-  :ensure t
+  :defer t
+  :hook ((python-mode . auto-virtualenv-setup)
+         (python-ts-mode . auto-virtualenv-setup))
   :init
   (use-package pyvenv
     :ensure t)
-  :config
-  (add-hook 'python-mode-hook 'auto-virtualenv-set-virtualenv)
-  (add-hook 'python-ts-mode-hook 'auto-virtualenv-set-virtualenv)
-  (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-set-virtualenv)  ;; If using projectile
+  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
   )
   #+END_SRC
 
@@ -2146,7 +2157,6 @@ By default ~compile-goto-error~ open new window. Its redundant.
 Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+BEGIN_SRC emacs-lisp
 (use-package dape
-  :defer 2
   :ensure (dape :type git :host github :repo "svaante/dape")
   :bind (("C-c d d" . dape)
          ("C-c d n" . dape-next)
@@ -2644,7 +2654,8 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (copilot-chat-shell-maker-init))
 #+END_SRC
 
-** Codeium
+** COMMENT Codeium
+so slow
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/codeium ()
   "Decouple codeium from other completions"
@@ -2653,8 +2664,8 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 
 (use-package codeium
   :ensure (:host github :repo "Exafunction/codeium.el")
-    :init
-    (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
+    ;; :init
+    ;; (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
     :bind ("s-J" . my/codeium)
     :config
     (setq use-dialog-box nil) ;; do not use popup boxes
@@ -2882,7 +2893,8 @@ Very pretty titlebar for Mac os
 #+BEGIN_SRC emacs-lisp
 (use-package hl-todo
   :ensure (hl-todo :depth nil)
-  :defer t
+  :hook (prog-mode . hl-todo-mode)
+  :defer 2
   :config
   (setq hl-todo-keyword-faces
         '(("TODO"   . "#E5C07B")

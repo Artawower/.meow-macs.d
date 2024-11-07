@@ -12,10 +12,10 @@
       @m-color-green "#00D364")
 
 (let* ((normal-gc-cons-threshold (* 20 1024 1024))
-     (init-gc-cons-threshold (* 128 1024 1024)))
-(setq gc-cons-threshold init-gc-cons-threshold)
-(add-hook 'emacs-startup-hook
-          (lambda () (setq gc-cons-threshold (* 20 1024 1024)))))
+       (init-gc-cons-threshold (* 128 1024 1024)))
+  (setq gc-cons-threshold init-gc-cons-threshold)
+  (add-hook 'emacs-startup-hook
+            (lambda () (setq gc-cons-threshold (* 20 1024 1024)))))
 
 (setq read-process-output-max (* 1024 1024))
 
@@ -211,7 +211,7 @@ This is a variadic `cl-pushnew'."
   :defer t
   :bind (("C-r" . undo-fu-only-redo)
          :map meow-normal-state-keymap
-              ("u" . undo-fu-only-undo)))
+         ("u" . undo-fu-only-undo)))
 
 (use-package undo-fu-session
   :config
@@ -313,11 +313,21 @@ This is a variadic `cl-pushnew'."
           "~/apps/flat-emacs/templates/emacs-lisp"
           "~/apps/flat-emacs/templates/golang")))
 
+(defun @treesit-ts-func ()
+  "Return a string f breadcrumbs."
+  (let ((node (treesit-node-at (point) 'typescript))
+        result)
+    (while (and node (not result))
+      (when (string= "function_declaration" (treesit-node-type node))
+        (setq result (treesit-node-text (treesit-node-child-by-field-name node "name"))))
+      (setq node (treesit-node-parent node)))
+    result))
+
 (use-package apheleia
   :hook (prog-mode . apheleia-global-mode)
   :bind
   (:map meow-normal-state-keymap
-           ("\\p" . apheleia-format-buffer))
+        ("\\p" . apheleia-format-buffer))
   :config
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
   (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
@@ -478,6 +488,7 @@ This is a variadic `cl-pushnew'."
 (use-package corfu
   :defer 2
   :custom
+  (corfu-auto t)
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
   (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
@@ -518,27 +529,12 @@ This is a variadic `cl-pushnew'."
   (corfu-quick2 "123456789"))
 
 (use-package corfu-popupinfo
-  :ensure (corfu-info :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
-  :after corfu
-  :config
-  (setq corfu-popupinfo-delay '(0.5 . 0.5)))
-
-(use-package corfu-history
-  :ensure (corfu-history :host github :repo "minad/corfu" :files ("extensions/corfu-history.el"))
-  :after corfu
-  :config
-  (with-eval-after-load 'safehist
-    (cl-pushnew 'corfu-history savehist-additional-variables))
-   (setq corfu-sort-override-function 'corfu-history--sort)
-
-  (corfu-history-mode))
-
-(use-package corfu-popupinfo
   :ensure (corfu-popupinfo :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
   :bind (:map corfu-map
               ("C-m" . corfu-popupinfo-documentation))
   :custom
   (corfu-echo-delay nil)
+  (corfu-popupinfo-delay '(0.5 . 0.5))
   :after corfu
   :config
   (corfu-popupinfo-mode))
@@ -553,7 +549,6 @@ This is a variadic `cl-pushnew'."
 (use-package cape
   :bind ("C-c C-e" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
   :init
-  (setq dabbrev-limit 3)
   (add-hook 'completion-at-point-functions #'cape-dabbrev)
   (add-hook 'completion-at-point-functions #'cape-file)
   (add-hook 'completion-at-point-functions #'cape-elisp-block))
@@ -599,7 +594,7 @@ This is a variadic `cl-pushnew'."
   (setq doom-themes-treemacs-theme "doom-colors") ; use "doom-colors" for less minimal icon theme
   ;; (doom-themes-treemacs-config)
   ;; (doom-themes-org-config)
-)
+  )
 
 (use-package treemacs-all-the-icons :after treemacs :config (treemacs-load-theme "all-the-icons"))
 
@@ -632,32 +627,32 @@ This is a variadic `cl-pushnew'."
   :bind
   ;; Bind `dirvish|dirvish-side|dirvish-dwim' as you see fit
   (:map dirvish-mode-map
-   ("q" . dirvish-quit)
-   ("f" . avy-goto-word-1)
-   :map dired-mode-map ; Dirvish respects all the keybindings in this map
-   ("q" . dirvish-quit)
-   ("h" . dired-up-directory)
-   ("j" . dired-next-line)
-   ("k" . dired-previous-line)
-   ("l" . dired-find-file)
-   ("i" . wdired-change-to-wdired-mode)
-   ("." . dired-omit-mode)
-   ("b"   . dirvish-bookmark-jump)
-   ("f"   . dirvish-file-info-menu)
-   ("y"   . dirvish-yank-menu)
-   ("N"   . dirvish-narrow)
-   ("^"   . dirvish-history-last)
-   ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
-   ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
-   ("TAB" . dirvish-subtree-toggle)
-   ("M-n" . dirvish-history-go-forward)
-   ("M-p" . dirvish-history-go-backward)
-   ("M-l" . dirvish-ls-switches-menu)
-   ("M-m" . dirvish-mark-menu)
-   ("M-f" . dirvish-toggle-fullscreen)
-   ("M-s" . dirvish-setup-menu)
-   ("M-e" . dirvish-emerge-menu)
-   ("M-j" . dirvish-fd-jump)))
+        ("q" . dirvish-quit)
+        ("f" . avy-goto-word-1)
+        :map dired-mode-map ; Dirvish respects all the keybindings in this map
+        ("q" . dirvish-quit)
+        ("h" . dired-up-directory)
+        ("j" . dired-next-line)
+        ("k" . dired-previous-line)
+        ("l" . dired-find-file)
+        ("i" . wdired-change-to-wdired-mode)
+        ("." . dired-omit-mode)
+        ("b"   . dirvish-bookmark-jump)
+        ("f"   . dirvish-file-info-menu)
+        ("y"   . dirvish-yank-menu)
+        ("N"   . dirvish-narrow)
+        ("^"   . dirvish-history-last)
+        ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
+        ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
+        ("TAB" . dirvish-subtree-toggle)
+        ("M-n" . dirvish-history-go-forward)
+        ("M-p" . dirvish-history-go-backward)
+        ("M-l" . dirvish-ls-switches-menu)
+        ("M-m" . dirvish-mark-menu)
+        ("M-f" . dirvish-toggle-fullscreen)
+        ("M-s" . dirvish-setup-menu)
+        ("M-e" . dirvish-emerge-menu)
+        ("M-j" . dirvish-fd-jump)))
 
 (defun @clear-term-history ()
   "Clear terminal history inside vterm."
@@ -666,7 +661,7 @@ This is a variadic `cl-pushnew'."
     (vterm--self-insert)
     (vterm-send-string "clear")
     (vterm-send-return)))
-  
+
 
 (advice-add 'vterm-clear-scrollback :before #'@clear-term-history)
 
@@ -697,19 +692,19 @@ This is a variadic `cl-pushnew'."
               (file-dir (file-name-directory file-name))
               (file-dir (replace-regexp-in-string " " "\\\\\  " file-dir)))
     ;; (save-window-excursion
-      (vterm-toggle-show)
-      (switch-to-first-matching-buffer "vterm")
-      (vterm-send-C-c)
-      (vterm-send-string (concat "cd " file-dir))
-      (vterm-send-return)
-      ;; )
+    (vterm-toggle-show)
+    (switch-to-first-matching-buffer "vterm")
+    (vterm-send-C-c)
+    (vterm-send-string (concat "cd " file-dir))
+    (vterm-send-return)
+    ;; )
     ))
 
 (use-package vterm
   :defer t
   :hook ((vterm-mode . (lambda () (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
-        ;; (vterm-mode . compilation-minor-mode)
-)
+         ;; (vterm-mode . compilation-minor-mode)
+         )
   :bind (("C-c o t" . vterm-toggle)
          ("C-c o T" . @vterm-change-current-directory-to-active-buffer-pwd)
          ("C-c o v" . vterm)
@@ -729,7 +724,7 @@ This is a variadic `cl-pushnew'."
       (vterm--self-insert)
       (vterm-send-string "clear")
       (vterm-send-return)))
-    
+  
   
   (advice-add 'vterm-clear-scrollback :before #'@clear-term-history))
 
@@ -743,17 +738,17 @@ This is a variadic `cl-pushnew'."
   (setq vterm-toggle-fullscreen-p nil)
   (add-to-list 'display-buffer-alist
                '((lambda (buffer-or-name _)
-                     (let ((buffer (get-buffer buffer-or-name)))
-                       (with-current-buffer buffer
-                         (or (equal major-mode 'vterm-mode)
-                             (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
-                  (display-buffer-reuse-window display-buffer-at-bottom)
-                  ;;(display-buffer-reuse-window display-buffer-in-direction)
-                  ;;display-buffer-in-direction/direction/dedicated is added in emacs27
-                  ;;(direction . bottom)
-                  ;;(dedicated . t) ;dedicated is supported in emacs27
-                  (reusable-frames . visible)
-                  (window-height . 0.3))))
+                   (let ((buffer (get-buffer buffer-or-name)))
+                     (with-current-buffer buffer
+                       (or (equal major-mode 'vterm-mode)
+                           (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
+                 (display-buffer-reuse-window display-buffer-at-bottom)
+                 ;;(display-buffer-reuse-window display-buffer-in-direction)
+                 ;;display-buffer-in-direction/direction/dedicated is added in emacs27
+                 ;;(direction . bottom)
+                 ;;(dedicated . t) ;dedicated is supported in emacs27
+                 (reusable-frames . visible)
+                 (window-height . 0.3))))
 
 (use-package detached
   :defer t
@@ -998,8 +993,8 @@ This is a variadic `cl-pushnew'."
     '("\\q" . kill-current-buffer))
 
   (meow-define-keys 'insert
-   '("s-o" . meow-last-buffer)
-   '("s-p" . xah-paste-from-register-1))
+    '("s-o" . meow-last-buffer)
+    '("s-p" . xah-paste-from-register-1))
 
 
   (meow-define-keys 'normal
@@ -1008,15 +1003,15 @@ This is a variadic `cl-pushnew'."
     '("g c" . comment-or-uncomment-region)))
 
 (defun @meow-thing-register ()
-  (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n ") '(regexp " \\|\n " " \\|\n "))
+  (meow-thing-register 'whitespace '(regexp " \\|\n" " \\|\n") '(regexp " \\|\n" " \\|\n"))
   (add-to-list 'meow-char-thing-table '(?w . whitespace))
 
   ;; (meow-thing-register 'between-space '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]") '(regexp "[^[[:blank:]]]" "[^[[:blank:]]]"))
   ;; (add-to-list 'meow-char-thing-table '(?e . between-space))
 
   (meow-thing-register 'non-whitespace
-                         '(syntax . "-")
-                         '(syntax . "-"))
+                       '(syntax . "-")
+                       '(syntax . "-"))
   (add-to-list 'meow-char-thing-table '(?e . non-whitespace))
 
   (add-to-list 'meow-char-thing-table '(?\" . quoted))
@@ -1024,13 +1019,13 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'meow-char-thing-table '(?< . angle))
 
   (add-to-list 'meow-char-thing-table '(?( . round))
-  (add-to-list 'meow-char-thing-table '(?) . round))
+               (add-to-list 'meow-char-thing-table '(?) . round))
 
   (add-to-list 'meow-char-thing-table '(?{ . curly))
   (add-to-list 'meow-char-thing-table '(?} . curly))
   
   (add-to-list 'meow-char-thing-table '(?[ . square))
-  (add-to-list 'meow-char-thing-table '(?] . square))
+               (add-to-list 'meow-char-thing-table '(?] . square))
 
   (meow-thing-register 'quoted
                        '(regexp "\"\\|'\\|`" "\"\\|'\\|`")
@@ -1075,6 +1070,9 @@ This is a variadic `cl-pushnew'."
   ;; (add-to-list 'meow-mode-state-list '(special-mode . normal))
   (add-to-list 'meow-mode-state-list '(grep-mode . normal)))
 
+(defun @indent-after-meow-change ()
+  )
+
 (use-package meow
   :custom
   (meow-use-clipboard t)
@@ -1083,7 +1081,10 @@ This is a variadic `cl-pushnew'."
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
-  (advice-add #'meow-change :after (lambda () (indent-for-tab-command)))
+  (advice-add #'meow-change :after 
+              (lambda ()
+                (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
+                  (indent-for-tab-command))))
   (meow-global-mode 1))
 
 (use-package meow-vterm
@@ -1242,6 +1243,7 @@ This is a variadic `cl-pushnew'."
   (delete-directory dir 'recursive)
   (message "Uninstalled %S" (file-name-nondirectory dir)))
 
+(setq lsp-keymap-prefix "s-9")
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   :after (flycheck)
@@ -1283,7 +1285,12 @@ This is a variadic `cl-pushnew'."
    ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
    ("\\l" . lsp-execute-code-action))
+  :bind-keymap
+  ("s-9" . lsp-command-map)
   :init
+  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
+  (setq lsp-keymap-prefix "s-9")
+
   (setq lsp-headerline-breadcrumb-enable nil)
   ;; Configuration for corfu
   ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
@@ -1291,8 +1298,6 @@ This is a variadic `cl-pushnew'."
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
-  (lsp-keymap-prefix "s-9")
-  (lsp-keymap-prefix "C-c l")
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
   (lsp-completion-provider :capf)
@@ -1327,6 +1332,11 @@ This is a variadic `cl-pushnew'."
           (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
           ])
   (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
+  ;; Eslint
+  (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
+  (setq lsp-eslint-server-command `("node"
+                                    "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
+                                    "--stdio"))
   ;; Flycheck patch checkers
   (require 'flycheck)
   (require 'lsp-diagnostics)
@@ -1368,8 +1378,8 @@ This is a variadic `cl-pushnew'."
 
 (use-package lsp-pyright
   :hook (python-ts-mode . (lambda ()
-                          (require 'lsp-pyright)
-                          (lsp-deferred)))
+                            (require 'lsp-pyright)
+                            (lsp-deferred)))
   :config
   (setq lsp-pyright-auto-import-completions t)
   (setq lsp-pyright-auto-search-paths t)
@@ -1395,14 +1405,13 @@ This is a variadic `cl-pushnew'."
   (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
 
 (use-package auto-virtualenv
-  :ensure t
+  :defer t
+  :hook ((python-mode . auto-virtualenv-setup)
+         (python-ts-mode . auto-virtualenv-setup))
   :init
   (use-package pyvenv
     :ensure t)
-  :config
-  (add-hook 'python-mode-hook 'auto-virtualenv-set-virtualenv)
-  (add-hook 'python-ts-mode-hook 'auto-virtualenv-set-virtualenv)
-  (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-set-virtualenv)  ;; If using projectile
+  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
   )
 
 (use-package yaml-pro
@@ -1411,11 +1420,12 @@ This is a variadic `cl-pushnew'."
 
 (use-package lsp-ui
   :hook (lsp-mode . lsp-ui-mode)
+  :after lsp-mode
   :bind (:map meow-normal-state-keymap
-         ("\\h" . lsp-ui-doc-toggle)
-         :map lsp-ui-peek-mode-map
-         ("C-j" . lsp-ui-peek--select-next)
-         ("C-k" . lsp-ui-peek--select-prev))
+              ("\\h" . lsp-ui-doc-toggle)
+              :map lsp-ui-peek-mode-map
+              ("C-j" . lsp-ui-peek--select-next)
+              ("C-k" . lsp-ui-peek--select-prev))
   :config
   (setq lsp-ui-sideline-diagnostic-max-line-length 100
         lsp-ui-sideline-diagnostic-max-lines 8
@@ -1531,16 +1541,16 @@ This is a variadic `cl-pushnew'."
 
 (defun @display-buffer-other-vertical (buffer &optional alist)
   "Display BUFFER in another window. If only one window, split vertical before."
-(message "is one window? %s " (one-window-p))
-    (if (one-window-p)
-        (split-window-horizontally))
+  (message "is one window? %s " (one-window-p))
+  (if (one-window-p)
+      (split-window-horizontally))
   (display-buffer-use-some-window buffer alist))
-  
 
- (add-to-list 'display-buffer-alist
-      '(("\\*Messages\\*"
-         (display-buffer-reuse-window  display-buffer-in-side-window @display-buffer-other-vertical display-buffer-use-some-window)
-         (side . right))))
+
+(add-to-list 'display-buffer-alist
+             '(("\\*Messages\\*"
+                (display-buffer-reuse-window  display-buffer-in-side-window @display-buffer-other-vertical display-buffer-use-some-window)
+                (side . right))))
 
 (defun @setup-compilation-errors ()
   (interactive)
@@ -1636,7 +1646,6 @@ This is a variadic `cl-pushnew'."
   (cognitive-complexity-mode 1))
 
 (use-package dape
-  :defer 2
   :ensure (dape :type git :host github :repo "svaante/dape")
   :bind (("C-c d d" . dape)
          ("C-c d n" . dape-next)
@@ -1958,10 +1967,10 @@ This is a variadic `cl-pushnew'."
 (use-package markdown-xwidget
   :after markdown-mode
   :ensure (markdown-xwidget
-             :type git
-             :host github
-             :repo "cfclrk/markdown-xwidget"
-             :files (:defaults "resources"))
+           :type git
+           :host github
+           :repo "cfclrk/markdown-xwidget"
+           :files (:defaults "resources"))
   :bind (:map markdown-mode-command-map
               ("x" . markdown-xwidget-preview-mode))
   :custom
@@ -1989,6 +1998,7 @@ This is a variadic `cl-pushnew'."
   :config
   (setq copilot--previous-point nil)
   (setq copilot--previous-window-width nil)
+  (global-set-key (kbd "s-l") 'copilot-accept-completion)
   (copilot-diagnose)
   ;; (global-copilot-mode)
   (add-hook 'meow-insert-enter-hook (lambda ()
@@ -2017,37 +2027,12 @@ This is a variadic `cl-pushnew'."
   (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
   (copilot-chat-shell-maker-init))
 
-(defun my/codeium ()
-  "Decouple codeium from other completions"
-  (interactive)
-  (cape-interactive #'codeium-completion-at-point))
-
-(use-package codeium
-  :ensure (:host github :repo "Exafunction/codeium.el")
-    :init
-    (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
-    :bind ("s-J" . my/codeium)
-    :config
-    (setq use-dialog-box nil) ;; do not use popup boxes
-    (setq codeium-api-enabled
-        (lambda (api)
-            (memq api '(GetCompletions Heartbeat CancelRequest GetAuthToken RegisterUser auth-redirect AcceptCompletion))))
-
-    (defun my-codeium/document/text ()
-        (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (min (+ (point) 1000) (point-max))))
-
-    (defun my-codeium/document/cursor_offset ()
-        (codeium-utf8-byte-length
-            (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (point))))
-    (setq codeium/document/text 'my-codeium/document/text)
-    (setq codeium/document/cursor_offset 'my-codeium/document/cursor_offset))
-
 (use-package gptel
   :config
   (gptel-make-ollama "Ollama"
-                     :host "localhost:11434"
-                     :stream t
-                     :models '(llama3.2)))
+    :host "localhost:11434"
+    :stream t
+    :models '(llama3.2)))
 
 (use-package floobits
   :defer t)
@@ -2083,13 +2068,22 @@ This is a variadic `cl-pushnew'."
 
 (elpaca-wait)
 
+(use-package visual-replace
+  :defer t
+  :ensure (:host github :repo "szermatt/visual-replace")
+  :bind (("C-c r v" . visual-replace)
+         :map visual-replace-mode-map
+         ("C-l" . visual-replace-toggle-regexp))
+  :config
+  (visual-replace-global-mode 1))
+
 (defadvice load-theme (before theme-dont-propagate activate)
- (mapcar #'disable-theme custom-enabled-themes))
+  (mapcar #'disable-theme custom-enabled-themes))
 
 (menu-bar-mode -1)
-  (tool-bar-mode -1)
-  (toggle-scroll-bar -1)
-  (setq ring-bell-function 'ignore)
+(tool-bar-mode -1)
+(toggle-scroll-bar -1)
+(setq ring-bell-function 'ignore)
 (setq scroll-step 1)
 (setq scroll-margin 1)
 
@@ -2214,10 +2208,6 @@ This is a variadic `cl-pushnew'."
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
   :hook ((html-mode css-mode scss-mode emacs-lisp-mode) . colorful-mode))
 
-(use-package spacious-padding
-:config
-(spacious-padding-mode))
-
 (use-package transient-posframe
   :ensure (:type git :host github :repo "yanghaoxie/transient-posframe")
   :custom
@@ -2231,10 +2221,7 @@ This is a variadic `cl-pushnew'."
   (catppuccin-reload))
 
 (use-package catppuccin-theme
-  :after auto-dark
   :config
-  (@set-catppucin-theme)
-
   ;; https://github.com/catppuccin/emacs/issues/55
   (add-hook 'yaml-mode-hook
             (lambda ()
@@ -2242,8 +2229,9 @@ This is a variadic `cl-pushnew'."
                                        (list :foreground (catppuccin-get-color 'blue))))))
 
 (use-package auto-dark
-  :ensure t
   :custom
+  (auto-dark-dark-theme 'catppuccin)
+  (auto-dark-light-theme 'catppuccin)
   (auto-dark-themes '((catppuccin) (catppuccin)))
   (auto-dark-polling-interval-seconds 5)
   (auto-dark-allow-osascript nil)
@@ -2253,9 +2241,11 @@ This is a variadic `cl-pushnew'."
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
    . (lambda () (@set-catppucin-theme)))
-  :init (auto-dark-mode)
+  :init (auto-dark-mode))
+
+(use-package spacious-padding
   :config
-  (@set-catppucin-theme))
+  (spacious-padding-mode))
 
 (use-package hide-mode-line
   :hook
@@ -2573,9 +2563,9 @@ This is a variadic `cl-pushnew'."
   (marginalia-mode)
   :config
   (pushnew! marginalia-command-categories
-          '(+default/find-file-under-here . file)
-          '(flycheck-error-list-set-filter . builtin)
-          '(persp-switch-to-buffer . buffer)))
+            '(+default/find-file-under-here . file)
+            '(flycheck-error-list-set-filter . builtin)
+            '(persp-switch-to-buffer . buffer)))
 
 (use-package transient)
 
@@ -2911,8 +2901,8 @@ This is a variadic `cl-pushnew'."
 
 (use-package org-modern-indent
   :ensure (org-modern-indent :type git :host github :repo "jdtsmith/org-modern-indent"))
-  :config ; add late to hook
-  (add-hook 'org-mode-hook #'org-modern-indent-mode 90)
+:config ; add late to hook
+(add-hook 'org-mode-hook #'org-modern-indent-mode 90)
 
 (add-hook 'org-mode-hook (lambda ()
                            "Beautify Org Checkbox Symbol"
@@ -3064,9 +3054,9 @@ This is a variadic `cl-pushnew'."
 (use-package google-translate
   :defer 10
   :bind (:map google-translate-minibuffer-keymap
-        ("C-'" . google-translate-next-translation-direction)
-        :map meow-normal-state-keymap
-        ("\\ t" . google-translate-smooth-translate))
+              ("C-'" . google-translate-next-translation-direction)
+              :map meow-normal-state-keymap
+              ("\\ t" . google-translate-smooth-translate))
   :config
   (require 'google-translate-smooth-ui)
   (setq google-translate-backend-method 'curl)
@@ -3254,7 +3244,7 @@ This is a variadic `cl-pushnew'."
          ("M-n" . husky-lsp-repeat-consult-search-forward)
          ("M-p" . husky-lsp-repeat-consult-search-backward)
          ("C-c b k i" . husky-buffers-kill-invisible-buffers)
-         ("C-c f F" . husky-buffers-side-project-find-file)
+         ("C-c S-SPC" . husky-buffers-side-project-find-file)
          ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
          ("C-c >" . husky-buffers-side-find-file)
          :map meow-normal-state-keymap
@@ -3294,19 +3284,19 @@ This is a variadic `cl-pushnew'."
   ;; Create missing files in inbox? - when clicking on a wiki link
   ;; t: in inbox, nil: next to the file with the link
   ;; default: t
-  ;(obsidian-wiki-link-create-file-in-inbox nil)
+                                        ;(obsidian-wiki-link-create-file-in-inbox nil)
   ;; The directory for daily notes (file name is YYYY-MM-DD.md)
   (obsidian-daily-notes-directory "Daily Notes")
   ;; Directory of note templates, unset (nil) by default
-  ;(obsidian-templates-directory "Templates")
+                                        ;(obsidian-templates-directory "Templates")
   ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
-  ;(obsidian-daily-note-template "Daily Note Template.md")
+                                        ;(obsidian-daily-note-template "Daily Note Template.md")
   :bind (:map obsidian-mode-map
-  ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
-  ("C-c o o" . obsidian-follow-link-at-point)
-  ;; Jump to backlinks
-  ("C-c o b" . obsidian-backlink-jump)
-  ;; If you prefer you can use `obsidian-insert-link'
-  ("C-c o w" . obsidian-insert-wikilink)))
+              ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
+              ("C-c o o" . obsidian-follow-link-at-point)
+              ;; Jump to backlinks
+              ("C-c o b" . obsidian-backlink-jump)
+              ;; If you prefer you can use `obsidian-insert-link'
+              ("C-c o w" . obsidian-insert-wikilink)))
 
 (elpaca-wait)
