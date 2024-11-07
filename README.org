@@ -433,6 +433,21 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
           "~/apps/flat-emacs/templates/emacs-lisp"
           "~/apps/flat-emacs/templates/golang")))
 #+END_SRC
+
+Helper functions
+
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @treesit-ts-func ()
+  "Return a string of breadcrumbs."
+  (let ((node (treesit-node-at (point) 'typescript))
+        result)
+    (while (and node (not result))
+      (when (string= "function_declaration" (treesit-node-type node))
+        (setq result (treesit-node-text (treesit-node-child-by-field-name node "name"))))
+      (setq node (treesit-node-parent node)))
+    result))
+#+END_SRC
+
 ** Apheleia formatter (prettier)
 Another all formtter. Based on prettier and black
 #+BEGIN_SRC emacs-lisp
