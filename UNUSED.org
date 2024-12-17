@@ -593,6 +593,7 @@ Function for preventing better jump breaks
  Eglot is unused right now. Because it has lack of debugger functionality
 #+BEGIN_SRC emacs-lisp
 (use-package eglot
+  :ensure nil
   :defer t
   :hook
   ((web-mode ng2-mode typescript-mode go-mode python-mode yaml-mode ng2-ts-mode) . eglot-ensure)
@@ -743,6 +744,10 @@ Deprecated
   :config
   (autopair-global-mode))
 #+END_SRC
+
+#+RESULTS:
+: [nil 26458 63226 185879 nil elpaca-process-queues nil nil 0 nil]
+
 *** HOLD Smartparent
 :PROPERTIES:
 :header-args: :tangle no

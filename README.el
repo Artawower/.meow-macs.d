@@ -12,14 +12,14 @@
       @m-color-green "#00D364")
 
 (let* ((normal-gc-cons-threshold (* 20 1024 1024))
-       (init-gc-cons-threshold (* 128 1024 1024)))
-  (setq gc-cons-threshold init-gc-cons-threshold)
-  (add-hook 'emacs-startup-hook
-            (lambda () (setq gc-cons-threshold (* 20 1024 1024)))))
+     (init-gc-cons-threshold (* 128 1024 1024)))
+(setq gc-cons-threshold init-gc-cons-threshold)
+(add-hook 'emacs-startup-hook
+          (lambda () (setq gc-cons-threshold (* 20 1024 1024)))))
 
 (setq read-process-output-max (* 1024 1024))
 
-(defvar elpaca-installer-version 0.7)
+(defvar elpaca-installer-version 0.8)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
@@ -36,18 +36,18 @@
     (make-directory repo t)
     (when (< emacs-major-version 28) (require 'subr-x))
     (condition-case-unless-debug err
-        (if-let ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
-                 ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
-                                                 ,@(when-let ((depth (plist-get order :depth)))
-                                                     (list (format "--depth=%d" depth) "--no-single-branch"))
-                                                 ,(plist-get order :repo) ,repo))))
-                 ((zerop (call-process "git" nil buffer t "checkout"
-                                       (or (plist-get order :ref) "--"))))
-                 (emacs (concat invocation-directory invocation-name))
-                 ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
-                                       "--eval" "(byte-recompile-directory \".\" 0 'force)")))
-                 ((require 'elpaca))
-                 ((elpaca-generate-autoloads "elpaca" repo)))
+        (if-let* ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                  ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
+                                                  ,@(when-let* ((depth (plist-get order :depth)))
+                                                      (list (format "--depth=%d" depth) "--no-single-branch"))
+                                                  ,(plist-get order :repo) ,repo))))
+                  ((zerop (call-process "git" nil buffer t "checkout"
+                                        (or (plist-get order :ref) "--"))))
+                  (emacs (concat invocation-directory invocation-name))
+                  ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                  ((require 'elpaca))
+                  ((elpaca-generate-autoloads "elpaca" repo)))
             (progn (message "%s" (buffer-string)) (kill-buffer buffer))
           (error "%s" (with-current-buffer buffer (buffer-string))))
       ((error) (warn "%s" err) (delete-directory repo 'recursive))))
@@ -84,7 +84,7 @@
 
 ;;; Code to replace exec-path-from-shell
 ;; Need to create file in $HOME/.emacs.d/.local/env
-;; use this command to create the file  `printenv > $home/.emacs.d/.local/env'
+;; use this command to create the file  `printenv > ~/.emacs.d/.local/env'
 (defconst my-local-dir (concat user-emacs-directory ".local/"))
 
 (defconst my-env-file (concat my-local-dir "env"))
@@ -156,6 +156,12 @@ unreadable. Returns the names of envvars that were changed."
   (setq browse-url-firefox-program nil)
   (setq browse-url-browser-function 'browse-url-default-macosx-browser))
 
+(use-package jsonrpc
+  :ensure (:host github :repo "emacs-straight/jsonrpc"))
+
+(use-package transient
+  :ensure (:host github :repo "magit/transient"))
+
 (defvar @youtrack-url "https://verifika.youtrack.cloud/issue")
 (defconst @youtrack-url-regexp "VW-[[:digit:]]*")
 
@@ -187,16 +193,19 @@ This is a variadic `cl-pushnew'."
   (kill-line (- 1 arg)))
 
 (setq my-transparency-disabled-p t)
+
 (defun @toggle-transparency ()
   "Toggle transparency"
   (interactive)
   (let* ((not-transparent-p (and (boundp 'my-transparency-disabled-p) my-transparency-disabled-p))
-         (alpha (if not-transparent-p 100 90)))
+         (alpha (if not-transparent-p 100 95)))
     (setq my-transparency-disabled-p (not not-transparent-p))
     (message "%s" alpha)
     (progn
       (set-frame-parameter (selected-frame) 'alpha `(,alpha . ,alpha))
       (add-to-list 'default-frame-alist `(alpha . (,alpha . ,alpha))))))
+
+(@toggle-transparency)
 
 (use-package expand-region
   :bind (("s-x" . er/expand-region))
@@ -211,7 +220,7 @@ This is a variadic `cl-pushnew'."
   :defer t
   :bind (("C-r" . undo-fu-only-redo)
          :map meow-normal-state-keymap
-         ("u" . undo-fu-only-undo)))
+              ("u" . undo-fu-only-undo)))
 
 (use-package undo-fu-session
   :config
@@ -220,14 +229,19 @@ This is a variadic `cl-pushnew'."
 (use-package electric
   :ensure nil
   :hook
-  (html-mode . sgml-electric-tag-pair-mode)
+  ((html-mode . sgml-electric-tag-pair-mode)
   (ng2-html-mode . sgml-electric-tag-pair-mode)
+  (prog-mode . electric-pair-mode))
   :config
-  (setq electric-pair-preserve-balance t
+
+  (when (boundp 'electric-pair-pairs)
+    (setq electric-pair-pairs
+      (append electric-pair-pairs '((?< . ?>)))))
+  
+  (setq electric-pair-preserve-balance nil
         electric-pair-delete-adjacent-pairs t
         electric-pair-skip-whitespace nil
-        electric-pair-open-newline-between-pairs t)
-  (electric-pair-mode))
+        electric-pair-open-newline-between-pairs t))
 
 (use-package surround
   :ensure t
@@ -266,7 +280,9 @@ This is a variadic `cl-pushnew'."
 
 (use-package string-inflection
   :defer t
-  :bind ("C-s-c" . string-inflection-all-cycle))
+  :bind
+  (("C-s-c" . string-inflection-all-cycle)
+   ("s-c" . string-inflection-all-cycle)))
 
 (use-package persistent-soft
   :defer t)
@@ -314,7 +330,7 @@ This is a variadic `cl-pushnew'."
           "~/apps/flat-emacs/templates/golang")))
 
 (defun @treesit-ts-func ()
-  "Return a string f breadcrumbs."
+  "Return a string of breadcrumbs."
   (let ((node (treesit-node-at (point) 'typescript))
         result)
     (while (and node (not result))
@@ -327,7 +343,7 @@ This is a variadic `cl-pushnew'."
   :hook (prog-mode . apheleia-global-mode)
   :bind
   (:map meow-normal-state-keymap
-        ("\\p" . apheleia-format-buffer))
+           ("\\p" . apheleia-format-buffer))
   :config
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
   (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
@@ -340,24 +356,26 @@ This is a variadic `cl-pushnew'."
 (use-package combobulate
   :after treesit
   :ensure (:host github :repo "mickeynp/combobulate")
-  :preface
+  ;; :preface
   ;; You can customize Combobulate's key prefix here.
   ;; Note that you may have to restart Emacs for this to take effect!
-  (setq combobulate-key-prefix "C-c C-c C-o")
   :bind (("s-q" . combobulate-mark-node-dwim)
          ("s-<down>" . combobulate-navigate-logical-next)
          ("s-<up>" . combobulate-navigate-logical-previous)
          :map combobulate-key-map
          ("C-M-t" . nil))
-  :hook
-  ((python-ts-mode . combobulate-mode)
-   (js-ts-mode . combobulate-mode)
-   (html-ts-mode . combobulate-mode)
-   (css-ts-mode . combobulate-mode)
-   (yaml-ts-mode . combobulate-mode)
-   (typescript-ts-mode . combobulate-mode)
-   (json-ts-mode . combobulate-mode)
-   (tsx-ts-mode . combobulate-mode))
+  ;; :hook
+  ;; ((python-ts-mode . combobulate-mode)
+  ;;  (js-ts-mode . combobulate-mode)
+  ;;  (html-ts-mode . combobulate-mode)
+  ;;  (css-ts-mode . combobulate-mode)
+  ;;  (yaml-ts-mode . combobulate-mode)
+  ;;  (typescript-ts-mode . combobulate-mode)
+  ;;  (json-ts-mode . combobulate-mode)
+  ;;  (tsx-ts-mode . combobulate-mode))
+  :config
+  (setq combobulate-key-prefix "C-c c o")
+
   ;; Amend this to the directory where you keep Combobulate's source
   ;; code.
   )
@@ -490,12 +508,12 @@ This is a variadic `cl-pushnew'."
   :custom
   (corfu-auto t)
   (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
-  (corfu-commit-predicate t)   ;; Do not commit selected candidates on next input
+  (corfu-commit-predicate nil)   ;; Do not commit selected candidates on next input
   (corfu-quit-at-boundary t)     ;; Automatically quit at word boundary
   (corfu-quit-no-match t)        ;; Automatically quit if there is no match
-  (corfu-auto-delay 0.02)
-  (corfu-echo-documentation nil) ;; Do not show documentation in the echo area
-  (corfu-preselect-first t)
+  (corfu-auto-delay 0.1)
+  (corfu-echo-documentation t) ;; Do not show documentation in the echo area
+  (corfu-preselect-first nil)
   (corfu-auto-prefix 2)
   (corfu-separator ?\s) 
   ;; Optionally use TAB for cycling, default is `corfu-complete'.
@@ -527,6 +545,22 @@ This is a variadic `cl-pushnew'."
   :custom
   (corfu-quick1 "123456789")
   (corfu-quick2 "123456789"))
+
+(use-package corfu-popupinfo
+  :ensure (corfu-info :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
+  :after corfu
+  :config
+  (setq corfu-popupinfo-delay '(0.5 . 0.5)))
+
+(use-package corfu-history
+  :ensure (corfu-history :host github :repo "minad/corfu" :files ("extensions/corfu-history.el"))
+  :after corfu
+  :config
+  (with-eval-after-load 'safehist
+    (cl-pushnew 'corfu-history savehist-additional-variables))
+   (setq corfu-sort-override-function 'corfu-history--sort)
+
+  (corfu-history-mode))
 
 (use-package corfu-popupinfo
   :ensure (corfu-popupinfo :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
@@ -594,9 +628,7 @@ This is a variadic `cl-pushnew'."
   (setq doom-themes-treemacs-theme "doom-colors") ; use "doom-colors" for less minimal icon theme
   ;; (doom-themes-treemacs-config)
   ;; (doom-themes-org-config)
-  )
-
-(use-package treemacs-all-the-icons :after treemacs :config (treemacs-load-theme "all-the-icons"))
+)
 
 (use-package reveal-in-osx-finder
   :defer t
@@ -627,32 +659,32 @@ This is a variadic `cl-pushnew'."
   :bind
   ;; Bind `dirvish|dirvish-side|dirvish-dwim' as you see fit
   (:map dirvish-mode-map
-        ("q" . dirvish-quit)
-        ("f" . avy-goto-word-1)
-        :map dired-mode-map ; Dirvish respects all the keybindings in this map
-        ("q" . dirvish-quit)
-        ("h" . dired-up-directory)
-        ("j" . dired-next-line)
-        ("k" . dired-previous-line)
-        ("l" . dired-find-file)
-        ("i" . wdired-change-to-wdired-mode)
-        ("." . dired-omit-mode)
-        ("b"   . dirvish-bookmark-jump)
-        ("f"   . dirvish-file-info-menu)
-        ("y"   . dirvish-yank-menu)
-        ("N"   . dirvish-narrow)
-        ("^"   . dirvish-history-last)
-        ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
-        ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
-        ("TAB" . dirvish-subtree-toggle)
-        ("M-n" . dirvish-history-go-forward)
-        ("M-p" . dirvish-history-go-backward)
-        ("M-l" . dirvish-ls-switches-menu)
-        ("M-m" . dirvish-mark-menu)
-        ("M-f" . dirvish-toggle-fullscreen)
-        ("M-s" . dirvish-setup-menu)
-        ("M-e" . dirvish-emerge-menu)
-        ("M-j" . dirvish-fd-jump)))
+   ("q" . dirvish-quit)
+   ("f" . avy-goto-word-1)
+   :map dired-mode-map ; Dirvish respects all the keybindings in this map
+   ("q" . dirvish-quit)
+   ("h" . dired-up-directory)
+   ("j" . dired-next-line)
+   ("k" . dired-previous-line)
+   ("l" . dired-find-file)
+   ("i" . wdired-change-to-wdired-mode)
+   ("." . dired-omit-mode)
+   ("b"   . dirvish-bookmark-jump)
+   ("f"   . dirvish-file-info-menu)
+   ("y"   . dirvish-yank-menu)
+   ("N"   . dirvish-narrow)
+   ("^"   . dirvish-history-last)
+   ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
+   ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
+   ("TAB" . dirvish-subtree-toggle)
+   ("M-n" . dirvish-history-go-forward)
+   ("M-p" . dirvish-history-go-backward)
+   ("M-l" . dirvish-ls-switches-menu)
+   ("M-m" . dirvish-mark-menu)
+   ("M-f" . dirvish-toggle-fullscreen)
+   ("M-s" . dirvish-setup-menu)
+   ("M-e" . dirvish-emerge-menu)
+   ("M-j" . dirvish-fd-jump)))
 
 (defun @clear-term-history ()
   "Clear terminal history inside vterm."
@@ -661,7 +693,7 @@ This is a variadic `cl-pushnew'."
     (vterm--self-insert)
     (vterm-send-string "clear")
     (vterm-send-return)))
-
+  
 
 (advice-add 'vterm-clear-scrollback :before #'@clear-term-history)
 
@@ -692,19 +724,19 @@ This is a variadic `cl-pushnew'."
               (file-dir (file-name-directory file-name))
               (file-dir (replace-regexp-in-string " " "\\\\\  " file-dir)))
     ;; (save-window-excursion
-    (vterm-toggle-show)
-    (switch-to-first-matching-buffer "vterm")
-    (vterm-send-C-c)
-    (vterm-send-string (concat "cd " file-dir))
-    (vterm-send-return)
-    ;; )
+      (vterm-toggle-show)
+      (switch-to-first-matching-buffer "vterm")
+      (vterm-send-C-c)
+      (vterm-send-string (concat "cd " file-dir))
+      (vterm-send-return)
+      ;; )
     ))
 
 (use-package vterm
   :defer t
   :hook ((vterm-mode . (lambda () (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)))
-         ;; (vterm-mode . compilation-minor-mode)
-         )
+        ;; (vterm-mode . compilation-minor-mode)
+)
   :bind (("C-c o t" . vterm-toggle)
          ("C-c o T" . @vterm-change-current-directory-to-active-buffer-pwd)
          ("C-c o v" . vterm)
@@ -724,7 +756,7 @@ This is a variadic `cl-pushnew'."
       (vterm--self-insert)
       (vterm-send-string "clear")
       (vterm-send-return)))
-  
+    
   
   (advice-add 'vterm-clear-scrollback :before #'@clear-term-history))
 
@@ -738,17 +770,17 @@ This is a variadic `cl-pushnew'."
   (setq vterm-toggle-fullscreen-p nil)
   (add-to-list 'display-buffer-alist
                '((lambda (buffer-or-name _)
-                   (let ((buffer (get-buffer buffer-or-name)))
-                     (with-current-buffer buffer
-                       (or (equal major-mode 'vterm-mode)
-                           (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
-                 (display-buffer-reuse-window display-buffer-at-bottom)
-                 ;;(display-buffer-reuse-window display-buffer-in-direction)
-                 ;;display-buffer-in-direction/direction/dedicated is added in emacs27
-                 ;;(direction . bottom)
-                 ;;(dedicated . t) ;dedicated is supported in emacs27
-                 (reusable-frames . visible)
-                 (window-height . 0.3))))
+                     (let ((buffer (get-buffer buffer-or-name)))
+                       (with-current-buffer buffer
+                         (or (equal major-mode 'vterm-mode)
+                             (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
+                  (display-buffer-reuse-window display-buffer-at-bottom)
+                  ;;(display-buffer-reuse-window display-buffer-in-direction)
+                  ;;display-buffer-in-direction/direction/dedicated is added in emacs27
+                  ;;(direction . bottom)
+                  ;;(dedicated . t) ;dedicated is supported in emacs27
+                  (reusable-frames . visible)
+                  (window-height . 0.3))))
 
 (use-package detached
   :defer t
@@ -764,6 +796,16 @@ This is a variadic `cl-pushnew'."
          )
   :custom ((detached-show-output-on-attach t)
            (detached-terminal-data-command system-type)))
+
+(use-package buffer-flip
+  :ensure t
+  :bind  (("C-c ]" . buffer-flip-forward) 
+          ("C-c [" . buffer-flip-backward) 
+          ("M-ESC" . buffer-flip-abort))
+  :config
+  (setq buffer-flip-skip-patterns
+        '("^\\*helm\\b"
+          "^\\*swiper\\*$")))
 
 (use-package ibuffer
   :ensure nil
@@ -842,6 +884,16 @@ This is a variadic `cl-pushnew'."
          ("C-c p c" . project-compile)
          ("C-c p r" . project-recompile)
          ("C-c p b" . project-switch-to-buffer)))
+
+(use-package buffer-terminator
+  :ensure (buffer-terminator
+             :type git
+             :host github
+             :repo "jamescherti/buffer-terminator.el")
+  :custom
+  (buffer-terminator-verbose nil)
+  :config
+  (buffer-terminator-mode 1))
 
 (defun @edit-after-eol ()
   "Edit the current line to the end of the line like A in the VIM."
@@ -988,13 +1040,14 @@ This is a variadic `cl-pushnew'."
    '("<escape>" . ignore))
 
   (meow-define-keys 'motion
+    '("\\n" . meow-normal-mode)
     '("[" . meow-beginning-of-thing)
     '("]" . meow-end-of-thing)
     '("\\q" . kill-current-buffer))
 
   (meow-define-keys 'insert
-    '("s-o" . meow-last-buffer)
-    '("s-p" . xah-paste-from-register-1))
+   '("s-o" . meow-last-buffer)
+   '("s-p" . xah-paste-from-register-1))
 
 
   (meow-define-keys 'normal
@@ -1010,8 +1063,8 @@ This is a variadic `cl-pushnew'."
   ;; (add-to-list 'meow-char-thing-table '(?e . between-space))
 
   (meow-thing-register 'non-whitespace
-                       '(syntax . "-")
-                       '(syntax . "-"))
+                         '(syntax . "-")
+                         '(syntax . "-"))
   (add-to-list 'meow-char-thing-table '(?e . non-whitespace))
 
   (add-to-list 'meow-char-thing-table '(?\" . quoted))
@@ -1019,13 +1072,13 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'meow-char-thing-table '(?< . angle))
 
   (add-to-list 'meow-char-thing-table '(?( . round))
-               (add-to-list 'meow-char-thing-table '(?) . round))
+  (add-to-list 'meow-char-thing-table '(?) . round))
 
   (add-to-list 'meow-char-thing-table '(?{ . curly))
   (add-to-list 'meow-char-thing-table '(?} . curly))
   
   (add-to-list 'meow-char-thing-table '(?[ . square))
-               (add-to-list 'meow-char-thing-table '(?] . square))
+  (add-to-list 'meow-char-thing-table '(?] . square))
 
   (meow-thing-register 'quoted
                        '(regexp "\"\\|'\\|`" "\"\\|'\\|`")
@@ -1070,9 +1123,6 @@ This is a variadic `cl-pushnew'."
   ;; (add-to-list 'meow-mode-state-list '(special-mode . normal))
   (add-to-list 'meow-mode-state-list '(grep-mode . normal)))
 
-(defun @indent-after-meow-change ()
-  )
-
 (use-package meow
   :custom
   (meow-use-clipboard t)
@@ -1082,10 +1132,14 @@ This is a variadic `cl-pushnew'."
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
   (advice-add #'meow-change :after 
-              (lambda ()
-                (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
-                  (indent-for-tab-command))))
+            (lambda ()
+              (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
+                (indent-for-tab-command))))
   (meow-global-mode 1))
+
+(use-package meow-tree-sitter
+  :config
+  (meow-tree-sitter-register-defaults))
 
 (use-package meow-vterm
   :ensure (meow-vterm :type git :host github :repo "accelbread/meow-vterm")
@@ -1093,6 +1147,16 @@ This is a variadic `cl-pushnew'."
   :config
   (setq vterm-keymap-exceptions '("C-c"))
   (meow-vterm-enable))
+
+(setq mac-command-modifier 'super) ; make cmd key do Meta
+(setq mac-option-modifier 'meta) ; make opt key do Super
+(setq mac-control-modifier 'control) ; make Control key do Control
+(setq ns-function-modifier 'hyper)
+(global-set-key (kbd "s-v") 'yank)
+(global-set-key (kbd "s-s") 'save-buffer)
+(global-set-key (kbd "s-a") 'mark-whole-buffer)
+(global-set-key (kbd "s-z") 'undo)
+
 
 (global-set-key "\C-u" 'backward-kill-line)
 (global-set-key (kbd "C-S-l") 'enlarge-window-horizontally)
@@ -1234,287 +1298,126 @@ This is a variadic `cl-pushnew'."
   (global-set-key [remap scroll-down-command] 'golden-ratio-scroll-screen-down)
   (global-set-key [remap scroll-up-command] 'golden-ratio-scroll-screen-up))
 
-(defun @lsp/uninstall-server (dir)
-  "Delete a LSP server from `lsp-server-install-dir'."
-  (interactive
-   (list (read-directory-name "Uninstall LSP server: " lsp-server-install-dir nil t)))
-  (unless (file-directory-p dir)
-    (user-error "Couldn't find %S directory" dir))
-  (delete-directory dir 'recursive)
-  (message "Uninstalled %S" (file-name-nondirectory dir)))
-
-(setq lsp-keymap-prefix "s-9")
-(use-package lsp-mode
-  ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
-  :after (flycheck)
+(use-package eglot
+  :ensure nil
+  :defer t
+  :bind (("C-c g i" . eglot-find-implementation)
+         ;; find reference
+         ("C-c l r" . eglot-rename)
+         ("C-c r l" . eglot)
+         ("C-c l f" . xref-find-references)
+         :map meow-normal-state-keymap
+         ("\\l" . eglot-code-actions))
   :hook
-  ((clojure-mode
-    scss-mode
-    go-mode
-    css-mode
-    js-mode
-    typescript-mode
-    vue-mode
-    web-mode
-    html-mode
-    ng2-ts-mode
-    python-mode
-    dart-mode
-    typescript-tsx-mode
-
-    ;; Treesit
-    html-ts-mode
+  ((web-mode
+    ng2-mode
     typescript-ts-mode
+    python-ts-mode
+    html-ts-mode
+    html-mode
     go-ts-mode
-    js-ts-mode
-    bash-ts-mode
-    tsx-ts-mode) . lsp-deferred)
-  (web-mode . lsp-deferred)
-  (lsp-completion-mode . my/lsp-mode-setup-completion)
-  :bind
-  (("C-c f n" . flycheck-next-error)
-   ("C-c l a" . lsp-execute-code-action)
-   ("C-c i m" . lsp-ui-imenu)
-   ("C-c l d" . lsp-workspace-folders-remove)
-   ("C-c l t" . lsp-find-type-definition)
-   ("C-c l f" . lsp-find-references)
-   ("C-c l i" . lsp-find-implementation)
-   ("C-c l w" . lsp-workspace-restart)
-   ("C-c r l" . lsp)
-   ("C-c l a" . lsp-execute-code-action)
-   ("C-c l r" . lsp-rename)
-   :map meow-normal-state-keymap
-   ("\\l" . lsp-execute-code-action))
-  :bind-keymap
-  ("s-9" . lsp-command-map)
-  :init
-  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
-  (setq lsp-keymap-prefix "s-9")
+    python-ts-mode
+    yaml-mode
+    ng2-ts-mode) . eglot-ensure)
+  :config                               ;
+  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
+  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
 
-  (setq lsp-headerline-breadcrumb-enable nil)
-  ;; Configuration for corfu
-  ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
-  (defun my/lsp-mode-setup-completion ()
-    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-          '(flex))) ;; Configure flex
-  :custom
-  (lsp-headerline-breadcrumb-enable nil)
-  (lsp-idle-delay 0.3)
-  (lsp-completion-provider :capf)
-  (lsp-enable-on-type-formatting nil)
-  (lsp-eldoc-render-all nil)
-  (lsp-prefer-flymake nil)
-  (lsp-modeline-diagnostics-scope :workspace)
-  (lsp-enable-indentation nil)
-  (lsp-enable-on-type-formatting nil)
-  (lsp-apply-edits-after-file-operations nil)
-  ;; (lsp-clients-typescript-server-args '("--stdio" "--tsserver-log-file" "/dev/stderr"))
-  (lsp-clients-typescript-server-args '("--stdio"))
-  (lsp-completion-default-behaviour :insert)
-  (lsp-yaml-schemas '((kubernetes . ["/auth-reader.yaml", "/deployment.yaml"])))
-  (lsp-disabled-clients '(html-ls))
-  (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
-  ;; (lsp-completion-provider :none)
-  ;; (lsp-completion-provider :capf)
-  ;; Disable bottom help info
-  (lsp-signature-render-documentation nil)
-  (lsp-signature-auto-activate nil)
-  (lsp-enable-snippet nil)
-  ;; (lsp-use-plists t)
-  (lsp-enable-file-watchers t)
-  (lsp-file-watch-threshold 8000)
-  :config
-  (setq lsp-auto-execute-action nil)
-  (setq lsp-javascript-display-return-type-hints t)
-  (setq lsp-json-schemas
-        `[
-          (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
-          (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
-          ])
-  (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
-  ;; Eslint
-  (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
-  (setq lsp-eslint-server-command `("node"
-                                    "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
-                                    "--stdio"))
-  ;; Flycheck patch checkers
-  (require 'flycheck)
-  (require 'lsp-diagnostics)
-  (lsp-diagnostics-flycheck-enable)
-  (mapc #'lsp-flycheck-add-mode '(typescript-mode js-mode css-mode vue-html-mode))
-  ;; Golang
-  (defun lsp-go-install-save-hooks ()
-    (flycheck-add-next-checker 'lsp '(warning . go-gofmt) 'append)
-    (flycheck-add-next-checker 'lsp '(warning . go-golint))
-    (flycheck-add-next-checker 'lsp '(warning . go-errcheck))
-    (flycheck-add-next-checker 'lsp '(warning . go-staticcheck))
 
-    ;; (add-hook 'before-save-hook #'lsp-format-buffer t t)
-    (add-hook 'before-save-hook #'lsp-organize-imports t t))
+  (defun vue-eglot-init-options ()
+    (let ((tsdk-path (expand-file-name
+                      "lib"
+                      (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
+      `(:typescript (:tsdk ,tsdk-path
+                           :languageFeatures (:completion
+                                              (:defaultTagNameCase "both"
+                                                                   :defaultAttrNameCase "kebabCase"
+                                                                   :getDocumentNameCasesRequest nil
+                                                                   :getDocumentSelectionRequest nil)
+                                              :diagnostics
+                                              (:getDocumentVersionRequest nil))
+                           :documentFeatures (:documentFormatting
+                                              (:defaultPrintWidth 100
+                                                                  :getDocumentPrintWidthRequest nil)
+                                              :documentSymbol t
+                                              :documentColor t)))))
+  ;; Volar
+  (add-to-list 'eglot-server-programs
+               `(vue-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
 
-  (add-hook 'go-mode-hook #'lsp-go-install-save-hooks)
 
-  (setq lsp-enable-symbol-highlighting t
-        lsp-enable-snippet nil  ;; Not supported by company capf, which is the recommended company backend
-        lsp-pyls-plugins-flake8-enabled nil)
-  (set-face-foreground 'lsp-face-highlight-read @m-color-secondary)
-  (set-face-foreground 'lsp-face-highlight-textual @m-color-secondary)
+  (add-to-list 'eglot-server-programs
+               '(html-ts-mode "node"
+                              "/opt/homebrew/lib/node_modules/@angular/language-server"
+                              "--ngProbeLocations"
+                              "/opt/homebrew/lib/node_modules"
+                              "--tsProbeLocations"
+                              "/opt/homebrew/lib/node_modules"
+                              "--stdio"))
+  (add-to-list 'eglot-server-programs
+               '(ng2-html-mode "node"
+                               "/opt/homebrew/lib/node_modules/@angular/language-server"
+                               "--ngProbeLocations"
+                               "/opt/homebrew/lib/node_modules"
+                               "--tsProbeLocations"
+                               "/opt/homebrew/lib/node_modules"
+                               "--stdio"))
+  (defclass eglot-volar (eglot-lsp-server) ()
+    :documentation "A custom class for volar")
 
-  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.bun\\'")
-  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.npm\\'")
-  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.pnpm-store\\'")
-  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\venv\\'")
-  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
-  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\.cache\\'")
-  (set-face-attribute 'lsp-face-highlight-textual nil :background "#c0caf5")
-  ;; Install corfu completion for lsp
-  ;; (defun corfu-lsp-setup ()
-  ;; (setq-local completion-styles '(orderless basic)
-  ;;             completion-category-defaults nil))
-  ;; (add-hook 'lsp-mode-hook #'corfu-lsp-setup)
-  (@setup-compilation-errors)
-  (setq lsp-disabled-clients '(html-ls))
-  (setq lsp-eldoc-hook nil))
-
-(use-package lsp-pyright
-  :hook (python-ts-mode . (lambda ()
-                            (require 'lsp-pyright)
-                            (lsp-deferred)))
-  :config
-  (setq lsp-pyright-auto-import-completions t)
-  (setq lsp-pyright-auto-search-paths t)
-  (setq lsp-pyright-log-level "trace")
-  (setq lsp-pyright-multi-root nil)
-  (setq lsp-pyright-use-library-code-for-types t)
-  ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
-  (setq lsp-pyright-diagnostic-mode "workspace"))
-
-(use-package pipenv
-  :defer t
-  :hook (python-mode . pipenv-mode)
-  :config
-  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
-  
-
-  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
-  ;; This hook will copy venv from pyvenv to lsp pyright
-  (add-hook 'pyvenv-post-activate-hooks (lambda ()
-                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
-                                          (lsp-restart-workspace)))
-
-  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
-
-(use-package auto-virtualenv
-  :defer t
-  :hook ((python-mode . auto-virtualenv-setup)
-         (python-ts-mode . auto-virtualenv-setup))
-  :init
-  (use-package pyvenv
-    :ensure t)
-  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
+  ;; (cl-defmethod eglot-initialization-options ((server eglot-volar))
+  ;;   "Passes through required volar initialization options"
+  ;;   (let*
+  ;;       ((serverPath
+  ;;         (expand-file-name
+  ;;          "lib"
+  ;;          (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
+  ;;     (list :typescript
+  ;;           (list :tsdk serverPath)
+  ;;           :languageFeatures
+  ;;           (list :completion
+  ;;                 (list :defaultTagNameCase "both"
+  ;;                       :defaultAttrNameCase "kebabCase"
+  ;;                       :getDocumentNameCasesRequest nil
+  ;;                       :getDocumentSelectionRequest nil)
+  ;;                 :diagnostics
+  ;;                 (list :getDocumentVersionRequest nil))
+  ;;           :documentFeatures
+  ;;           (list :documentFormatting
+  ;;                 (list :defaultPrintWidth 100
+  ;;                       :getDocumentPrintWidthRequest nil)
+  ;;                 :documentSymbol t
+  ;;                 :documentColor t))))
   )
 
-(use-package yaml-pro
-  :defer t
-  :hook (yaml-mode . yaml-pro-mode))
+(use-package flymake
+  :ensure nil
+  :bind
+  (("C-j" . flymake-goto-next-error)
+   ("C-k" . flymake-goto-prev-error)
+   ("C-c e l" . flymake-show-diagnostics-buffer))
+  :hook (prog-mode . flymake-mode)
+  :config)
 
-(use-package lsp-ui
-  :hook (lsp-mode . lsp-ui-mode)
-  :after lsp-mode
+(use-package eldoc :ensure nil :config
+  (global-eldoc-mode -1))
+
+(use-package eldoc-box
   :bind (:map meow-normal-state-keymap
-              ("\\h" . lsp-ui-doc-toggle)
-              :map lsp-ui-peek-mode-map
-              ("C-j" . lsp-ui-peek--select-next)
-              ("C-k" . lsp-ui-peek--select-prev))
-  :config
-  (setq lsp-ui-sideline-diagnostic-max-line-length 100
-        lsp-ui-sideline-diagnostic-max-lines 8
-        lsp-ui-doc-delay 1
-        lsp-ui-doc-position 'top
-        lsp-ui-doc-show-with-mouse nil
-        lsp-ui-doc-border @m-color-main))
+              ("\\h" . eldoc-box-help-at-point)))
 
-(use-package lsp-dart
-  :defer t
-  :hook (dart-mode . (lambda () (interactive)
-                       (add-hook 'after-save-hook
-                                 (lambda ()
-                                   ;; (flutter-run-or-hot-reload)
-                                   (flutter-hot-restart)
-                                   )
-                                 t t)))
-  :custom
-  (lsp-dart-dap-flutter-hot-reload-on-save t)
-  :config
-  (defun lsp-dart-flutter-widget-guide--add-overlay-to (buffer line col string)
-    "Add to BUFFER at LINE and COL a STRING overlay."
-    (save-excursion
-      (goto-char (point-min))
-      (forward-line line)
-      (move-to-column col)
-      (when (string= lsp-dart-flutter-widget-guide-space (string (following-char)))
-        (let ((ov (make-overlay (point) (1+ (point)) buffer)))
-          (overlay-put ov 'category 'lsp-dart-flutter-widget-guide)
-          (overlay-put ov 'display (propertize string
-                                               'face 'custom-comment-tag)))))))
-
-(defun lsp-booster--advice-json-parse (old-fn &rest args)
-  "Try to parse bytecode instead of json."
-  (or
-   (when (equal (following-char) ?#)
-     (let ((bytecode (read (current-buffer))))
-       (when (byte-code-function-p bytecode)
-         (funcall bytecode))))
-   (apply old-fn args)))
-(advice-add (if (progn (require 'json)
-                       (fboundp 'json-parse-buffer))
-                'json-parse-buffer
-              'json-read)
-            :around
-            #'lsp-booster--advice-json-parse)
-
-(defun lsp-booster--advice-final-command (old-fn cmd &optional test?)
-  "Prepend emacs-lsp-booster command to lsp CMD."
-  (let ((orig-result (funcall old-fn cmd test?)))
-    (if (and (not test?)                             ;; for check lsp-server-present?
-             (not (file-remote-p default-directory)) ;; see lsp-resolve-final-command, it would add extra shell wrapper
-             lsp-use-plists
-             (not (functionp 'json-rpc-connection))  ;; native json-rpc
-             (executable-find "emacs-lsp-booster"))
-        (progn
-          (message "Using emacs-lsp-booster for %s!" orig-result)
-          (cons "emacs-lsp-booster" orig-result))
-      orig-result)))
-(advice-add 'lsp-resolve-final-command :around #'lsp-booster--advice-final-command)
-
-(use-package lsp-java
-  :hook (java-mode . lsp-))
-
-(use-package flycheck
-  :bind (("C-j" . flycheck-next-error)
-         ("C-k" . flycheck-previous-error)
-         ("C-c f ]" . flycheck-next-error)
-         ("C-c f [" . flycheck-previous-error)
-         ("C-c l e" . flycheck-list-errors)
-         ("C-c f e" . flycheck-list-errors))
+(use-package sideline-flymake
+  :hook (flymake-mode . sideline-mode)
   :init
-  (global-flycheck-mode)
-  :config
-  ;; Change flycheck errors on save
-  (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
-  (setq flycheck-idle-change-delay 0.2)
+  (setq sideline-flymake-display-mode 'point) ; 'point to show errors only on point
 
-  (set-face-attribute 'flycheck-fringe-error nil :background nil :foreground @m-color-secondary)
-  (set-face-attribute 'flycheck-error-list-error nil :background nil :foreground @m-color-secondary)
-  (set-face-attribute 'error nil :background nil :foreground @m-color-secondary)
+                                              ; 'line to show errors on the current line
+  (setq sideline-backends-right '(sideline-flymake)))
 
-  (flycheck-add-mode 'javascript-eslint 'web-mode)
-  (flycheck-add-mode 'javascript-eslint 'typescript-mode)
-  (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
-  (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode))
-
-(use-package consult-flycheck
-  :after consult)
+(use-package eglot-booster
+  :ensure (:host github :repo "jdtsmith/eglot-booster")
+      :after eglot
+      :config	(eglot-booster-mode))
 
 (defun compile-eslint--find-filename ()
   "Find the filename for current error."
@@ -1523,12 +1426,33 @@ This is a variadic `cl-pushnew'."
       (when (re-search-backward (rx bol (group "/" (+ any)) eol))
         (list (match-string 1))))))
 
+(defun my/get-rightmost-window ()
+  "Get the rightmost window on the current frame."
+  (let ((windows (window-list)))
+    (car (sort windows (lambda (a b)
+                        (> (nth 0 (window-edges a))
+                           (nth 0 (window-edges b))))))))
+
+(defun my/display-compilation-buffer (buffer alist)
+  "Custom display function for compilation buffer.
+   If there are two windows, reuse the rightmost one.
+   If there's only one window, split and use the right window."
+  (let ((windows (window-list)))
+    (cond
+     ;; If we have exactly two windows
+     ((= (length windows) 2)
+      (set-window-buffer (my/get-rightmost-window) buffer)
+      (my/get-rightmost-window))
+     ;; If we have one window
+     (t
+      (let ((new-window (split-window-right)))
+        (set-window-buffer new-window buffer)
+        new-window)))))
+
 (add-to-list 'display-buffer-alist
-             '("^\\*compilation\\*$"
-               (display-buffer-reuse-window display-buffer-in-side-window)
-               (side . right)  ;; or (side . left) for the left side
-               (slot . 0)
-               (window-width . 0.4)))
+             `("^\\*compilation\\*$"
+               (display-buffer-reuse-window my/display-compilation-buffer)
+               (reusable-frames . visible)))
 
 (defun @get-visible-buffers-cnt ()
   "Get the number of visible buffers"
@@ -1541,16 +1465,16 @@ This is a variadic `cl-pushnew'."
 
 (defun @display-buffer-other-vertical (buffer &optional alist)
   "Display BUFFER in another window. If only one window, split vertical before."
-  (message "is one window? %s " (one-window-p))
-  (if (one-window-p)
-      (split-window-horizontally))
+(message "is one window? %s " (one-window-p))
+    (if (one-window-p)
+        (split-window-horizontally))
   (display-buffer-use-some-window buffer alist))
+  
 
-
-(add-to-list 'display-buffer-alist
-             '(("\\*Messages\\*"
-                (display-buffer-reuse-window  display-buffer-in-side-window @display-buffer-other-vertical display-buffer-use-some-window)
-                (side . right))))
+ (add-to-list 'display-buffer-alist
+      '(("\\*Messages\\*"
+         (display-buffer-reuse-window  display-buffer-in-side-window @display-buffer-other-vertical display-buffer-use-some-window)
+         (side . right))))
 
 (defun @setup-compilation-errors ()
   (interactive)
@@ -1584,6 +1508,10 @@ This is a variadic `cl-pushnew'."
   (add-to-list 'compilation-error-regexp-alist '("^Error: \\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)$" 1 2 3))
   ;; Angular vite
   (add-to-list 'compilation-error-regexp-alist '("\\([_[:alnum:]-/.]*\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3))
+
+  ;; Tests
+  (add-to-list 'compilation-error-regexp-alist
+             '("^Error:[[:blank:]]*\\([[:alnum:]_./-]+\\):\\([[:digit:]]+\\):\\([[:digit:]]+\\)" 1 2 3))
 
   ;; TSC
   ;; [tsl] ERROR in /Users/darkawower/projects/pet/orgnote/orgnote-cli/src/commands/files-api.ts(1,46)
@@ -1785,10 +1713,12 @@ This is a variadic `cl-pushnew'."
 (use-package web-mode
   :defer t
   :mode
-  ("\\.vue\\'" . web-mode)
   ("\\.tsx\\'" . web-mode)
   ("\\.jsx\\'" . web-mode)
   ("\\.astro\\'" . web-mode)
+  :init
+  (define-derived-mode vue-mode web-mode "Vue")
+  (add-to-list 'auto-mode-alist '("\\.vue\\'" . vue-mode))
   :config
   (setq web-mode-enable-auto-quoting nil)
   (setq web-mode-comment-formats
@@ -1825,13 +1755,6 @@ This is a variadic `cl-pushnew'."
     "Revert buffer without confirmation."
     (interactive)
     (revert-buffer :ignore-auto :noconfirm)))
-
-(use-package lsp-tailwindcss
-  :defer t
-  :init
-  (setq lsp-tailwindcss-add-on-mode t)
-  :config
-  (add-hook 'before-save-hook 'lsp-tailwindcss-rustywind-before-save))
 
 (use-package json-mode
   :defer t
@@ -1967,10 +1890,10 @@ This is a variadic `cl-pushnew'."
 (use-package markdown-xwidget
   :after markdown-mode
   :ensure (markdown-xwidget
-           :type git
-           :host github
-           :repo "cfclrk/markdown-xwidget"
-           :files (:defaults "resources"))
+             :type git
+             :host github
+             :repo "cfclrk/markdown-xwidget"
+             :files (:defaults "resources"))
   :bind (:map markdown-mode-command-map
               ("x" . markdown-xwidget-preview-mode))
   :custom
@@ -2009,30 +1932,12 @@ This is a variadic `cl-pushnew'."
                                      (copilot-clear-overlay)))
   )
 
-(use-package copilot-chat
-  :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
-  :defer t
-  :bind (("C-c a c" . copilot-chat-display)
-         ("C-c a x" . copilot-chat-reset)
-         ("C-c a e" . copilot-chat-explain)
-         ("C-c a t" . copilot-chat-test)
-         ("C-c a o" . copilot-chat-optimize)
-         ("C-c a d" . copilot-chat-doc)
-         ("C-c a f" . copilot-chat-fix)
-         ("C-c a r" . copilot-chat-review))
-  :custom
-  (copilot-chat-frontend 'shell-maker)
-  :config
-  (require 'copilot-chat-shell-maker)
-  (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
-  (copilot-chat-shell-maker-init))
-
 (use-package gptel
   :config
   (gptel-make-ollama "Ollama"
-    :host "localhost:11434"
-    :stream t
-    :models '(llama3.2)))
+                     :host "localhost:11434"
+                     :stream t
+                     :models '(llama3.2)))
 
 (use-package floobits
   :defer t)
@@ -2068,19 +1973,19 @@ This is a variadic `cl-pushnew'."
 
 (elpaca-wait)
 
-(use-package visual-replace
-  :defer t
-  :ensure (:host github :repo "szermatt/visual-replace")
-  :bind (("C-c r v" . visual-replace)
-         :map visual-replace-mode-map
-         ("C-l" . visual-replace-toggle-regexp))
-  :config
-  (visual-replace-global-mode 1))
+(use-package indent-bars
+  :elpaca (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
+  :hook (prog-mode . indent-bars-mode)) ;
 
 (defadvice load-theme (before theme-dont-propagate activate)
-  (mapcar #'disable-theme custom-enabled-themes))
+ (mapcar #'disable-theme custom-enabled-themes))
 
-(menu-bar-mode -1)
+;; (add-to-list 'default-frame-alist '(undecorated . t))
+(set-frame-parameter nil 'alpha-background 0.1)
+(add-to-list 'frameset-filter-alist '(ns-transparent-titlebar . t))
+(add-to-list 'frameset-filter-alist '(ns-appearance . dark))
+(menu-bar-mode t)
+;; (menu-bar-mode -1)
 (tool-bar-mode -1)
 (toggle-scroll-bar -1)
 (setq ring-bell-function 'ignore)
@@ -2096,8 +2001,6 @@ This is a variadic `cl-pushnew'."
 (customize-set-variable 'horizontal-scroll-bar-mode nil)
 
 (set-default 'truncate-lines t)
-
-(add-to-list 'default-frame-alist '(fullscreen . maximized))
 
 (set-frame-font "JetBrainsMono Nerd Font 14" nil t)
 ;; (set-frame-font "Monaspace Neon 14" nil t)
@@ -2160,15 +2063,6 @@ This is a variadic `cl-pushnew'."
   (setq confirm-kill-emacs 'y-or-n-p)
   (defalias 'yes-or-no-p 'y-or-n-p))
 
-(use-package all-the-icons
-  :ensure t)
-
-(use-package all-the-icons-completion
-  :after (marginalia all-the-icons)
-  :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
-  :init
-  (all-the-icons-completion-mode))
-
 (setq inhibit-splash-screen t)
 (setq inhibit-startup-message t)
 
@@ -2176,18 +2070,22 @@ This is a variadic `cl-pushnew'."
   :config
   (when (eq system-type 'darwin) (ns-auto-titlebar-mode)))
 
-(use-package all-the-icons
-  :ensure t)
+(use-package nerd-icons)
 
-(use-package all-the-icons-completion
-  :after (marginalia all-the-icons)
-  :hook (marginalia-mode . all-the-icons-completion-marginalia-setup)
-  :init
-  (all-the-icons-completion-mode))
+(use-package nerd-icons-completion
+  :hook (marginalia-mode . nerd-icons-completion-mode))
+
+(use-package nerd-icons-corfu)
+
+(use-package nerd-icons-dired
+  :hook (dired-mode . nerd-icons-dired-mode))
+
+(use-package nerd-icons-ibuffer :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
 
 (use-package hl-todo
   :ensure (hl-todo :depth nil)
-  :defer t
+  :hook (prog-mode . hl-todo-mode)
+  :defer 2
   :config
   (setq hl-todo-keyword-faces
         '(("TODO"   . "#E5C07B")
@@ -2200,10 +2098,6 @@ This is a variadic `cl-pushnew'."
           ("STUB"   . "#61AFEF")))
   (global-hl-todo-mode 1))
 
-(use-package all-the-icons-dired
-  :after dired
-  :hook (dired-mode . all-the-icons-dired-mode))
-
 (use-package colorful-mode
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
   :hook ((html-mode css-mode scss-mode emacs-lisp-mode) . colorful-mode))
@@ -2214,6 +2108,12 @@ This is a variadic `cl-pushnew'."
   (transient-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
   :config
   (transient-posframe-mode))
+
+(use-package doom-modeline
+  :defer t
+  :hook (after-init . doom-modeline-mode)
+  :config
+  (setq doom-modeline-buffer-file-name-style 'file-name))
 
 (defun @set-catppucin-theme ()
   (interactive)
@@ -2245,6 +2145,10 @@ This is a variadic `cl-pushnew'."
 
 (use-package spacious-padding
   :config
+  (setq spacious-padding-widths
+        '(:internal-border-width 20 :header-line-width 0 :mode-line-width 0
+                                 :tab-width 4 :right-divider-width 1
+                                 :scroll-bar-width 1 :fringe-width 8))
   (spacious-padding-mode))
 
 (use-package hide-mode-line
@@ -2563,9 +2467,9 @@ This is a variadic `cl-pushnew'."
   (marginalia-mode)
   :config
   (pushnew! marginalia-command-categories
-            '(+default/find-file-under-here . file)
-            '(flycheck-error-list-set-filter . builtin)
-            '(persp-switch-to-buffer . buffer)))
+          '(+default/find-file-under-here . file)
+          '(flycheck-error-list-set-filter . builtin)
+          '(persp-switch-to-buffer . buffer)))
 
 (use-package transient)
 
@@ -2575,31 +2479,28 @@ This is a variadic `cl-pushnew'."
 
 (defun @magit-worktree-delete-project (worktree)
   "Delete project when worktree deleted."
-  (project-forget-project worktree))
+  (project-forget-project worktree)
+  (lsp-workspace-folders-remove worktree))
 
 (advice-add 'magit-worktree-checkout :after #'@magit-worktree-create-project)
 (advice-add 'magit-worktree-branch :after #'@magit-worktree-create-project)
 (advice-add 'magit-worktree-delete :after #'@magit-worktree-delete-project)
 
 (use-package magit
-  :defer t
+  :ensure (:host github :repo "magit/magit")
   :commands
   (magit-get-current-branch)
   :bind
   (("C-M-g" . magit-status)
    ("C-c g g" . magit-status)
    :map magit-mode-map
-   ("s-<return>" . magit-diff-visit-worktree-file)
+   ("s-<return>" . iff-visit-worktree-file)
    ("C-1" . magit-section-show-level-1)
    ("C-2" . magit-section-show-level-2)
    ("C-3" . magit-section-show-level-3)
    ("C-j" . magit-section-forward)
    ("C-k" . magit-section-backward)
    ("C-4" . magit-section-show-level-4)
-   ("1" . meow-expand-1)
-   ("2" . meow-expand-2)
-   ("3" . meow-expand-3)
-   ("4" . meow-expand-4)
    ("q" . kill-current-buffer)
    ("<escape>" . kill-current-buffer)
    ("Q" . bury-buffer)
@@ -2617,10 +2518,6 @@ This is a variadic `cl-pushnew'."
    ("M-n" . husky-lsp-repeat-consult-search-forward)
    ("M-p" . husky-lsp-repeat-consult-search-backward)
    ("C-k" . magit-section-backward)
-   ("1" . meow-expand-1)
-   ("2" . meow-expand-2)
-   ("3" . meow-expand-3)
-   ("4" . meow-expand-4)
    :map magit-diff-mode-map
    ("C-j" . magit-section-forward)
    ("C-k" . magit-section-backward))
@@ -2631,6 +2528,10 @@ This is a variadic `cl-pushnew'."
   :config
   (setq magit-process-timestamp-format "%H:%M")
   (setq magit-display-buffer-function #'magit-display-buffer-fullcolumn-most-v1)
+  ;; Reset magit numbers
+  (dolist (key (mapcar (lambda (n) (kbd (number-to-string n))) (number-sequence 0 9)))
+    (define-key magit-mode-map key nil)
+    (define-key magit-status-mode-map key nil))
   (define-key transient-map        "q" 'transient-quit-one)
   (define-key transient-edit-map   "q" 'transient-quit-one)
   (define-key transient-sticky-map "q" 'transient-quit-seq)
@@ -2647,6 +2548,7 @@ This is a variadic `cl-pushnew'."
 (elpaca-wait)
 
 (use-package magit-todos
+  :after magit
   :defer t
   :bind (("C-c g n" . magit-todos-list)
          ("C-c l T" . magit-todos-list)
@@ -2716,6 +2618,7 @@ This is a variadic `cl-pushnew'."
   :defer t
   :hook (git-timemachine-mode . font-lock-mode)
   :bind (("C-M-t" . git-timemachine)
+         ("C-M-m" . git-timemachine)
          :map git-timemachine-mode-map
          ("C-k" . git-timemachine-show-previous-revision)
          ("q" . git-timemachine-quit)
@@ -2901,8 +2804,8 @@ This is a variadic `cl-pushnew'."
 
 (use-package org-modern-indent
   :ensure (org-modern-indent :type git :host github :repo "jdtsmith/org-modern-indent"))
-:config ; add late to hook
-(add-hook 'org-mode-hook #'org-modern-indent-mode 90)
+  :config ; add late to hook
+  (add-hook 'org-mode-hook #'org-modern-indent-mode 90)
 
 (add-hook 'org-mode-hook (lambda ()
                            "Beautify Org Checkbox Symbol"
@@ -3054,9 +2957,9 @@ This is a variadic `cl-pushnew'."
 (use-package google-translate
   :defer 10
   :bind (:map google-translate-minibuffer-keymap
-              ("C-'" . google-translate-next-translation-direction)
-              :map meow-normal-state-keymap
-              ("\\ t" . google-translate-smooth-translate))
+        ("C-'" . google-translate-next-translation-direction)
+        :map meow-normal-state-keymap
+        ("\\ t" . google-translate-smooth-translate))
   :config
   (require 'google-translate-smooth-ui)
   (setq google-translate-backend-method 'curl)
@@ -3156,6 +3059,17 @@ This is a variadic `cl-pushnew'."
       ;;   (org-mode))
       (org-mode)
       (meow-insert))))
+
+(defun create-persistent-scratch-file-if-not-exist ()
+  "Create the persistent-scratch file if it does not already exist."
+  (let ((scratch-file (expand-file-name "var/persistent-scratch.el" user-emacs-directory)))
+    (unless (file-exists-p scratch-file)
+      (make-directory (file-name-directory scratch-file) t)
+      (with-temp-file scratch-file
+        (insert ";; Persistent scratch file\n")))))
+
+;; Run the function during startup
+(create-persistent-scratch-file-if-not-exist)
 
 (defvar @persistent-scratch-last-content nil)
 
@@ -3270,6 +3184,7 @@ This is a variadic `cl-pushnew'."
          ("M-p" . husky-lsp-repeat-consult-search-backward))
   :config
   (require 'web-mode)
+  (require 'magit)
   (global-husky-treesit))
 
 (use-package obsidian
@@ -3284,19 +3199,19 @@ This is a variadic `cl-pushnew'."
   ;; Create missing files in inbox? - when clicking on a wiki link
   ;; t: in inbox, nil: next to the file with the link
   ;; default: t
-                                        ;(obsidian-wiki-link-create-file-in-inbox nil)
+  ;(obsidian-wiki-link-create-file-in-inbox nil)
   ;; The directory for daily notes (file name is YYYY-MM-DD.md)
   (obsidian-daily-notes-directory "Daily Notes")
   ;; Directory of note templates, unset (nil) by default
-                                        ;(obsidian-templates-directory "Templates")
+  ;(obsidian-templates-directory "Templates")
   ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
-                                        ;(obsidian-daily-note-template "Daily Note Template.md")
+  ;(obsidian-daily-note-template "Daily Note Template.md")
   :bind (:map obsidian-mode-map
-              ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
-              ("C-c o o" . obsidian-follow-link-at-point)
-              ;; Jump to backlinks
-              ("C-c o b" . obsidian-backlink-jump)
-              ;; If you prefer you can use `obsidian-insert-link'
-              ("C-c o w" . obsidian-insert-wikilink)))
+  ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
+  ("C-c o o" . obsidian-follow-link-at-point)
+  ;; Jump to backlinks
+  ("C-c o b" . obsidian-backlink-jump)
+  ;; If you prefer you can use `obsidian-insert-link'
+  ("C-c o w" . obsidian-insert-wikilink)))
 
 (elpaca-wait)
