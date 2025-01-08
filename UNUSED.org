@@ -660,31 +660,38 @@ Function for preventing better jump breaks
                       (call-interactively #'eglot))))
 #+END_SRC
 ** LSP Bridge
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package yasnippet)
+#+END_SRC
 Perspective alternative for lsp-mode. Right now on the pause cause doesn't support angular.
 https://github.com/manateelazycat/lsp-bridge/issues/500
 Also GDB is not working with apple silicon
 https://inbox.sourceware.org/gdb/3185c3b8-8a91-4beb-a5d5-9db6afb93713@Spark/
+
 #+BEGIN_SRC emacs-lisp 
 (use-package lsp-bridge
   :after yasnippet
-  :elpaca (:host github :repo "manateelazycat/lsp-bridge" :files ("acm" "core" "langserver" "multiserver" "test" "*.py" "*.el"))
-  :general
-  (:keymaps 'override
-            :states '(normal visual)
-            "gd" '@find-definition
-            "SPC cr" 'lsp-bridge-rename
-            "\\h" 'lsp-bridge-popup-documentation
-            "\\l" 'lsp-bridge-code-action
-            "SPC f]" 'lsp-bridge-diagnostic-jump-next
-            "SPC f[" 'lsp-bridge-diagnostic-jump-prev
-            "SPC lr" 'lsp-bridge-find-references)
-  (:keymaps 'override
-            :states 'insert
-            "C-x C-o" 'lsp-bridge-popup-complete-menu
-            "C-SPC" 'lsp-bridge-popup-complete-menu)
-  (:keymaps 'acm-mode-map
-            "C-j" 'acm-select-next
-            "C-k" 'acm-select-prev)
+  :ensure (:host github :repo "manateelazycat/lsp-bridge" :files ("acm" "core" "langserver" "multiserver" "test" "*.py" "*.el"))
+:bind
+  ;; Привязки для нормального режима Meow
+  (:map meow-normal-state-keymap
+         ("gd"     . @find-definition)
+         ("SPC cr" . lsp-bridge-rename)
+         ("\\h"    . lsp-bridge-popup-documentation)
+         ("\\l"    . lsp-bridge-code-action)
+         ("SPC f]" . lsp-bridge-diagnostic-jump-next)
+         ("SPC f[" . lsp-bridge-diagnostic-jump-prev)
+         ("SPC lr" . lsp-bridge-find-references))
+  
+  ;; Привязки для вставочного режима Meow
+  (:map meow-insert-state-keymap
+         ("C-x C-o" . lsp-bridge-popup-complete-menu)
+         ("C-SPC"   . lsp-bridge-popup-complete-menu))
+  
+  ;; Привязки для acm-mode
+  (:map acm-mode-map
+         ("C-j" . acm-select-next)
+         ("C-k" . acm-select-prev))
   :custom
   (acm-enable-tabnine nil)
   (acm-enable-quick-access t)
