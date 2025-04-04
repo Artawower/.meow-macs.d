@@ -287,6 +287,16 @@ This is a variadic `cl-pushnew'."
 
 
 * Editing
+** Persistent values
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package persistent-values
+  :defer t
+  :bind (("s-S" . persistent-values-add)
+         ("s-I" . persistent-values-search))
+  :ensure (persistent-values :host github :repo "artawower/persistent-values.el")
+  :config
+  (persistent-values-mode 1))
+#+END_SRC
 ** Expand region
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package expand-region
@@ -514,6 +524,8 @@ Another all formtter. Based on prettier and black
   :ensure nil
   :hook
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
+  :mode (("\\.js\\'" . js-ts-mode)
+         ("\\.mjs\\'" . js-ts-mode))
   :custom
   (go-ts-mode-indent-offset 2)
   :config
@@ -1415,6 +1427,8 @@ Move to husky
   (meow-use-clipboard t)
   :config
   (meow-setup)
+  (set-face-attribute 'meow-position-highlight-number-1 nil :foreground "#61AFEF" :background "#919185048b0a" :bold t :underline nil)
+  (set-face-attribute 'meow-position-highlight-number-2 nil :foreground "#4E90CF" :bold t :underline nil)
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
@@ -1625,6 +1639,17 @@ Bookmark for navigation inside file
   ;; (custom-set-faces '(golden-ratio-scroll-highlight-line-face ((t (:inherit font-lock-escape-face)))))
   (global-set-key [remap scroll-down-command] 'golden-ratio-scroll-screen-down)
   (global-set-key [remap scroll-up-command] 'golden-ratio-scroll-screen-up))
+#+END_SRC
+
+** Ultrascroll
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package ultra-scroll
+  :ensure (:host github :repo "jdtsmith/ultra-scroll")
+  :init
+  (setq scroll-conservatively 101 ; important!
+        scroll-margin 0) 
+  :config
+  (ultra-scroll-mode 1))
 #+END_SRC
 
 * Programming
@@ -1865,6 +1890,8 @@ Bookmark for navigation inside file
    ("C-c l a" . lsp-execute-code-action)
    ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
+   ("gt" . lsp-goto-type-definition)
+   ("gi" . lsp-goto-implementation)
    ("\\l" . lsp-execute-code-action))
   :bind-keymap
   ("s-9" . lsp-command-map)
@@ -2463,6 +2490,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :config
   (setq typescript-indent-level 2))
 #+END_SRC
+
 ** Angular
 #+BEGIN_SRC emacs-lisp 
 (use-package ng2-mode
@@ -2593,7 +2621,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 *** Emmet. Quick tag expanding
 #+BEGIN_SRC emacs-lisp 
 (use-package emmet-mode
-  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode))
+  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode) (vue-mode . emmet-mode))
   :bind (:map emmet-mode-keymap
               ("s-e" . emmet-expand-line)
               ("C-j" . nil))
@@ -2845,8 +2873,8 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 ** Copilot chat
 #+BEGIN_SRC emacs-lisp :results silent :tangle no
 (use-package copilot-chat
-  :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
-  :defer t
+  ;; :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
+  ;; :defer t
   :bind (("C-c a c" . copilot-chat-display)
          ("C-c a x" . copilot-chat-reset)
          ("C-c a e" . copilot-chat-explain)
@@ -2896,13 +2924,50 @@ so slow
 ** Geptel
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package gptel
+  :bind (("C-c C-a" . gptel))
   :config
   (gptel-make-ollama "Ollama"
-                     :host "localhost:11434"
-                     :stream t
-                     :models '(llama3.2))) 
+    :host "localhost:11434"
+    :stream t
+    :models '(llama3.2))) 
 
 #+END_SRC
+
+** Gpt commit
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package magit-gptcommit
+  :demand t
+  :after magit
+  :bind (:map git-commit-mode-map
+              ("C-c C-g" . magit-gptcommit-commit-accept))
+  :config
+  (require 'llm-openai)
+  (setq magit-gptcommit-llm-provider (make-llm-openai :key gpt-key))
+  ;; Enable magit-gptcommit-mode to watch staged changes and generate commit message automatically in magit status buffer
+  ;; This mode is optional, you can also use `magit-gptcommit-generate' to generate commit message manually
+  ;; `magit-gptcommit-generate' should only execute on magit status buffer currently
+  ;; (magit-gptcommit-mode 1)
+
+  ;; Add gptcommit transient commands to `magit-commit'
+  ;; Eval (transient-remove-suffix 'magit-commit '(1 -1)) to remove gptcommit transient commands
+  (magit-gptcommit-status-buffer-setup))
+  #+END_SRC
+** Cursor like:
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package aidermacs
+  :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
+  :defer t
+  :bind (("C-c a a" . aidermacs-transient-menu))
+  :config
+  (setq aidermacs-backend 'vterm)
+  :custom
+  ; See the Configuration section below
+  (aidermacs-editor-model "deepseek/deepseek-chat")
+  (aidermacs-use-architect-mode t)
+  (aidermacs-default-model "deepseek/deepseek-chat")
+  ;; (aidermacs-default-model "gpt-4o")
+)
+  #+END_SRC
 * Collaborations
 ** Pair programming
 #+BEGIN_SRC emacs-lisp
@@ -2949,13 +3014,66 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
 
 
 * UI/UX
+** No resize when completion
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package stillness-mode
+  :ensure (:host github :repo "neeasade/stillness-mode.el" :branch "main")
+  :config (stillness-mode))
+#+END_SRC
 ** Indent guide (bars)
 #+BEGIN_SRC emacs-lisp
 (use-package indent-bars
   :elpaca (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :hook (prog-mode . indent-bars-mode)) ;
 #+END_SRC
+** Nova. Modern UI for posframes
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package vertico-posframe)
+(use-package nova
+  :ensure (:host github :repo "thisisran/nova")
+  :config
+  (require 'nova-vertico)
+  (require 'nova-corfu)
+  (require 'nova-corfu-popupinfo))
+#+END_SRC
 
+fix
+#+BEGIN_SRC emacs-lisp :results silent
+(defun nova-vertico--show-advice (orig-fun &rest args)
+  "Advice to create a background posframe before the original `posframe-show`."
+
+  (advice-remove 'posframe-show #'nova-vertico--show-advice)
+  (nova-vertico--enable-theme)
+
+  ;; if minibuffer-depth < 2, then save the position and width of the original posframe
+  ;; else, set the apply below to set the left and width according to the original posframe
+  (let* ((title-raw (or (and (minibuffer-prompt) (string-trim (minibuffer-prompt))) ""))
+	 (title-text (nova-vertico--format-title title-raw)))
+    (if (< (minibuffer-depth) 2)
+        (progn 
+	  (setq nova-vertico--main-posframe
+		(apply orig-fun (cons (car args) (nova--update-params (cdr args) :border-width 0 :max-width nova-vertico-depth-2-max-width))))
+	  (nova-show-with-posframe nova-vertico--dedicated-buffer
+				   title-text
+				   'side-left
+				   nova-vertico--main-posframe)
++	  (modify-frame-parameters nova-vertico--main-posframe `((z-group . above))))
+      (let* ((main-posframe nova-vertico--main-posframe)
+             (parameters (frame-parameters main-posframe))
+             (x (cdr (assoc 'left parameters)))
+             (new-width (cdr (assoc 'width parameters)))
+             (recursive-minibuffer-frame (apply orig-fun (cons (car args) (nova--update-params (cdr args)
+                                                                                               :border-width 0
+                                                                                               :max-width nova-vertico-depth-2-max-width)))))
+        (nova-show-with-posframe nova-vertico--dedicated-buffer
+                                 (concat title-text (format " (depth %s)" (minibuffer-depth)))
+                                 'side-left
+                                 nova-vertico--main-posframe)
+        (modify-frame-parameters main-posframe `((z-group . above))) ;; ADDED THIS
+        (modify-frame-parameters recursive-minibuffer-frame `(;; (z-group . above)
+                                                              (left . ,x) (width . ,new-width)))))))
+
+#+END_SRC
 ** Functions
 Reset themes before apply
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3633,7 +3751,7 @@ Delete worktree hook
 Dependencies
 #+BEGIN_SRC emacs-lisp 
 (use-package magit
-  :ensure (:host github :repo "magit/magit" :ref "f4c9753d81b030f520061ebde4279dc9f433a75a")
+  ;; :ensure (:host github :repo "magit/magit" :ref "f4c9753d81b030f520061ebde4279dc9f433a75a")
   :commands
   (magit-get-current-branch)
   :bind
@@ -3660,6 +3778,7 @@ Dependencies
    :map magit-status-mode-map
    ("x" . meow-line)
    ("X" . magit-discard)
+   ("z z" . recenter)
    ("C-j" . magit-section-forward)
    ("M-n" . husky-lsp-repeat-consult-search-forward)
    ("M-p" . husky-lsp-repeat-consult-search-backward)

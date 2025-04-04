@@ -192,6 +192,14 @@ This is a variadic `cl-pushnew'."
   (interactive "p")
   (kill-line (- 1 arg)))
 
+(use-package persistent-values
+  :defer t
+  :bind (("s-S" . persistent-values-add)
+         ("s-I" . persistent-values-search))
+  :ensure (persistent-values :host github :repo "artawower/persistent-values.el")
+  :config
+  (persistent-values-mode 1))
+
 (use-package expand-region
   :bind (("s-x" . er/expand-region))
   :defer t)
@@ -370,6 +378,8 @@ This is a variadic `cl-pushnew'."
   :ensure nil
   :hook
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
+  :mode (("\\.js\\'" . js-ts-mode)
+         ("\\.mjs\\'" . js-ts-mode))
   :custom
   (go-ts-mode-indent-offset 2)
   :config
@@ -1109,6 +1119,8 @@ This is a variadic `cl-pushnew'."
   (meow-use-clipboard t)
   :config
   (meow-setup)
+  (set-face-attribute 'meow-position-highlight-number-1 nil :foreground "#61AFEF" :background "#919185048b0a" :bold t :underline nil)
+  (set-face-attribute 'meow-position-highlight-number-2 nil :foreground "#4E90CF" :bold t :underline nil)
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
@@ -1282,6 +1294,14 @@ This is a variadic `cl-pushnew'."
   (global-set-key [remap scroll-down-command] 'golden-ratio-scroll-screen-down)
   (global-set-key [remap scroll-up-command] 'golden-ratio-scroll-screen-up))
 
+(use-package ultra-scroll
+  :ensure (:host github :repo "jdtsmith/ultra-scroll")
+  :init
+  (setq scroll-conservatively 101 ; important!
+        scroll-margin 0) 
+  :config
+  (ultra-scroll-mode 1))
+
 (defun @lsp/uninstall-server (dir)
   "Delete a LSP server from `lsp-server-install-dir'."
   (interactive
@@ -1332,6 +1352,8 @@ This is a variadic `cl-pushnew'."
    ("C-c l a" . lsp-execute-code-action)
    ("C-c l r" . lsp-rename)
    :map meow-normal-state-keymap
+   ("gt" . lsp-goto-type-definition)
+   ("gi" . lsp-goto-implementation)
    ("\\l" . lsp-execute-code-action))
   :bind-keymap
   ("s-9" . lsp-command-map)
@@ -1910,7 +1932,7 @@ This is a variadic `cl-pushnew'."
   :defer t)
 
 (use-package emmet-mode
-  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode))
+  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode) (vue-mode . emmet-mode))
   :bind (:map emmet-mode-keymap
               ("s-e" . emmet-expand-line)
               ("C-j" . nil))
@@ -2110,11 +2132,43 @@ This is a variadic `cl-pushnew'."
   (advice-add 'copilot-show-overlay :before-while '@copilot-show-overlay-depends-mode))
 
 (use-package gptel
+  :bind (("C-c C-a" . gptel))
   :config
   (gptel-make-ollama "Ollama"
-                     :host "localhost:11434"
-                     :stream t
-                     :models '(llama3.2)))
+    :host "localhost:11434"
+    :stream t
+    :models '(llama3.2)))
+
+(use-package magit-gptcommit
+  :demand t
+  :after magit
+  :bind (:map git-commit-mode-map
+              ("C-c C-g" . magit-gptcommit-commit-accept))
+  :config
+  (require 'llm-openai)
+  (setq magit-gptcommit-llm-provider (make-llm-openai :key gpt-key))
+  ;; Enable magit-gptcommit-mode to watch staged changes and generate commit message automatically in magit status buffer
+  ;; This mode is optional, you can also use `magit-gptcommit-generate' to generate commit message manually
+  ;; `magit-gptcommit-generate' should only execute on magit status buffer currently
+  ;; (magit-gptcommit-mode 1)
+
+  ;; Add gptcommit transient commands to `magit-commit'
+  ;; Eval (transient-remove-suffix 'magit-commit '(1 -1)) to remove gptcommit transient commands
+  (magit-gptcommit-status-buffer-setup))
+
+(use-package aidermacs
+  :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
+  :defer t
+  :bind (("C-c a a" . aidermacs-transient-menu))
+  :config
+  (setq aidermacs-backend 'vterm)
+  :custom
+  ; See the Configuration section below
+  (aidermacs-editor-model "deepseek/deepseek-chat")
+  (aidermacs-use-architect-mode t)
+  (aidermacs-default-model "deepseek/deepseek-chat")
+  ;; (aidermacs-default-model "gpt-4o")
+)
 
 (use-package floobits
   :defer t)
@@ -2150,9 +2204,55 @@ This is a variadic `cl-pushnew'."
 
 (elpaca-wait)
 
+(use-package stillness-mode
+  :ensure (:host github :repo "neeasade/stillness-mode.el" :branch "main")
+  :config (stillness-mode))
+
 (use-package indent-bars
   :elpaca (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :hook (prog-mode . indent-bars-mode)) ;
+
+(use-package vertico-posframe)
+(use-package nova
+  :ensure (:host github :repo "thisisran/nova")
+  :config
+  (require 'nova-vertico)
+  (require 'nova-corfu)
+  (require 'nova-corfu-popupinfo))
+
+(defun nova-vertico--show-advice (orig-fun &rest args)
+  "Advice to create a background posframe before the original `posframe-show`."
+
+  (advice-remove 'posframe-show #'nova-vertico--show-advice)
+  (nova-vertico--enable-theme)
+
+  ;; if minibuffer-depth < 2, then save the position and width of the original posframe
+  ;; else, set the apply below to set the left and width according to the original posframe
+  (let* ((title-raw (or (and (minibuffer-prompt) (string-trim (minibuffer-prompt))) ""))
+	 (title-text (nova-vertico--format-title title-raw)))
+    (if (< (minibuffer-depth) 2)
+        (progn 
+	  (setq nova-vertico--main-posframe
+		(apply orig-fun (cons (car args) (nova--update-params (cdr args) :border-width 0 :max-width nova-vertico-depth-2-max-width))))
+	  (nova-show-with-posframe nova-vertico--dedicated-buffer
+				   title-text
+				   'side-left
+				   nova-vertico--main-posframe)
++	  (modify-frame-parameters nova-vertico--main-posframe `((z-group . above))))
+      (let* ((main-posframe nova-vertico--main-posframe)
+             (parameters (frame-parameters main-posframe))
+             (x (cdr (assoc 'left parameters)))
+             (new-width (cdr (assoc 'width parameters)))
+             (recursive-minibuffer-frame (apply orig-fun (cons (car args) (nova--update-params (cdr args)
+                                                                                               :border-width 0
+                                                                                               :max-width nova-vertico-depth-2-max-width)))))
+        (nova-show-with-posframe nova-vertico--dedicated-buffer
+                                 (concat title-text (format " (depth %s)" (minibuffer-depth)))
+                                 'side-left
+                                 nova-vertico--main-posframe)
+        (modify-frame-parameters main-posframe `((z-group . above))) ;; ADDED THIS
+        (modify-frame-parameters recursive-minibuffer-frame `(;; (z-group . above)
+                                                              (left . ,x) (width . ,new-width)))))))
 
 (defadvice load-theme (before theme-dont-propagate activate)
  (mapcar #'disable-theme custom-enabled-themes))
@@ -2671,7 +2771,7 @@ This is a variadic `cl-pushnew'."
 (advice-add 'magit-worktree-delete :after #'@magit-worktree-delete-project)
 
 (use-package magit
-  :ensure (:host github :repo "magit/magit" :ref "f4c9753d81b030f520061ebde4279dc9f433a75a")
+  ;; :ensure (:host github :repo "magit/magit" :ref "f4c9753d81b030f520061ebde4279dc9f433a75a")
   :commands
   (magit-get-current-branch)
   :bind
@@ -2698,6 +2798,7 @@ This is a variadic `cl-pushnew'."
    :map magit-status-mode-map
    ("x" . meow-line)
    ("X" . magit-discard)
+   ("z z" . recenter)
    ("C-j" . magit-section-forward)
    ("M-n" . husky-lsp-repeat-consult-search-forward)
    ("M-p" . husky-lsp-repeat-consult-search-backward)
