@@ -235,9 +235,6 @@ Currently i don't use it. But when necessary i just eval this code
   :ensure (explain-pause-mode :type git :host github :repo "lastquestion/explain-pause-mode")
   :defer t)
 #+END_SRC
-
-
- #+END_SRC
 * Functions
 ** Open youtrack
  #+BEGIN_SRC emacs-lisp :results silent
@@ -438,6 +435,7 @@ Tempal
 
   :config
   ;; TODO: main need to get all from directory.
+  (setq tempel-auto-reload nil)
   (setq tempel-path
         '("~/apps/flat-emacs/templates/common"
           "~/apps/flat-emacs/templates/readme"
@@ -1358,14 +1356,14 @@ Move to husky
   (add-to-list 'meow-char-thing-table '(?' . quoted))
   (add-to-list 'meow-char-thing-table '(?< . angle))
 
-  (add-to-list 'meow-char-thing-table '(?( . round))
-  (add-to-list 'meow-char-thing-table '(?) . round))
+  (add-to-list 'meow-char-thing-table '(?\( . round))
+  (add-to-list 'meow-char-thing-table '(?\) . round))
 
   (add-to-list 'meow-char-thing-table '(?{ . curly))
   (add-to-list 'meow-char-thing-table '(?} . curly))
   
-  (add-to-list 'meow-char-thing-table '(?[ . square))
-  (add-to-list 'meow-char-thing-table '(?] . square))
+  (add-to-list 'meow-char-thing-table '(?\[ . square))
+  (add-to-list 'meow-char-thing-table '(?\] . square))
 
   (meow-thing-register 'quoted
                        '(regexp "\"\\|'\\|`" "\"\\|'\\|`")
@@ -1375,7 +1373,7 @@ Move to husky
                        '(regexp "<" ">")
                        '(regexp "<" ">")))
 
- #+END_SRC
+#+END_SRC
 
  #+RESULTS:
  : @meow-thing-register
@@ -2032,38 +2030,6 @@ https://github.com/emacs-lsp/lsp-mode/issues/4341
   ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
   (setq lsp-pyright-diagnostic-mode "workspace"))
 #+END_SRC
-
-*** Pipenv
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package pipenv
-  :defer t
-  :hook (python-mode . pipenv-mode)
-  :config
-  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
-  
-
-  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
-  ;; This hook will copy venv from pyvenv to lsp pyright
-  (add-hook 'pyvenv-post-activate-hooks (lambda ()
-                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
-                                          (lsp-restart-workspace)))
-
-  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
-#+END_SRC
-
-*** TODO Auto virtualenv
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package auto-virtualenv
-  :defer t
-  :hook ((python-mode . auto-virtualenv-setup)
-         (python-ts-mode . auto-virtualenv-setup))
-  :init
-  (use-package pyvenv
-    :ensure t)
-  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
-  )
-  #+END_SRC
-
 *** YAML
 **** YAML PRO
 #+BEGIN_SRC emacs-lisp
@@ -2075,6 +2041,7 @@ https://github.com/emacs-lsp/lsp-mode/issues/4341
 #+BEGIN_SRC emacs-lisp 
 (use-package lsp-ui
   :hook (lsp-mode . lsp-ui-mode)
+  :ensure (:host github :repo "emacs-lsp/lsp-ui" :rev "9d28c2ca1e79614215ea678583435d5d1189e4bc")
   :after lsp-mode
   :bind (:map meow-normal-state-keymap
          ("\\h" . lsp-ui-doc-toggle)
@@ -2158,6 +2125,39 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   :hook (java-mode . lsp-))
 #+END_SRC
 
+** Pipenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package pipenv
+  :defer t
+  :hook (python-mode . pipenv-mode)
+  :config
+  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
+  
+
+  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
+  ;; This hook will copy venv from pyvenv to lsp pyright
+  (add-hook 'pyvenv-post-activate-hooks (lambda ()
+                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
+                                          (lsp-restart-workspace)))
+
+  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
+#+END_SRC
+
+** TODO Auto virtualenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package auto-virtualenv
+  :defer t
+  :hook ((python-mode . auto-virtualenv-setup)
+         (python-ts-mode . auto-virtualenv-setup))
+  :init
+  (use-package pyvenv
+    :ensure t)
+  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
+  )
+  #+END_SRC
+
+
+
 ** Nix
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package nix-mode)
@@ -2184,19 +2184,40 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   :init
   (global-flycheck-mode)
   :config
-(setq flycheck-mode-line nil)
+  (setq flycheck-mode-line nil)
   ;; Change flycheck errors on save
   (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
   (setq flycheck-idle-change-delay 0.2)
 
-  (set-face-attribute 'flycheck-fringe-error nil :background nil :foreground @m-color-secondary)
-  (set-face-attribute 'flycheck-error-list-error nil :background nil :foreground @m-color-secondary)
-  (set-face-attribute 'error nil :background nil :foreground @m-color-secondary)
+  (set-face-attribute 'flycheck-fringe-error nil :background 'unspecified :foreground @m-color-secondary)
+  (set-face-attribute 'flycheck-error-list-error nil :background 'unspecified :foreground @m-color-secondary)
+  (set-face-attribute 'error nil :background 'unspecified :foreground @m-color-secondary)
 
   (flycheck-add-mode 'javascript-eslint 'web-mode)
   (flycheck-add-mode 'javascript-eslint 'typescript-mode)
   (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
-  (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode))
+  (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode)
+
+  (with-eval-after-load 'flycheck
+    (flycheck-define-checker stylelint
+      "A SCSS/CSS linter using stylelint."
+      :command ("stylelint" "--formatter" "compact" "--stdin-filename" source-original)
+      :standard-input t
+      :error-patterns
+      ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
+      :modes (scss-mode css-mode less-css-mode))
+    
+    ;; Добавляем в список чекеров
+    (add-to-list 'flycheck-checkers 'stylelint))
+
+  ;; Автоматическое включение stylelint в scss-mode
+  (add-hook 'scss-mode-hook
+            (lambda ()
+              (flycheck-select-checker 'stylelint)
+              (flycheck-mode)))
+
+  (with-eval-after-load 'flycheck
+    (flycheck-add-next-checker 'lsp 'stylelint)))
 #+END_SRC
 
 *** Consult flycheck
@@ -2488,6 +2509,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :custom
   (lsp-clients-typescript-server-args '("--stdio"))
   :config
+  (add-to-list 'auto-mode-alist '("\\.mts\\'" . typescript-mode))
   (setq typescript-indent-level 2))
 #+END_SRC
 
@@ -2646,8 +2668,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+BEGIN_SRC emacs-lisp
 (use-package json-mode
   :defer t
-  :hook ((json-mode . format-all-mode)
-         (json-mode . json-ts-mode))
+  :hook ((json-mode . json-ts-mode))
   :config
   (setq js-indent-level 2))
 #+END_SRC
@@ -2834,9 +2855,9 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 (use-package copilot
   :defer 5
   :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
-  :hook
-  (prog-mode . copilot-mode)
-  (text-mode . copilot-mode)
+  ;; :hook
+  ;; (prog-mode . copilot-mode)
+  ;; (text-mode . copilot-mode)
   :bind
   (("s-]" . copilot-next-completion)
    ("s-[" . copilot-previous-completion)
@@ -2871,13 +2892,15 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 : [nil 26300 51638 753524 nil elpaca-process-queues nil nil 999999 nil]
 
 ** Copilot chat
-#+BEGIN_SRC emacs-lisp :results silent :tangle no
+#+BEGIN_SRC emacs-lisp :results silent
 (use-package copilot-chat
   ;; :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
   ;; :defer t
   :bind (("C-c a c" . copilot-chat-display)
          ("C-c a x" . copilot-chat-reset)
          ("C-c a e" . copilot-chat-explain)
+         ("s-g" . copilot-chat-transient)
+         ("C-c a p" . copilot-chat-transient)
          ("C-c a t" . copilot-chat-test)
          ("C-c a o" . copilot-chat-optimize)
          ("C-c a d" . copilot-chat-doc)
@@ -2886,9 +2909,43 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :custom
   (copilot-chat-frontend 'shell-maker)
   :config
-  (require 'copilot-chat-shell-maker)
-  (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
-  (copilot-chat-shell-maker-init))
+  (setq copilot-chat-default-model "claude-4-sonnet")
+  (setq copilot-chat-prompt "1. You are programming expert, use only best practices.
+2. Don't use nested conditions and loops. Only 2 nested block levers.
+3. Use single responsability
+4. Never use comments in the code!
+5. Be concise. Don't explain code. If i will have a question i ask you")
+
+
+  
+  
+  (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests")
+
+  
+  ;; (require 'copilot-chat-shell-maker)
+  ;; (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
+  ;; (copilot-chat-shell-maker-init)
+  )
+#+END_SRC
+
+
+Better copilot chat positioning
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/copilot-chat-display-buffer (buffer _alist)
+  (let ((current (selected-window))
+        (windows (window-list)))
+    (cond
+     ((= (length windows) 1)
+      (set-window-buffer (split-window current nil 'right) buffer))
+     ((= (length windows) 2)
+      (set-window-buffer (seq-find (lambda (w) (not (eq w current))) windows) buffer))
+     (t
+      (display-buffer-pop-up-window buffer nil)))))
+
+(add-to-list
+ 'display-buffer-alist
+ '("\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
+   (my/copilot-chat-display-buffer)))
 #+END_SRC
 
 ** COMMENT Codeium
@@ -3026,54 +3083,6 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
   :elpaca (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
   :hook (prog-mode . indent-bars-mode)) ;
 #+END_SRC
-** Nova. Modern UI for posframes
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package vertico-posframe)
-(use-package nova
-  :ensure (:host github :repo "thisisran/nova")
-  :config
-  (require 'nova-vertico)
-  (require 'nova-corfu)
-  (require 'nova-corfu-popupinfo))
-#+END_SRC
-
-fix
-#+BEGIN_SRC emacs-lisp :results silent
-(defun nova-vertico--show-advice (orig-fun &rest args)
-  "Advice to create a background posframe before the original `posframe-show`."
-
-  (advice-remove 'posframe-show #'nova-vertico--show-advice)
-  (nova-vertico--enable-theme)
-
-  ;; if minibuffer-depth < 2, then save the position and width of the original posframe
-  ;; else, set the apply below to set the left and width according to the original posframe
-  (let* ((title-raw (or (and (minibuffer-prompt) (string-trim (minibuffer-prompt))) ""))
-	 (title-text (nova-vertico--format-title title-raw)))
-    (if (< (minibuffer-depth) 2)
-        (progn 
-	  (setq nova-vertico--main-posframe
-		(apply orig-fun (cons (car args) (nova--update-params (cdr args) :border-width 0 :max-width nova-vertico-depth-2-max-width))))
-	  (nova-show-with-posframe nova-vertico--dedicated-buffer
-				   title-text
-				   'side-left
-				   nova-vertico--main-posframe)
-+	  (modify-frame-parameters nova-vertico--main-posframe `((z-group . above))))
-      (let* ((main-posframe nova-vertico--main-posframe)
-             (parameters (frame-parameters main-posframe))
-             (x (cdr (assoc 'left parameters)))
-             (new-width (cdr (assoc 'width parameters)))
-             (recursive-minibuffer-frame (apply orig-fun (cons (car args) (nova--update-params (cdr args)
-                                                                                               :border-width 0
-                                                                                               :max-width nova-vertico-depth-2-max-width)))))
-        (nova-show-with-posframe nova-vertico--dedicated-buffer
-                                 (concat title-text (format " (depth %s)" (minibuffer-depth)))
-                                 'side-left
-                                 nova-vertico--main-posframe)
-        (modify-frame-parameters main-posframe `((z-group . above))) ;; ADDED THIS
-        (modify-frame-parameters recursive-minibuffer-frame `(;; (z-group . above)
-                                                              (left . ,x) (width . ,new-width)))))))
-
-#+END_SRC
 ** Functions
 Reset themes before apply
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3117,10 +3126,34 @@ Disable scrolls
 #+END_SRC
 ** Fonts
 #+BEGIN_SRC emacs-lisp
-(set-frame-font "JetBrainsMono Nerd Font 14" nil t)
-;; (set-frame-font "Monaspace Neon 14" nil t)
-;; (set-frame-font "Menlo 14" nil t)
-;; (set-frame-font "Monaco Font 15" nil t)
+;; (set-frame-font "JetBrainsMono Nerd Font 16" nil t)
+;; (set-face-attribute 'font-lock-string-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
+;; (set-face-attribute 'font-lock-comment-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
+;; (set-face-attribute 'font-lock-keyword-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
+
+
+;; (set-frame-font "Monaspace Krypton 16" nil t)
+;; (set-frame-font "Monaspace Argon 16" nil t)
+(setq @font-height 15)
+(set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
+
+(custom-set-faces
+ `(font-lock-string-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
+ `(font-lock-comment-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
+ `(font-lock-keyword-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10))))))
+
+
+;; (set-face-attribute 'font-lock-string-face nil 
+;;                     :family "Monaspace Radon Frozen"
+;;                     :height 160)
+;; (set-face-attribute 'font-lock-comment-face nil 
+;;                     :family "Monaspace Radon Frozen"
+;;                     :height 160)
+;; (set-face-attribute 'font-lock-keyword-face nil 
+;;                     :family "Monaspace Radon Frozen"
+;;                     :height 160)
+
+(setq-default line-spacing 1)
 #+END_SRC
 ** Ligatures
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3326,11 +3359,12 @@ Very pretty titlebar for Mac os
 
 ** Hide modeline mode
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package hide-mode-line)
-  ;; :hook
-  ;; (prog-mode . hide-mode-line-mode)
+(use-package hide-mode-line
+  :hook
+  (prog-mode . hide-mode-line-mode)
   ;; (text-mode . hide-mode-line-mode)
-  ;; (org-mode . hide-mode-line-mode))
+  ;; (org-mode . hide-mode-line-mode)
+)
 #+END_SRC
 ** Auto zoom windows
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3428,7 +3462,6 @@ Topsy functions
       (setq node (treesit-node-parent node)))
     (s-join " > " result)))
 #+END_SRC
-
 
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package topsy
@@ -3867,8 +3900,9 @@ Improved styles for git changes
   :custom-face
   (blamer-face ((t :inherit font-lock-comment-face
                    :italic t
-                   :font "Fira Code 14"
-                   :height 0.9
+                   ;; :font "Fira Code 14"
+                   :font "Liga Comic Mono 14"
+                   :height 0.8
                    :background unspecified)))
   :config
   (tooltip-mode)
@@ -4007,6 +4041,16 @@ Dependency
    '(org-document-title ((t (:inherit outline-1 :height 2.5))))))
 #+END_SRC
 
+*** Copy src org mode block
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @copy-src-block ()
+  "Copy src block to clipboard"
+  (interactive)
+  (let ((src-block (org-element-at-point)))
+    (when (eq (car src-block) 'src-block)
+      (kill-new (plist-get (cadr src-block) :value)))))
+#+END_SRC
+
 ** Org package
 #+BEGIN_SRC emacs-lisp
 (use-package org
@@ -4030,6 +4074,8 @@ Dependency
         ("C-c x" . org-toggle-checkbox)
         ("C-c h ]" . org-next-visible-heading)
         ("C-c h [" . org-previous-visible-heading)
+        ("C-h ]" . org-next-visible-heading)
+        ("C-h [" . org-previous-visible-heading)
         :map meow-normal-state-keymap
         ("\\o" . org-mode)
         :map org-read-date-minibuffer-local-map
@@ -4214,9 +4260,15 @@ Dependency
 #+END_SRC
 
 ** Org node. Fast org roam alternative
+Dependency
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-mem
+  :ensure (:host github :repo "meedstrom/org-mem"))
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-node
-  :after org
+  :after (org org-mem)
   :bind
   (("C-c n r f" . org-node-find)
    ("C-c n r i" . org-node-insert-link))
@@ -4234,6 +4286,7 @@ Dependency
   (org-node-cache-mode))
 
 (use-package org-node-fakeroam
+  :after org-mem
   :defer
   :config
   (setq org-node-creation-fn #'org-node-fakeroam-new-via-roam-capture)
@@ -4608,7 +4661,7 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
   (require 'magit)
   (global-husky-treesit))
 #+END_SRC
-* Obsidian
+* COMMENT Obsidian
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package obsidian
   :ensure t
