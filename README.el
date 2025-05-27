@@ -620,6 +620,7 @@ This is a variadic `cl-pushnew'."
    '(("h" "~/"                          "Home")
      ("d" "~/Downloads/"                "Downloads")))
   :config
+  (set-face-attribute 'dirvish-hl-line nil :foreground nil :background @m-color-main)
   ;; (dirvish-peek-mode) ; Preview files in minibuffer
   ;; (dirvish-side-follow-mode) ; similar to `treemacs-follow-mode'
   ;; (remove-hook 'dired-mode-hook 'treemacs-icons-dired-mode)
@@ -736,6 +737,9 @@ This is a variadic `cl-pushnew'."
     
   
   (advice-add 'vterm-clear-scrollback :before #'@clear-term-history))
+
+(defun @vterm-open-pick-dir ()
+(interactive))
 
 (use-package vterm-toggle
   :defer t
@@ -1213,10 +1217,10 @@ This is a variadic `cl-pushnew'."
   :config
   (custom-set-faces
    '(avy-lead-face ((t (:foreground "red")))))
-  (custom-set-faces-0
-   '(avy-lead-face ((t (:foreground "blue")))))
-  (custom-set-faces-0
-   '(avy-lead-face ((t (:foreground "green"))))))
+  (custom-set-faces
+   '(avy-lead-face-0 ((t (:foreground "blue")))))
+  (custom-set-faces
+   '(avy-lead-face-1 ((t (:foreground "green"))))))
 
 (use-package ace-window
   :defer t
@@ -1290,154 +1294,253 @@ This is a variadic `cl-pushnew'."
   :config
   (ultra-scroll-mode 1))
 
-(use-package eglot
-  :ensure nil
-  :defer t
-  :bind (("C-c g i" . eglot-find-implementation)
-         ;; find reference
-         ("C-c l r" . eglot-rename)
-         ("C-c r l" . eglot)
-         ("C-c l f" . xref-find-references)
-         :map meow-normal-state-keymap
-         ("\\l" . eglot-code-actions))
+(defun @lsp/uninstall-server (dir)
+  "Delete a LSP server from `lsp-server-install-dir'."
+  (interactive
+   (list (read-directory-name "Uninstall LSP server: " lsp-server-install-dir nil t)))
+  (unless (file-directory-p dir)
+    (user-error "Couldn't find %S directory" dir))
+  (delete-directory dir 'recursive)
+  (message "Uninstalled %S" (file-name-nondirectory dir)))
+
+(setq lsp-keymap-prefix "s-9")
+(use-package lsp-mode
+  ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
+  :after (flycheck)
   :hook
-  ((web-mode
-    ng2-mode
-    typescript-ts-mode
-    python-ts-mode
-    html-ts-mode
+  ((clojure-mode
+    scss-mode
+    go-mode
+    css-mode
+    js-mode
+    typescript-mode
+    vue-mode
+    web-mode
     html-mode
+    ng2-ts-mode
+    python-mode
+    dart-mode
+    typescript-tsx-mode
+
+    ;; Treesit
+    html-ts-mode
+    typescript-ts-mode
     go-ts-mode
-    python-ts-mode
-    yaml-mode
-    ng2-ts-mode) . eglot-ensure)
-  :custom
-  (eglot-confirm-server-initiated-edits nil)
-  :config                               ;
-  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
-  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
-
-
-  (defun vue-eglot-init-options ()
-    (let ((tsdk-path (expand-file-name
-                      "lib"
-                      (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
-      `(:typescript (:tsdk ,tsdk-path
-                           :languageFeatures (:completion
-                                              (:defaultTagNameCase "both"
-                                                                   :defaultAttrNameCase "kebabCase"
-                                                                   :getDocumentNameCasesRequest nil
-                                                                   :getDocumentSelectionRequest nil)
-                                              :diagnostics
-                                              (:getDocumentVersionRequest nil))
-                           :documentFeatures (:documentFormatting
-                                              (:defaultPrintWidth 100
-                                                                  :getDocumentPrintWidthRequest nil)
-                                              :documentSymbol t
-                                              :documentColor t)))))
-  ;; Volar
-  (add-to-list 'eglot-server-programs
-               `(vue-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
-
-(add-to-list 'eglot-server-programs
-               '(html-mode "node"
-                              "/opt/homebrew/lib/node_modules/@angular/language-server"
-                              "--ngProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--tsProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--stdio"))
-
-  (add-to-list 'eglot-server-programs
-               '(html-ts-mode "node"
-                              "/opt/homebrew/lib/node_modules/@angular/language-server"
-                              "--ngProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--tsProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--stdio"))
-  (add-to-list 'eglot-server-programs
-               '(ng2-html-mode "node"
-                               "/opt/homebrew/lib/node_modules/@angular/language-server"
-                               "--ngProbeLocations"
-                               "/opt/homebrew/lib/node_modules"
-                               "--tsProbeLocations"
-                               "/opt/homebrew/lib/node_modules"
-                               "--stdio"))
-  (defclass eglot-volar (eglot-lsp-server) ()
-    :documentation "A custom class for volar")
-
-  ;; (cl-defmethod eglot-initialization-options ((server eglot-volar))
-  ;;   "Passes through required volar initialization options"
-  ;;   (let*
-  ;;       ((serverPath
-  ;;         (expand-file-name
-  ;;          "lib"
-  ;;          (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
-  ;;     (list :typescript
-  ;;           (list :tsdk serverPath)
-  ;;           :languageFeatures
-  ;;           (list :completion
-  ;;                 (list :defaultTagNameCase "both"
-  ;;                       :defaultAttrNameCase "kebabCase"
-  ;;                       :getDocumentNameCasesRequest nil
-  ;;                       :getDocumentSelectionRequest nil)
-  ;;                 :diagnostics
-  ;;                 (list :getDocumentVersionRequest nil))
-  ;;           :documentFeatures
-  ;;           (list :documentFormatting
-  ;;                 (list :defaultPrintWidth 100
-  ;;                       :getDocumentPrintWidthRequest nil)
-  ;;                 :documentSymbol t
-  ;;                 :documentColor t))))
-  )
-
-(use-package flymake
-  :ensure nil
+    js-ts-mode
+    bash-ts-mode
+    tsx-ts-mode) . lsp-deferred)
+  (web-mode . lsp-deferred)
+  (lsp-completion-mode . my/lsp-mode-setup-completion)
   :bind
-  (("C-j" . flymake-goto-next-error)
-   ("C-k" . flymake-goto-prev-error)
-   ("C-c e l" . flymake-show-diagnostics-buffer))
-  :hook (prog-mode . flymake-mode)
-  :config)
-
-(use-package flymake-eslint
-  :config
-  (flymake-eslint-enable))
-
-(use-package eldoc :ensure nil
+  (("C-c f n" . flycheck-next-error)
+   ("C-c l a" . lsp-execute-code-action)
+   ("C-c i m" . lsp-ui-imenu)
+   ("C-c l d" . lsp-workspace-folders-remove)
+   ("C-c l t" . lsp-find-type-definition)
+   ("C-c l f" . lsp-find-references)
+   ("C-c l i" . lsp-find-implementation)
+   ("C-c l w" . lsp-workspace-restart)
+   ("C-c r l" . lsp)
+   ("C-c l a" . lsp-execute-code-action)
+   ("C-c l r" . lsp-rename)
+   :map meow-normal-state-keymap
+   ("gt" . lsp-goto-type-definition)
+   ("gi" . lsp-goto-implementation)
+   ("\\l" . lsp-execute-code-action))
+  :bind-keymap
+  ("s-9" . lsp-command-map)
   :init
-  (defun my/eldoc-clear-doc-hook ()
-    ;; (setq eldoc-last-message nil) ; needed?
-    (when (bound-and-true-p eldoc--doc-buffer)
-      (with-current-buffer eldoc--doc-buffer
-        (let ((inhibit-read-only t))
-          (erase-buffer)))))
-  (add-hook 'window-state-change-hook #'my/eldoc-clear-doc-hook)
+  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
+  (setq lsp-keymap-prefix "s-9")
+  (setq lsp-volar-take-over-mode t)
+
+  (setq lsp-headerline-breadcrumb-enable nil)
+  ;; Configuration for corfu
+  ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
+  (defun my/lsp-mode-setup-completion ()
+    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+          '(flex))) ;; Configure flex
   :custom
-  (eldoc-idle-delay 0)
+  (lsp-headerline-breadcrumb-enable nil)
+  (lsp-idle-delay 0.3)
+  (lsp-completion-provider :capf)
+  (lsp-enable-on-type-formatting nil)
+  (lsp-eldoc-render-all nil)
+  (lsp-prefer-flymake nil)
+  (lsp-modeline-diagnostics-scope :workspace)
+  (lsp-enable-indentation nil)
+  (lsp-enable-on-type-formatting nil)
+  (lsp-apply-edits-after-file-operations nil)
+  ;; (lsp-clients-typescript-server-args '("--stdio" "--tsserver-log-file" "/dev/stderr"))
+  (lsp-clients-typescript-server-args '("--stdio"))
+  (lsp-completion-default-behaviour :insert)
+  (lsp-yaml-schemas '((kubernetes . ["/auth-reader.yaml", "/deployment.yaml"])))
+  (lsp-disabled-clients '(html-ls))
+  (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
+  ;; (lsp-completion-provider :none)
+  ;; (lsp-completion-provider :capf)
+  ;; Disable bottom help info
+  (lsp-signature-render-documentation nil)
+  (lsp-signature-auto-activate nil)
+  (lsp-enable-snippet nil)
+  ;; (lsp-use-plists t)
+  (lsp-enable-file-watchers t)
+  (lsp-file-watch-threshold 8000)
+  (lsp-modeline-code-actions-mode nil)
+(lsp-modeline-code-actions-enable nil)
+(lsp-modeline-workspace-status-enable nil)
+(lsp-modeline-code-action-icons-enable nil)
+(lsp-modeline-diagnostics-mode nil)
+(lsp-modeline-diagnostics-enable nil)
   :config
+  (setq lsp-auto-execute-action nil)
+  (setq lsp-javascript-display-return-type-hints t)
+  (setq lsp-json-schemas
+        `[
+          (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
+          (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
+          ])
+  (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
+  ;; Eslint
+  (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
+  (setq lsp-eslint-server-command `("node"
+                                    "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
+                                    "--stdio"))
+  ;; Flycheck patch checkers
+  (require 'flycheck)
+  (require 'lsp-diagnostics)
+  (lsp-diagnostics-flycheck-enable)
+  (mapc #'lsp-flycheck-add-mode '(typescript-mode js-mode css-mode vue-html-mode))
+  ;; Golang
+  (defun lsp-go-install-save-hooks ()
+    (flycheck-add-next-checker 'lsp '(warning . go-gofmt) 'append)
+    (flycheck-add-next-checker 'lsp '(warning . go-golint))
+    (flycheck-add-next-checker 'lsp '(warning . go-errcheck))
+    (flycheck-add-next-checker 'lsp '(warning . go-staticcheck))
 
-  (setq eldoc-message-function (lambda (&rest params) nil))
-  (global-eldoc-mode))
+    ;; (add-hook 'before-save-hook #'lsp-format-buffer t t)
+    (add-hook 'before-save-hook #'lsp-organize-imports t t))
 
-(use-package eldoc-box
-  :bind (:map meow-normal-state-keymap
-              ("\\h" . eldoc-box-help-at-point))
-)
+  (add-hook 'go-mode-hook #'lsp-go-install-save-hooks)
 
-(use-package sideline-flymake
-  :hook (flymake-mode . sideline-mode)
+  (setq lsp-enable-symbol-highlighting t
+        lsp-enable-snippet nil  ;; Not supported by company capf, which is the recommended company backend
+        lsp-pyls-plugins-flake8-enabled nil)
+  (set-face-foreground 'lsp-face-highlight-read @m-color-secondary)
+  (set-face-foreground 'lsp-face-highlight-textual @m-color-secondary)
+
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.bun\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.npm\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.pnpm-store\\'")
+  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\venv\\'")
+  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
+  (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\.cache\\'")
+  (set-face-attribute 'lsp-face-highlight-textual nil :background "#c0caf5")
+  ;; Install corfu completion for lsp
+  ;; (defun corfu-lsp-setup ()
+  ;; (setq-local completion-styles '(orderless basic)
+  ;;             completion-category-defaults nil))
+  ;; (add-hook 'lsp-mode-hook #'corfu-lsp-setup)
+  (@setup-compilation-errors)
+  (setq lsp-disabled-clients '(html-ls))
+  (setq lsp-eldoc-hook nil))
+
+(use-package lsp-tailwindcss
+  :defer t
   :init
-  (setq sideline-flymake-display-mode 'point) ; 'point to show errors only on point
+  (setq lsp-tailwindcss-add-on-mode t)
+  :config
+  (add-hook 'before-save-hook 'lsp-tailwindcss-rustywind-before-save))
 
-                                              ; 'line to show errors on the current line
-  (setq sideline-backends-right '(sideline-flymake)))
+(use-package lsp-pyright
+  :hook (python-ts-mode . (lambda ()
+                          (require 'lsp-pyright)
+                          (lsp-deferred)))
+  :config
+  (setq lsp-pyright-auto-import-completions t)
+  (setq lsp-pyright-auto-search-paths t)
+  (setq lsp-pyright-log-level "trace")
+  (setq lsp-pyright-multi-root nil)
+  (setq lsp-pyright-use-library-code-for-types t)
+  ;; (setq lsp-pyright-venv-directory "/Users/darkawower/.local/share/virtualenvs/spice-farm-YhO8T07I")
+  (setq lsp-pyright-diagnostic-mode "workspace"))
 
-(use-package eglot-booster
-  :ensure (:host github :repo "jdtsmith/eglot-booster")
-      :after eglot
-      :config	(eglot-booster-mode))
+(use-package yaml-pro
+  :defer t
+  :hook (yaml-mode . yaml-pro-mode))
+
+(use-package lsp-ui
+  :hook (lsp-mode . lsp-ui-mode)
+  :ensure (:host github :repo "emacs-lsp/lsp-ui" :rev "9d28c2ca1e79614215ea678583435d5d1189e4bc")
+  :after lsp-mode
+  :bind (:map meow-normal-state-keymap
+         ("\\h" . lsp-ui-doc-toggle)
+         :map lsp-ui-peek-mode-map
+         ("C-j" . lsp-ui-peek--select-next)
+         ("C-k" . lsp-ui-peek--select-prev))
+  :config
+  (setq lsp-ui-sideline-diagnostic-max-line-length 100
+        lsp-ui-sideline-diagnostic-max-lines 8
+        lsp-ui-doc-delay 1
+        lsp-ui-doc-position 'top
+        lsp-ui-doc-show-with-mouse nil
+        lsp-ui-doc-border @m-color-main))
+
+(use-package lsp-dart
+  :defer t
+  :hook (dart-mode . (lambda () (interactive)
+                       (add-hook 'after-save-hook
+                                 (lambda ()
+                                   ;; (flutter-run-or-hot-reload)
+                                   (flutter-hot-restart)
+                                   )
+                                 t t)))
+  :custom
+  (lsp-dart-dap-flutter-hot-reload-on-save t)
+  :config
+  (defun lsp-dart-flutter-widget-guide--add-overlay-to (buffer line col string)
+    "Add to BUFFER at LINE and COL a STRING overlay."
+    (save-excursion
+      (goto-char (point-min))
+      (forward-line line)
+      (move-to-column col)
+      (when (string= lsp-dart-flutter-widget-guide-space (string (following-char)))
+        (let ((ov (make-overlay (point) (1+ (point)) buffer)))
+          (overlay-put ov 'category 'lsp-dart-flutter-widget-guide)
+          (overlay-put ov 'display (propertize string
+                                               'face 'custom-comment-tag)))))))
+
+(defun lsp-booster--advice-json-parse (old-fn &rest args)
+  "Try to parse bytecode instead of json."
+  (or
+   (when (equal (following-char) ?#)
+     (let ((bytecode (read (current-buffer))))
+       (when (byte-code-function-p bytecode)
+         (funcall bytecode))))
+   (apply old-fn args)))
+(advice-add (if (progn (require 'json)
+                       (fboundp 'json-parse-buffer))
+                'json-parse-buffer
+              'json-read)
+            :around
+            #'lsp-booster--advice-json-parse)
+
+(defun lsp-booster--advice-final-command (old-fn cmd &optional test?)
+  "Prepend emacs-lsp-booster command to lsp CMD."
+  (let ((orig-result (funcall old-fn cmd test?)))
+    (if (and (not test?)                             ;; for check lsp-server-present?
+             (not (file-remote-p default-directory)) ;; see lsp-resolve-final-command, it would add extra shell wrapper
+             lsp-use-plists
+             (not (functionp 'json-rpc-connection))  ;; native json-rpc
+             (executable-find "emacs-lsp-booster"))
+        (progn
+          (message "Using emacs-lsp-booster for %s!" orig-result)
+          (cons "emacs-lsp-booster" orig-result))
+      orig-result)))
+(advice-add 'lsp-resolve-final-command :around #'lsp-booster--advice-final-command)
+
+(use-package lsp-java
+  :hook (java-mode . lsp-))
 
 (use-package pipenv
   :defer t
@@ -1471,6 +1574,54 @@ This is a variadic `cl-pushnew'."
   :ensure (pretty-ts-errors :host github :repo "artawower/pretty-ts-errors.el")
   :custom
   (pretty-ts-errors-hide-on-point-move nil))
+
+(use-package flycheck
+  :bind (("C-j" . flycheck-next-error)
+         ("C-k" . flycheck-previous-error)
+         ("C-c f ]" . flycheck-next-error)
+         ("C-c f [" . flycheck-previous-error)
+         ("C-c l e" . flycheck-list-errors)
+         ("C-c f e" . flycheck-list-errors))
+  :init
+  (global-flycheck-mode)
+  :config
+  (setq flycheck-mode-line nil)
+  ;; Change flycheck errors on save
+  (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
+  (setq flycheck-idle-change-delay 0.2)
+
+  (set-face-attribute 'flycheck-fringe-error nil :background 'unspecified :foreground @m-color-secondary)
+  (set-face-attribute 'flycheck-error-list-error nil :background 'unspecified :foreground @m-color-secondary)
+  (set-face-attribute 'error nil :background 'unspecified :foreground @m-color-secondary)
+
+  (flycheck-add-mode 'javascript-eslint 'web-mode)
+  (flycheck-add-mode 'javascript-eslint 'typescript-mode)
+  (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
+  (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode)
+
+  (with-eval-after-load 'flycheck
+    (flycheck-define-checker stylelint
+      "A SCSS/CSS linter using stylelint."
+      :command ("stylelint" "--formatter" "compact" "--stdin-filename" source-original)
+      :standard-input t
+      :error-patterns
+      ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
+      :modes (scss-mode css-mode less-css-mode))
+    
+    ;; Добавляем в список чекеров
+    (add-to-list 'flycheck-checkers 'stylelint))
+
+  ;; Автоматическое включение stylelint в scss-mode
+  (add-hook 'scss-mode-hook
+            (lambda ()
+              (flycheck-select-checker 'stylelint)
+              (flycheck-mode)))
+
+  (with-eval-after-load 'flycheck
+    (flycheck-add-next-checker 'lsp 'stylelint)))
+
+(use-package consult-flycheck
+  :after consult)
 
 (defun compile-eslint--find-filename ()
   "Find the filename for current error."
@@ -1767,7 +1918,16 @@ This is a variadic `cl-pushnew'."
   ("\\.jsx\\'" . web-mode)
   ("\\.astro\\'" . web-mode)
   :init
-  (define-derived-mode vue-mode web-mode "Vue")
+  (define-derived-mode vue-mode web-mode "Vue"
+    "Major mode for Vue.js single-file components."
+    ;; ДОБАВЬТЕ ЭТИ СТРОКИ:
+    (setq web-mode-content-types-alist
+          (cons '("vue" . "\\.vue\\'") web-mode-content-types-alist))
+    (setq web-mode-engines-alist
+          (cons '("vue" . "\\.vue\\'") web-mode-engines-alist))
+    ;; ВАЖНО: Принудительно установить content-type
+    (web-mode-set-content-type "vue"))
+  ;; (define-derived-mode vue-mode web-mode "Vue")
   (add-to-list 'auto-mode-alist '("\\.vue\\'" . vue-mode))
   :config
   (setq web-mode-enable-auto-quoting nil)
@@ -1962,7 +2122,6 @@ This is a variadic `cl-pushnew'."
    ("s-[" . copilot-previous-completion)
    ("s-l" . copilot-accept-completion)
    ("s-k" . copilot-accept-completion)
-   ("c-l" . copilot-accept-completion)
    ("s-j" . copilot-complete)
    ("s-;" . copilot-accept-completion-by-word)
    ("s-/" . copilot-accept-completion-by-line))
@@ -2015,13 +2174,26 @@ This is a variadic `cl-pushnew'."
   (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests"))
 
 (defun my/copilot-chat-display-buffer (buffer _alist)
-  (let ((current (selected-window))
-        (windows (window-list)))
+  (let* ((current (selected-window))
+         (windows (window-list))
+         (chat-window (seq-find (lambda (w)
+                                  (string-match-p "\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
+                                                  (buffer-name (window-buffer w))))
+                                windows)))
     (cond
+     (chat-window
+      (select-window chat-window)
+      chat-window)
      ((= (length windows) 1)
-      (set-window-buffer (split-window current nil 'right) buffer))
+      (let ((new-window (split-window current nil 'right)))
+        (set-window-buffer new-window buffer)
+        (select-window new-window)
+        new-window))
      ((= (length windows) 2)
-      (set-window-buffer (seq-find (lambda (w) (not (eq w current))) windows) buffer))
+      (let ((other-window (seq-find (lambda (w) (not (eq w current))) windows)))
+        (set-window-buffer other-window buffer)
+        (select-window other-window)
+        other-window))
      (t
       (display-buffer-pop-up-window buffer nil)))))
 
@@ -2095,24 +2267,6 @@ This is a variadic `cl-pushnew'."
 ;;                     :height 160)
 
 (setq-default line-spacing 1)
-
-(use-package ligature
-  :defer t
-  :config
-  (ligature-set-ligatures '(prog-mode
-                            org-mode
-                            lsp
-                            cc-mode
-                            haskell-mode
-                            emacs-lisp-mode)
-                          '("->" "<-" "-->" "<--" "<-->"
-                            "|>" "<|" "=>" "==>" "::" "<=" ">="
-                            "~@" "&&"
-                            "||=" "!=" "!==" "||" "?=" ":=" "==="
-                            "/**" "/*" "*/"
-                            "..." ".." ";;" "--" "++" "::"
-                            "##" "###" "###"))
-  (global-ligature-mode t))
 
 (use-package helpful
   :defer t

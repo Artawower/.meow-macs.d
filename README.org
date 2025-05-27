@@ -1,3 +1,4 @@
+
 #+STARTUP: content
 #+DESCRIPTION: Minimalistic emacs.
 #+PROPERTY: header-args :results silent
@@ -873,6 +874,7 @@ Dirvish.
    '(("h" "~/"                          "Home")
      ("d" "~/Downloads/"                "Downloads")))
   :config
+  (set-face-attribute 'dirvish-hl-line nil :foreground nil :background @m-color-main)
   ;; (dirvish-peek-mode) ; Preview files in minibuffer
   ;; (dirvish-side-follow-mode) ; similar to `treemacs-follow-mode'
   ;; (remove-hook 'dired-mode-hook 'treemacs-icons-dired-mode)
@@ -1017,6 +1019,12 @@ Open vterm in the current buffer. When vterm doesn't exist, create one.
   :config
   (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)
   <<vterm-function-clear>>)
+#+END_SRC
+
+Function to open vterm in provided file directory
+#+BEGIN_SRC emacs-lisp :results silent
+(defun @vterm-open-pick-dir ()
+(interactive))
 #+END_SRC
 
 ** Toggle vterm
@@ -1561,10 +1569,10 @@ Override meow keypad parsing
   :config
   (custom-set-faces
    '(avy-lead-face ((t (:foreground "red")))))
-  (custom-set-faces-0
-   '(avy-lead-face ((t (:foreground "blue")))))
-  (custom-set-faces-0
-   '(avy-lead-face ((t (:foreground "green"))))))
+  (custom-set-faces
+   '(avy-lead-face-0 ((t (:foreground "blue")))))
+  (custom-set-faces
+   '(avy-lead-face-1 ((t (:foreground "green"))))))
 #+END_SRC
 
 ** Ace window. Fast jump between opened windows and frames
@@ -1664,7 +1672,7 @@ Bookmark for navigation inside file
 #+END_SRC
 
 * Programming
-** Lsp (Eglot)
+** COMMENT Lsp (Eglot)
 *** Eglot package
  [[https://github.com/joaotavora/eglot/issues/257][Vue js configuration example]]
  Eglot is unused right now. Because it has lack of debugger functionality
@@ -1687,45 +1695,53 @@ Bookmark for navigation inside file
     html-ts-mode
     html-mode
     go-ts-mode
+    vue-mode
     python-ts-mode
     yaml-mode
     ng2-ts-mode) . eglot-ensure)
   :custom
   (eglot-confirm-server-initiated-edits nil)
-  :config                               ;
-  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
-  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
-
-
+  :preface
   (defun vue-eglot-init-options ()
     (let ((tsdk-path (expand-file-name
                       "lib"
-                      (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
+                      (string-trim-right (shell-command-to-string "npm list --global --parseable typescript | head -n1")))))
       `(:typescript (:tsdk ,tsdk-path
                            :languageFeatures (:completion
                                               (:defaultTagNameCase "both"
-                                                                   :defaultAttrNameCase "kebabCase"
-                                                                   :getDocumentNameCasesRequest nil
-                                                                   :getDocumentSelectionRequest nil)
+    								                                               :defaultAttrNameCase "kebabCase"
+    								                                               :getDocumentNameCasesRequest nil
+    								                                               :getDocumentSelectionRequest nil)
                                               :diagnostics
                                               (:getDocumentVersionRequest nil))
                            :documentFeatures (:documentFormatting
                                               (:defaultPrintWidth 100
-                                                                  :getDocumentPrintWidthRequest nil)
+    								                                              :getDocumentPrintWidthRequest nil)
                                               :documentSymbol t
                                               :documentColor t)))))
+  :config                               ;
+  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
+  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
   ;; Volar
+
   (add-to-list 'eglot-server-programs
                `(vue-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+  (add-to-list 'eglot-server-programs
+               `(vue-ts-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
 
-(add-to-list 'eglot-server-programs
+
+  (add-to-list 'eglot-server-programs
+               `(web-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+
+
+  (add-to-list 'eglot-server-programs
                '(html-mode "node"
-                              "/opt/homebrew/lib/node_modules/@angular/language-server"
-                              "--ngProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--tsProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--stdio"))
+                           "/opt/homebrew/lib/node_modules/@angular/language-server"
+                           "--ngProbeLocations"
+                           "/opt/homebrew/lib/node_modules"
+                           "--tsProbeLocations"
+                           "/opt/homebrew/lib/node_modules"
+                           "--stdio"))
 
   (add-to-list 'eglot-server-programs
                '(html-ts-mode "node"
@@ -1742,34 +1758,7 @@ Bookmark for navigation inside file
                                "/opt/homebrew/lib/node_modules"
                                "--tsProbeLocations"
                                "/opt/homebrew/lib/node_modules"
-                               "--stdio"))
-  (defclass eglot-volar (eglot-lsp-server) ()
-    :documentation "A custom class for volar")
-
-  ;; (cl-defmethod eglot-initialization-options ((server eglot-volar))
-  ;;   "Passes through required volar initialization options"
-  ;;   (let*
-  ;;       ((serverPath
-  ;;         (expand-file-name
-  ;;          "lib"
-  ;;          (shell-command-to-string "npm list --global --parseable typescript | head -n1 | tr -d \"\n\""))))
-  ;;     (list :typescript
-  ;;           (list :tsdk serverPath)
-  ;;           :languageFeatures
-  ;;           (list :completion
-  ;;                 (list :defaultTagNameCase "both"
-  ;;                       :defaultAttrNameCase "kebabCase"
-  ;;                       :getDocumentNameCasesRequest nil
-  ;;                       :getDocumentSelectionRequest nil)
-  ;;                 :diagnostics
-  ;;                 (list :getDocumentVersionRequest nil))
-  ;;           :documentFeatures
-  ;;           (list :documentFormatting
-  ;;                 (list :defaultPrintWidth 100
-  ;;                       :getDocumentPrintWidthRequest nil)
-  ;;                 :documentSymbol t
-  ;;                 :documentColor t))))
-  )
+                               "--stdio")))
 #+END_SRC
 *** Flymake
 **** Package
@@ -1873,7 +1862,7 @@ Bookmark for navigation inside file
   	:config	(eglot-booster-mode))
 #+END_SRC
 
-** COMMENT Lsp-mode
+** Lsp-mode
 *** Lsp functions
 **** Uninstall server
 #+BEGIN_SRC emacs-lisp 
@@ -2213,7 +2202,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   :custom
   (pretty-ts-errors-hide-on-point-move nil))
   #+END_SRC
-**  COMMENT Flycheck
+**  Flycheck
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
   :bind (("C-j" . flycheck-next-error)
@@ -2651,7 +2640,16 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   ("\\.jsx\\'" . web-mode)
   ("\\.astro\\'" . web-mode)
   :init
-  (define-derived-mode vue-mode web-mode "Vue")
+  (define-derived-mode vue-mode web-mode "Vue"
+    "Major mode for Vue.js single-file components."
+    ;; ДОБАВЬТЕ ЭТИ СТРОКИ:
+    (setq web-mode-content-types-alist
+          (cons '("vue" . "\\.vue\\'") web-mode-content-types-alist))
+    (setq web-mode-engines-alist
+          (cons '("vue" . "\\.vue\\'") web-mode-engines-alist))
+    ;; ВАЖНО: Принудительно установить content-type
+    (web-mode-set-content-type "vue"))
+  ;; (define-derived-mode vue-mode web-mode "Vue")
   (add-to-list 'auto-mode-alist '("\\.vue\\'" . vue-mode))
   :config
   (setq web-mode-enable-auto-quoting nil)
@@ -2667,6 +2665,12 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (setq web-mode-style-padding 0)
   (setq web-mode-code-indent-offset 2)
   (setq web-mode-css-indent-offset 2))
+#+END_SRC
+** COMMENT Vue
+require emacs 30
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package vue-ts-mode
+    :ensure (:host github :repo "8uff3r/vue-ts-mode"))
 #+END_SRC
 ** PUG
 #+BEGIN_SRC emacs-lisp
@@ -2897,7 +2901,6 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
    ("s-[" . copilot-previous-completion)
    ("s-l" . copilot-accept-completion)
    ("s-k" . copilot-accept-completion)
-   ("c-l" . copilot-accept-completion)
    ("s-j" . copilot-complete)
    ("s-;" . copilot-accept-completion-by-word)
    ("s-/" . copilot-accept-completion-by-line))
@@ -2941,14 +2944,13 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (copilot-chat-frontend 'org)
   :config
   (setq copilot-chat-default-model "claude-4-sonnet")
+  (setq copilot-chat-commit-model "gpt-4o")
   (setq copilot-chat-prompt "1. You are programming expert, use only best practices.
 2. Don't use nested conditions and loops. Only 2 nested block levers.
 3. Use single responsability
 4. Never use comments in the code!
 5. Be concise. Don't explain code. If i will have a question i ask you")
 
-
-  
   
   (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests"))
 #+END_SRC
@@ -2956,21 +2958,36 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 
 Better copilot chat positioning
 #+BEGIN_SRC emacs-lisp :results silent
-(defun my/copilot-chat-display-buffer (buffer _alist)
-  (let ((current (selected-window))
-        (windows (window-list)))
+(defun my/copilot-chat-display (buffer _alist)
+  (let* ((current-window (selected-window))
+         (windows (window-list))
+         (chat-window (seq-find (lambda (w)
+                                  (string-match-p "\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
+                                                  (buffer-name (window-buffer w))))
+                                windows)))
     (cond
+     (chat-window
+      (select-window chat-window)
+      chat-window)
      ((= (length windows) 1)
-      (set-window-buffer (split-window current nil 'right) buffer))
+      (let ((side-window (display-buffer-in-side-window
+                          buffer '((side . right) (slot . 0)))))
+        (select-window side-window)
+        side-window))
      ((= (length windows) 2)
-      (set-window-buffer (seq-find (lambda (w) (not (eq w current))) windows) buffer))
+      (let ((other-window (seq-find (lambda (w) (not (eq w current-window))) windows)))
+        (when other-window
+          (select-window other-window)
+          (set-window-buffer other-window buffer))
+        other-window))
      (t
-      (display-buffer-pop-up-window buffer nil)))))
+      (set-window-buffer current-window buffer)
+      current-window))))
 
 (add-to-list
  'display-buffer-alist
  '("\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
-   (my/copilot-chat-display-buffer)))
+   (my/copilot-chat-display)))
 #+END_SRC
 
 ** COMMENT Cursor like:
@@ -3121,7 +3138,7 @@ Disable scrolls
 
 (setq-default line-spacing 1)
 #+END_SRC
-** Ligatures
+** COMMENT Ligatures
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package ligature
   :defer t
