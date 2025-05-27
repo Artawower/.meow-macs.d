@@ -387,13 +387,17 @@ This is a variadic `cl-pushnew'."
         '((go "https://github.com/tree-sitter/tree-sitter-go")
           (gomod "https://github.com/camdencheek/tree-sitter-go-mod")
           (scss "https://github.com/serenadeai/tree-sitter-scss")))
-  (setq treesit-font-lock-level 4))
+  (setq treesit-font-lock-level 3))
 
 (use-package treesit-auto
+  :ensure (treesit-auto
+           :host github
+           :repo "noctuid/treesit-auto"
+           :branch "bind-around-set-auto-mode-0")
   :config
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode)
+  ;; (global-treesit-auto-mode)
 
   
   (setq my-js-tsauto-config
@@ -819,35 +823,15 @@ This is a variadic `cl-pushnew'."
          ("C-c TAB l" . tabspaces-restore-session))
   :custom
   (tabspaces-use-filtered-buffers-as-default nil)
-  (tabspaces-default-tab "Default")
+  (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
   (tabspaces-include-buffers '())
   (tabspaces-initialize-project-with-todo nil)
   (tabspaces-todo-file-name "project-todo.org")
   ;; sessions
-  (tabspaces-session t)
+  (tabspaces-session nil)
   (tabspaces-session-auto-restore t)
-  (tab-bar-new-tab-choice "*scratch*")
-  ;; :config
-  ;; (with-eval-after-load 'consult
-  ;;   ;; hide full buffer list (still available with "b" prefix)
-  ;;   (consult-customize consult--source-buffer :hidden t :default nil)
-  ;;   ;; set consult-workspace buffer list
-  ;;   (defvar consult--source-workspace
-  ;;     (list :name     "Workspace Buffers"
-  ;;           :narrow   ?w
-  ;;           :history  'buffer-name-history
-  ;;           :category 'buffer
-  ;;           :state    #'consult--buffer-state
-  ;;           :default  t
-  ;;           :items    (lambda () (consult--buffer-query
-  ;;                                 :predicate #'tabspaces--local-buffer-p
-  ;;                                 :sort 'visibility
-  ;;                                 :as #'buffer-name)))
-
-  ;;     "Set workspace buffer list for consult-buffer.")
-    ;; (add-to-list 'consult-buffer-sources 'consult--source-workspace))
-)
+  (tab-bar-new-tab-choice nil))
 
 (use-package tab-bar
   :defer t
@@ -1361,6 +1345,7 @@ This is a variadic `cl-pushnew'."
     (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
           '(flex))) ;; Configure flex
   :custom
+  (lsp-log-io nil)
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
   (lsp-completion-provider :capf)
@@ -1542,39 +1527,6 @@ This is a variadic `cl-pushnew'."
 (use-package lsp-java
   :hook (java-mode . lsp-))
 
-(use-package pipenv
-  :defer t
-  :hook (python-mode . pipenv-mode)
-  :config
-  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
-  
-
-  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
-  ;; This hook will copy venv from pyvenv to lsp pyright
-  (add-hook 'pyvenv-post-activate-hooks (lambda ()
-                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
-                                          (lsp-restart-workspace)))
-
-  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
-
-(use-package pyvenv :ensure t)
-
-(use-package auto-virtualenv
-  :after pyvenv
-  :defer t
-  :hook ((python-mode . auto-virtualenv-setup)
-         (python-ts-mode . auto-virtualenv-setup)))
-
-(use-package nix-mode)
-
-(use-package pretty-ts-errors
-  :defer t
-  :bind (:map meow-normal-state-keymap
-              ("\\e" . pretty-ts-errors-show-error-at-point))
-  :ensure (pretty-ts-errors :host github :repo "artawower/pretty-ts-errors.el")
-  :custom
-  (pretty-ts-errors-hide-on-point-move nil))
-
 (use-package flycheck
   :bind (("C-j" . flycheck-next-error)
          ("C-k" . flycheck-previous-error)
@@ -1622,6 +1574,39 @@ This is a variadic `cl-pushnew'."
 
 (use-package consult-flycheck
   :after consult)
+
+(use-package pipenv
+  :defer t
+  :hook (python-mode . pipenv-mode)
+  :config
+  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
+  
+
+  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
+  ;; This hook will copy venv from pyvenv to lsp pyright
+  (add-hook 'pyvenv-post-activate-hooks (lambda ()
+                                          (setq lsp-pyright-venv-directory pyvenv-virtual-env)
+                                          (lsp-restart-workspace)))
+
+  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
+
+(use-package pyvenv :ensure t)
+
+(use-package auto-virtualenv
+  :after pyvenv
+  :defer t
+  :hook ((python-mode . auto-virtualenv-setup)
+         (python-ts-mode . auto-virtualenv-setup)))
+
+(use-package nix-mode)
+
+(use-package pretty-ts-errors
+  :defer t
+  :bind (:map meow-normal-state-keymap
+              ("\\e" . pretty-ts-errors-show-error-at-point))
+  :ensure (pretty-ts-errors :host github :repo "artawower/pretty-ts-errors.el")
+  :custom
+  (pretty-ts-errors-hide-on-point-move nil))
 
 (defun compile-eslint--find-filename ()
   "Find the filename for current error."
@@ -2161,54 +2146,21 @@ This is a variadic `cl-pushnew'."
   :custom
   (copilot-chat-frontend 'org)
   :config
+  >
   (setq copilot-chat-default-model "claude-4-sonnet")
+  (setq copilot-chat-commit-model "gpt-4o")
   (setq copilot-chat-prompt "1. You are programming expert, use only best practices.
 2. Don't use nested conditions and loops. Only 2 nested block levers.
 3. Use single responsability
 4. Never use comments in the code!
 5. Be concise. Don't explain code. If i will have a question i ask you")
 
-
-  
   
   (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests"))
-
-(defun my/copilot-chat-display-buffer (buffer _alist)
-  (let* ((current (selected-window))
-         (windows (window-list))
-         (chat-window (seq-find (lambda (w)
-                                  (string-match-p "\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
-                                                  (buffer-name (window-buffer w))))
-                                windows)))
-    (cond
-     (chat-window
-      (select-window chat-window)
-      chat-window)
-     ((= (length windows) 1)
-      (let ((new-window (split-window current nil 'right)))
-        (set-window-buffer new-window buffer)
-        (select-window new-window)
-        new-window))
-     ((= (length windows) 2)
-      (let ((other-window (seq-find (lambda (w) (not (eq w current))) windows)))
-        (set-window-buffer other-window buffer)
-        (select-window other-window)
-        other-window))
-     (t
-      (display-buffer-pop-up-window buffer nil)))))
-
-(add-to-list
- 'display-buffer-alist
- '("\\*Copilot Chat \\[.*\\]\\*-[0-9]+"
-   (my/copilot-chat-display-buffer)))
 
 (use-package stillness-mode
   :ensure (:host github :repo "neeasade/stillness-mode.el" :branch "main")
   :config (stillness-mode))
-
-(use-package indent-bars
-  :elpaca (indent-bars :type git :host github :repo "jdtsmith/indent-bars")
-  :hook (prog-mode . indent-bars-mode)) ;
 
 (defadvice load-theme (before theme-dont-propagate activate)
  (mapcar #'disable-theme custom-enabled-themes))
@@ -2233,6 +2185,8 @@ This is a variadic `cl-pushnew'."
 
 (set-default 'truncate-lines t)
 
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
 ;; (set-frame-font "JetBrainsMono Nerd Font 16" nil t)
 ;; (set-face-attribute 'font-lock-string-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
 ;; (set-face-attribute 'font-lock-comment-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
@@ -2240,7 +2194,7 @@ This is a variadic `cl-pushnew'."
 
 ;; (set-frame-font "Monaspace Krypton 16" nil t)
 ;; (set-frame-font "Monaspace Argon 16" nil t)
-(setq @font-height 15)
+(setq @font-height 18)
 (set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
 
 (custom-set-faces
@@ -3449,6 +3403,7 @@ This is a variadic `cl-pushnew'."
   :config
   (require 'web-mode)
   (require 'magit)
-  (global-husky-treesit))
+  (global-husky-treesit)
+  )
 
 (elpaca-wait)
