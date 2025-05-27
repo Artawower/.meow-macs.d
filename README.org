@@ -54,12 +54,12 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 * Package manager.
 ** Elpaca. Package manager. 
 #+BEGIN_SRC emacs-lisp :results silent
-(defvar elpaca-installer-version 0.8)
+(defvar elpaca-installer-version 0.11)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
 (defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
 (defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
 (defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
-                              :ref nil :depth 1
+                              :ref nil :depth 1 :inherit ignore
                               :files (:defaults "elpaca-test.el" (:exclude "extensions"))
                               :build (:not elpaca--activate-package)))
 (let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
@@ -69,7 +69,7 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
   (add-to-list 'load-path (if (file-exists-p build) build repo))
   (unless (file-exists-p repo)
     (make-directory repo t)
-    (when (< emacs-major-version 28) (require 'subr-x))
+    (when (<= emacs-major-version 28) (require 'subr-x))
     (condition-case-unless-debug err
         (if-let* ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
                   ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
@@ -89,10 +89,9 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
   (unless (require 'elpaca-autoloads nil t)
     (require 'elpaca)
     (elpaca-generate-autoloads "elpaca" repo)
-    (load "./elpaca-autoloads")))
+    (let ((load-source-file-function nil)) (load "./elpaca-autoloads"))))
 (add-hook 'after-init-hook #'elpaca-process-queues)
 (elpaca `(,@elpaca-order))
-(setq package-install-upgrade-built-in t)
 #+END_SRC
 
 ** Use package
@@ -124,6 +123,14 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 #+END_SRC
 
 * Core
+** Debug init
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package benchmark-init
+  :ensure t
+  :config
+  ;; To disable collection of benchmark data after init is done.
+  (add-hook 'after-init-hook 'benchmark-init/deactivate))
+#+END_SRC
 ** Env
 https://www.reddit.com/r/emacs/comments/f8xwau/hack_replace_execpathfromshell/
 #+BEGIN_SRC emacs-lisp
@@ -214,14 +221,12 @@ unreadable. Returns the names of envvars that were changed."
   (setq browse-url-browser-function 'browse-url-default-macosx-browser))
 #+END_SRC
 
-** Dependencies
+** COMMENT Dependencies
 Jsonrpc
 #+BEGIN_SRC emacs-lisp 
 (use-package jsonrpc
   :ensure (:host github :repo "emacs-straight/jsonrpc"))
 #+END_SRC
-
- Transient
 
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package transient
@@ -305,7 +310,7 @@ This is a variadic `cl-pushnew'."
 (use-package narrow-indirect
   :ensure (:host github :repo "emacsmirror/narrow-indirect")
   :bind (("C-c 0" . ni-narrow-to-region-indirect-other-window))
-  :defer 2)
+  :defer t)
 #+END_SRC
 ** Undo redo
 *** Undo mode
@@ -480,6 +485,7 @@ Another all formtter. Based on prettier and black
 (show-paren-mode 1)
 (custom-set-faces
  `(show-paren-mismatch ((t (:foreground ,\@m-color-secondary)))))
+
 #+END_SRC
 
 ** Tree Sitter :refactor:
@@ -825,7 +831,7 @@ Another all formtter. Based on prettier and black
 #+END_SRC
 
 *** Open in finder
-*** Treemacs
+*** COMMENT Treemacs
 #+BEGIN_SRC emacs-lisp
 (use-package treemacs
   :defer t
@@ -1551,7 +1557,14 @@ Override meow keypad parsing
          ("\\f" . avy-goto-char-timer))
   :custom
   (avy-single-candidate-jump t)
-  (avy-keys '(?q ?w ?e ?r ?t ?y ?u ?i ?o ?p ?a ?s ?d ?f ?h ?j ?k ?l ?z ?x ?c ?v ?b ?n ?m)))
+  (avy-keys '(?q ?w ?e ?r ?t ?y ?u ?i ?o ?p ?a ?s ?d ?f ?h ?j ?k ?l ?z ?x ?c ?v ?b ?n ?m))
+  :config
+  (custom-set-faces
+   '(avy-lead-face ((t (:foreground "red")))))
+  (custom-set-faces-0
+   '(avy-lead-face ((t (:foreground "blue")))))
+  (custom-set-faces-0
+   '(avy-lead-face ((t (:foreground "green"))))))
 #+END_SRC
 
 ** Ace window. Fast jump between opened windows and frames
@@ -1588,7 +1601,7 @@ Function for preserve better jump befor buffer changed only for prog mode.
 
 #+BEGIN_SRC emacs-lisp :noweb yes
 (use-package better-jumper
-  :demand t
+  ;; :demand t
   :bind
   (("C-o" . better-jumper-jump-backward)
    ("C-i" . better-jumper-jump-forward)
@@ -1651,7 +1664,7 @@ Bookmark for navigation inside file
 #+END_SRC
 
 * Programming
-** COMMENT Lsp (Eglot)
+** Lsp (Eglot)
 *** Eglot package
  [[https://github.com/joaotavora/eglot/issues/257][Vue js configuration example]]
  Eglot is unused right now. Because it has lack of debugger functionality
@@ -1759,6 +1772,7 @@ Bookmark for navigation inside file
   )
 #+END_SRC
 *** Flymake
+**** Package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package flymake
   :ensure nil
@@ -1769,6 +1783,35 @@ Bookmark for navigation inside file
   :hook (prog-mode . flymake-mode)
   :config)
 #+END_SRC
+
+**** Eslint flymake
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eslint-flymake
+  :ensure (eslint-flymake
+             :type git
+             :host github
+             :repo "emacs-pe/eslint-flymake")
+  :hook ((js-mode            . eslint-flymake-setup)
+         (js-jsx-mode        . eslint-flymake-setup)
+         (typescript-ts-mode . eslint-flymake-setup)
+         (tsx-ts-mode        . eslint-flymake-setup)))
+#+END_SRC
+
+**** Flymake stylelint
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flymake-stylelint
+  :ensure (flymake-stylelint
+             :type git
+             :host github
+             :repo "orzechowskid/flymake-stylelint")
+  :hook ((css-mode . flymake-stylelint-enable)
+         (scss-mode . flymake-stylelint-enable)
+         (less-mode . flymake-stylelint-enable)
+         (web-mode . flymake-stylelint-enable))
+  :config
+  (setq flymake-stylelint-executable "stylelint"))
+#+END_SRC
+
 
 *** Flymake eslint
 #+BEGIN_SRC emacs-lisp :results silent
@@ -1830,8 +1873,7 @@ Bookmark for navigation inside file
   	:config	(eglot-booster-mode))
 #+END_SRC
 
-
-** Lsp-mode
+** COMMENT Lsp-mode
 *** Lsp functions
 **** Uninstall server
 #+BEGIN_SRC emacs-lisp 
@@ -2007,7 +2049,7 @@ Bookmark for navigation inside file
 https://github.com/emacs-lsp/lsp-mode/issues/4341
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package lsp-eslint
-  :demand t
+  ;; :demand t
   :after lsp-mode
   :config
   (setq lsp-eslint-download-url "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/dbaeumer/vsextensions/vscode-eslint/3.0.10/vspackage") ;; latest VSCode eslint extension from marketplace
@@ -2143,19 +2185,18 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
 #+END_SRC
 
+** Pyvenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package pyvenv :ensure t)
+#+END_SRC
 ** TODO Auto virtualenv
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package auto-virtualenv
+  :after pyvenv
   :defer t
   :hook ((python-mode . auto-virtualenv-setup)
-         (python-ts-mode . auto-virtualenv-setup))
-  :init
-  (use-package pyvenv
-    :ensure t)
-  ;; (add-hook 'projectile-after-switch-project-hook 'auto-virtualenv-setup)
-  )
+         (python-ts-mode . auto-virtualenv-setup)))
   #+END_SRC
-
 
 
 ** Nix
@@ -2172,7 +2213,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   :custom
   (pretty-ts-errors-hide-on-point-move nil))
   #+END_SRC
-**  Flycheck
+**  COMMENT Flycheck
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
   :bind (("C-j" . flycheck-next-error)
@@ -2348,7 +2389,6 @@ Compilation always at right
   (add-to-list 'compilation-error-regexp-alist-alist '(dart-analyze "\\([^ ]*\\.dart\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3)))
 #+END_SRC
 
-
 *** Ansi colors in the compilation buffer
 #+BEGIN_SRC emacs-lisp :results silent
 (require 'ansi-color)
@@ -2432,7 +2472,6 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :config
 
   (setq dape-buffer-window-arrangment 'right)
-  ;; (add-hook 'dape-stopped-hook 'dape-repl)
   (setq dape-inline-variables t))
 #+END_SRC
 
@@ -2440,16 +2479,14 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 ** Emacs lisp
 *** Paren mode
 #+BEGIN_SRC emacs-lisp
-  (use-package paren-face :defer t)
+(use-package paren-face :defer t :hook (emacs-lisp-mode . paren-face-mode))
 #+END_SRC
 *** Main mode
 #+BEGIN_SRC emacs-lisp
 (use-package elisp-mode
   :defer t
   :ensure nil
-  :hook ((emacs-lisp-mode . paren-face-mode)
-         (emacs-lisp-mode . (lambda () (setq fill-column 80))))
-
+  :hook ((emacs-lisp-mode . (lambda () (setq fill-column 80))))
   :bind (("C-c o c" . outline-cycle)
          ("C-c o a" . outline-show-all)
          ("C-c o m" . outline-hide-body)
@@ -2465,12 +2502,9 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :config
   (add-hook 'emacs-lisp-mode-hook (lambda () (setq rainbow-delimiters-mode -1))))
 
-(use-package package-build
-  :defer t)
+(use-package package-build :defer t)
 
-(use-package package-lint
-
-  :defer t)
+(use-package package-lint :defer t)
 
 #+END_SRC
 
@@ -2605,6 +2639,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 *** Poetry :optional:
 #+BEGIN_SRC emacs-lisp :tangle no
 (use-package poetry
+ :defer t
  :ensure t)
 #+END_SRC
 ** WEB mode development
@@ -2635,14 +2670,14 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+END_SRC
 ** PUG
 #+BEGIN_SRC emacs-lisp
-(use-package pug-mode
-  :defer t)
+(use-package pug-mode :defer t)
 #+END_SRC
 
 ** HTML
 *** Emmet. Quick tag expanding
 #+BEGIN_SRC emacs-lisp 
 (use-package emmet-mode
+  :defer t
   :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode) (vue-mode . emmet-mode))
   :bind (:map emmet-mode-keymap
               ("s-e" . emmet-expand-line)
@@ -2750,7 +2785,6 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 ** Markdown
 *** Mode
 #+BEGIN_SRC emacs-lisp :results silent
-
 (use-package markdown-mode
   :hook
   (markdown-mode . nb/markdown-unhighlight)
@@ -2855,14 +2889,15 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 (use-package copilot
   :defer 5
   :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
-  ;; :hook
-  ;; (prog-mode . copilot-mode)
-  ;; (text-mode . copilot-mode)
+  :hook
+  (prog-mode . copilot-mode)
+  (text-mode . copilot-mode)
   :bind
   (("s-]" . copilot-next-completion)
    ("s-[" . copilot-previous-completion)
    ("s-l" . copilot-accept-completion)
    ("s-k" . copilot-accept-completion)
+   ("c-l" . copilot-accept-completion)
    ("s-j" . copilot-complete)
    ("s-;" . copilot-accept-completion-by-word)
    ("s-/" . copilot-accept-completion-by-line))
@@ -2888,14 +2923,10 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (advice-add 'copilot-show-overlay :before-while '@copilot-show-overlay-depends-mode))
 #+END_SRC
 
-#+RESULTS:
-: [nil 26300 51638 753524 nil elpaca-process-queues nil nil 999999 nil]
-
 ** Copilot chat
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package copilot-chat
-  ;; :ensure (:host github :repo "chep/copilot-chat.el" :files ("*.el"))
-  ;; :defer t
+  :defer t
   :bind (("C-c a c" . copilot-chat-display)
          ("C-c a x" . copilot-chat-reset)
          ("C-c a e" . copilot-chat-explain)
@@ -2907,7 +2938,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
          ("C-c a f" . copilot-chat-fix)
          ("C-c a r" . copilot-chat-review))
   :custom
-  (copilot-chat-frontend 'shell-maker)
+  (copilot-chat-frontend 'org)
   :config
   (setq copilot-chat-default-model "claude-4-sonnet")
   (setq copilot-chat-prompt "1. You are programming expert, use only best practices.
@@ -2919,13 +2950,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 
   
   
-  (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests")
-
-  
-  ;; (require 'copilot-chat-shell-maker)
-  ;; (push '(shell-maker . copilot-chat-shell-maker-init) copilot-chat-frontend-list)
-  ;; (copilot-chat-shell-maker-init)
-  )
+  (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests"))
 #+END_SRC
 
 
@@ -2948,68 +2973,7 @@ Better copilot chat positioning
    (my/copilot-chat-display-buffer)))
 #+END_SRC
 
-** COMMENT Codeium
-so slow
-#+BEGIN_SRC emacs-lisp :results silent
-(defun my/codeium ()
-  "Decouple codeium from other completions"
-  (interactive)
-  (cape-interactive #'codeium-completion-at-point))
-
-(use-package codeium
-  :ensure (:host github :repo "Exafunction/codeium.el")
-    ;; :init
-    ;; (add-to-list 'completion-at-point-functions #'codeium-completion-at-point)
-    :bind ("s-J" . my/codeium)
-    :config
-    (setq use-dialog-box nil) ;; do not use popup boxes
-    (setq codeium-api-enabled
-        (lambda (api)
-            (memq api '(GetCompletions Heartbeat CancelRequest GetAuthToken RegisterUser auth-redirect AcceptCompletion))))
-
-    (defun my-codeium/document/text ()
-        (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (min (+ (point) 1000) (point-max))))
-
-    (defun my-codeium/document/cursor_offset ()
-        (codeium-utf8-byte-length
-            (buffer-substring-no-properties (max (- (point) 3000) (point-min)) (point))))
-    (setq codeium/document/text 'my-codeium/document/text)
-    (setq codeium/document/cursor_offset 'my-codeium/document/cursor_offset))
-
-
-#+END_SRC
-** Geptel
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package gptel
-  :bind (("C-c C-a" . gptel))
-  :config
-  (gptel-make-ollama "Ollama"
-    :host "localhost:11434"
-    :stream t
-    :models '(llama3.2))) 
-
-#+END_SRC
-
-** Gpt commit
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package magit-gptcommit
-  :demand t
-  :after magit
-  :bind (:map git-commit-mode-map
-              ("C-c C-g" . magit-gptcommit-commit-accept))
-  :config
-  (require 'llm-openai)
-  (setq magit-gptcommit-llm-provider (make-llm-openai :key gpt-key))
-  ;; Enable magit-gptcommit-mode to watch staged changes and generate commit message automatically in magit status buffer
-  ;; This mode is optional, you can also use `magit-gptcommit-generate' to generate commit message manually
-  ;; `magit-gptcommit-generate' should only execute on magit status buffer currently
-  ;; (magit-gptcommit-mode 1)
-
-  ;; Add gptcommit transient commands to `magit-commit'
-  ;; Eval (transient-remove-suffix 'magit-commit '(1 -1)) to remove gptcommit transient commands
-  (magit-gptcommit-status-buffer-setup))
-  #+END_SRC
-** Cursor like:
+** COMMENT Cursor like:
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package aidermacs
   :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
@@ -3026,18 +2990,17 @@ so slow
 )
   #+END_SRC
 * Collaborations
-** Pair programming
+** COMMENT Pair programming
 #+BEGIN_SRC emacs-lisp
 (use-package floobits
   :defer t)
 #+END_SRC
-** Collaborative editing
+** COMMENT Collaborative editing
 Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs_elevate_your_live_coding/
 
 #+begin_src emacs-lisp
 (use-package atomic-chrome
   :defer t
-  :demand t
   :ensure
   (atomic-chrome
    :repo "KarimAziev/atomic-chrome"
@@ -3069,7 +3032,6 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
 (elpaca-wait)
 #+END_SRC
 
-
 * UI/UX
 ** No resize when completion
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3091,12 +3053,10 @@ Reset themes before apply
 #+END_SRC
 ** Disable menu bar mode and other stuff
 #+BEGIN_SRC emacs-lisp
-;; (add-to-list 'default-frame-alist '(undecorated . t))
 (set-frame-parameter nil 'alpha-background 0.1)
 (add-to-list 'frameset-filter-alist '(ns-transparent-titlebar . t))
 (add-to-list 'frameset-filter-alist '(ns-appearance . dark))
 (menu-bar-mode t)
-;; (menu-bar-mode -1)
 (tool-bar-mode -1)
 (toggle-scroll-bar -1)
 (setq ring-bell-function 'ignore)
@@ -3131,7 +3091,6 @@ Disable scrolls
 ;; (set-face-attribute 'font-lock-comment-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
 ;; (set-face-attribute 'font-lock-keyword-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
 
-
 ;; (set-frame-font "Monaspace Krypton 16" nil t)
 ;; (set-frame-font "Monaspace Argon 16" nil t)
 (setq @font-height 15)
@@ -3141,6 +3100,13 @@ Disable scrolls
  `(font-lock-string-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
  `(font-lock-comment-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
  `(font-lock-keyword-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10))))))
+
+
+(set-face-attribute 'highlight nil :foreground nil :background @m-color-main)
+
+(custom-set-faces
+ `(region ((t (:foreground nil :background ,\@m-color-main)))))
+
 
 
 ;; (set-face-attribute 'font-lock-string-face nil 
@@ -3158,6 +3124,7 @@ Disable scrolls
 ** Ligatures
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package ligature
+  :defer t
   :config
   (ligature-set-ligatures '(prog-mode
                             org-mode
@@ -3191,7 +3158,6 @@ Disable scrolls
          ("C-h ." . helpful-at-point)
          ("C-h F" . describe-face)))
 #+END_SRC
-** Alias for yes/no
 ** Highlight selected text
 #+BEGIN_SRC emacs-lisp
 (defun @selection-highlight-mode-get-selection ()
@@ -3214,6 +3180,8 @@ Disable scrolls
 
 (advice-add 'selection-highlight-mode-get-selection :override #'@selection-highlight-mode-get-selection)
 #+END_SRC
+
+** Alias for yes/no
 #+BEGIN_SRC emacs-lisp
 (ignore-errors
   (setq confirm-kill-emacs 'y-or-n-p)
@@ -3269,13 +3237,15 @@ Very pretty titlebar for Mac os
 ** Highlight colors. Rainbow extension
 #+BEGIN_SRC emacs-lisp
 (use-package colorful-mode
+  :defer t
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
-  :hook ((html-mode css-mode scss-mode emacs-lisp-mode) . colorful-mode))
+  :hook ((html-mode css-mode scss-mode emacs-lisp-mode org-mode) . colorful-mode))
 
 #+END_SRC
 ** Transient posframe
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package transient-posframe
+  :defer 2
   :ensure (:type git :host github :repo "yanghaoxie/transient-posframe")
   :custom
   (transient-posframe-poshandler #'posframe-poshandler-frame-bottom-center)
@@ -3283,7 +3253,7 @@ Very pretty titlebar for Mac os
   (transient-posframe-mode))
 #+END_SRC
 ** Theme :optional:
-*** Doom themes
+*** COMMENT Doom themes
 #+BEGIN_SRC emacs-lisp :tangle no
 (use-package doom-themes
   :ensure t
@@ -3299,7 +3269,7 @@ Very pretty titlebar for Mac os
   (doom-themes-treemacs-config)
   (doom-themes-org-config))
 #+END_SRC
-*** Doom Modeline
+*** COMMENT Doom Modeline
 #+BEGIN_SRC emacs-lisp 
 (use-package doom-modeline
   :defer t
@@ -3362,14 +3332,13 @@ Very pretty titlebar for Mac os
 (use-package hide-mode-line
   :hook
   (prog-mode . hide-mode-line-mode)
-  ;; (text-mode . hide-mode-line-mode)
-  ;; (org-mode . hide-mode-line-mode)
-)
+  (text-mode . hide-mode-line-mode)
+  (org-mode . hide-mode-line-mode))
 #+END_SRC
 ** Auto zoom windows
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package zoom
-  :defer 0.2
+  :defer 0.8
   :config
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
@@ -3381,6 +3350,7 @@ Very pretty titlebar for Mac os
 ** Folding (origami)
 #+BEGIN_SRC emacs-lisp 
 (use-package origami
+  :defer t
   :hook ((org-mode
           dart-mode
           yaml-mode
@@ -3403,7 +3373,7 @@ Very pretty titlebar for Mac os
 ** Better better tab bar via echo area
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package tab-bar-echo-area
-  :demand t
+  :defer 2
   :hook (tabspaces-mode . tab-bar-echo-area-mode)
   :bind (("C-c TAB TAB" . tab-bar-echo-area-display-tab-names))
   :config
@@ -3420,8 +3390,7 @@ Very pretty titlebar for Mac os
 
 ** Tab bar manager
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package tab-bar-lost-commands
-  :ensure)
+(use-package tab-bar-lost-commands :defer 3 :ensure t)
 #+END_SRC
 ** Rotate windows
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3465,6 +3434,7 @@ Topsy functions
 
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package topsy
+  :defer t
   :hook
   (prog-mode . topsy-mode)
   (magit-section-mode . topsy-mode)
@@ -3504,6 +3474,10 @@ Topsy functions
   :init
   (vertico-mode)
   (setq vertico-cycle t)
+  :custom-face
+  (vertico-current ((t (:inherit highlight :background ,\@m-color-main))))
+
+
   :config
   (setq read-file-name-completion-ignore-case t
         read-buffer-completion-ignore-case t
@@ -3635,7 +3609,7 @@ Delete project
 ;; Consult users will also want the embark-consult package.
 (use-package embark-consult
   :after (embark consult)
-  :demand t ; only necessary if you have the hook below
+  ;; :demand t ; only necessary if you have the hook below
   ;; if you want to have consult previews as you move around an
   ;; auto-updating embark collect buffer
   :hook
@@ -3926,7 +3900,7 @@ Improved styles for git changes
 
   (global-blamer-mode 1))
 #+END_SRC
-** COMMENT Diff hl
+** Diff hl
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package diff-hl)
 #+END_SRC
@@ -3955,7 +3929,6 @@ Improved styles for git changes
 (global-set-key (kbd "C-c C-k") 'smerge-prev)
 #+END_SRC
 
-
 ** Browse at remote
 #+BEGIN_SRC emacs-lisp 
 (use-package browse-at-remote
@@ -3966,22 +3939,21 @@ Improved styles for git changes
 * Org mode
 ** Org GPG encryption
 #+BEGIN_SRC emacs-lisp
-(use-package org-crypt
-  :ensure nil
-  :config
-  (org-crypt-use-before-save-magic)
-  (setq org-tags-exclude-from-inheritance (quote ("crypt")))
-  (setq org-crypt-key nil))
+  (use-package org-crypt
+    :defer t
+    :ensure nil
+    :config
+    (org-crypt-use-before-save-magic)
+    (setq org-tags-exclude-from-inheritance (quote ("crypt")))
+    (setq org-crypt-key nil))
 #+END_SRC
 
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package epa-file
-  :ensure nil
-  :config
-  (epa-file-enable)
-  ;; Ask for passphrase
-  (setq epg-pinentry-mode 'loopback)
-  (setq epa-file-encrypt-to "artawower33@gmail.com"))
+  (with-eval-after-load 'epa-file
+    (epa-file-enable)
+    ;; Ask for passphrase
+    (setq epg-pinentry-mode 'loopback)
+    (setq epa-file-encrypt-to "artawower33@gmail.com"))
 #+END_SRC
 
 ** Org babels
@@ -4054,7 +4026,7 @@ Dependency
 ** Org package
 #+BEGIN_SRC emacs-lisp
 (use-package org
-  :demand t
+  ;; :demand t
   :mode (("\\.org$" . org-mode))
   :ensure nil
   :hook
@@ -4606,7 +4578,7 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
 
 #+BEGIN_SRC emacs-lisp :noweb yes
 (use-package persistent-scratch
-  :demand t
+  ;; :demand t
   :bind (("C-c n n" . @switch-to-scratch))
   :config
   <<persistent-scratch-save>>
@@ -4619,7 +4591,7 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
 * Husky
 #+BEGIN_SRC emacs-lisp
 (use-package husky
-  :demand t
+  :defer 2
   :ensure (:type git :host github :repo "artawower/husky" :files ("lisp/*.el"))
   :bind (("C-c t t" . husky-edit-insert-todo-by-current-git-branch)
          ("C-c t i" . husky-edit-insert-todo-by-current-git-branch)
@@ -4661,35 +4633,6 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
   (require 'magit)
   (global-husky-treesit))
 #+END_SRC
-* COMMENT Obsidian
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package obsidian
-  :ensure t
-  :demand t
-  :config
-  (obsidian-specify-path "/Users/darkawower/Library/Mobile Documents/iCloud~md~obsidian/Documents/brain")
-  (global-obsidian-mode t)
-  :custom
-  ;; This directory will be used for `obsidian-capture' if set.
-  (obsidian-inbox-directory "Inbox")
-  ;; Create missing files in inbox? - when clicking on a wiki link
-  ;; t: in inbox, nil: next to the file with the link
-  ;; default: t
-  ;(obsidian-wiki-link-create-file-in-inbox nil)
-  ;; The directory for daily notes (file name is YYYY-MM-DD.md)
-  (obsidian-daily-notes-directory "Daily Notes")
-  ;; Directory of note templates, unset (nil) by default
-  ;(obsidian-templates-directory "Templates")
-  ;; Daily Note template name - requires a template directory. Default: Daily Note Template.md
-  ;(obsidian-daily-note-template "Daily Note Template.md")
-  :bind (:map obsidian-mode-map
-  ;; Replace C-c C-o with Obsidian.el's implementation. It's ok to use another key binding.
-  ("C-c o o" . obsidian-follow-link-at-point)
-  ;; Jump to backlinks
-  ("C-c o b" . obsidian-backlink-jump)
-  ;; If you prefer you can use `obsidian-insert-link'
-  ("C-c o w" . obsidian-insert-wikilink)))
-  #+END_SRC
 * End config
 #+BEGIN_SRC emacs-lisp :results silent
 (elpaca-wait)
