@@ -1,3 +1,4 @@
+(setenv "LSP_USE_PLISTS" "true")
 (setq cnfg/config-dir "~/apps/flat-emacs/")
 (setq cnfg/config-path (concat cnfg/config-dir "README.org"))
 (setq cnfg/backup-dir "/Users/darkawower/tmp/emacs-backups")
@@ -57,6 +58,7 @@
     (let ((load-source-file-function nil)) (load "./elpaca-autoloads"))))
 (add-hook 'after-init-hook #'elpaca-process-queues)
 (elpaca `(,@elpaca-order))
+;; (setq elpaca-lock-file "/Users/darkawower/apps/flat-emacs/elpaca.lock")
 
 ;; Install use-package support
 (elpaca elpaca-use-package
@@ -80,6 +82,13 @@
                           ))
 (customize-set-variable 'package-enable-at-startup nil)
 ;; (package-initialize)
+
+(use-package compile-angel
+  :ensure t
+  :demand t
+  :config
+  (setq compile-angel-verbose t)
+  (compile-angel-on-load-mode))
 
 (use-package benchmark-init
   :ensure t
@@ -191,6 +200,69 @@ This is a variadic `cl-pushnew'."
   (interactive "p")
   (kill-line (- 1 arg)))
 
+(defun my/copy-region-or-buffer-as-markdown ()
+  "Copy region (if active) or entire buffer as a Markdown code block with file path relative to project root."
+  (interactive)
+  (let* ((current-buf (current-buffer))
+         (proj (project-current t))
+         (root (if proj
+                   (file-name-as-directory (project-root proj))
+                 default-directory))
+         (file (or (buffer-file-name current-buf) ""))
+         (rel-path
+          (if (and file (not (string= file "")))
+              (file-relative-name file root)
+            (read-string "Enter relative path for non-file buffer: ")))
+         (current-major-mode (with-current-buffer current-buf major-mode))
+         (lang
+          (pcase current-major-mode
+            ('emacs-lisp-mode "elisp")
+            ('lisp-mode       "lisp")
+            ('python-mode     "python")
+            ('python-ts-mode  "python")
+            ('ruby-mode       "ruby")
+            ('js-mode         "javascript")
+            ('js2-mode        "javascript")
+            ('typescript-mode "typescript")
+            ('typescript-ts-mode "typescript")
+            ('c-mode          "c")
+            ('c++-mode        "cpp")
+            ('java-mode       "java")
+            ('go-mode         "go")
+            ('rust-mode       "rust")
+            ('rust-ts-mode    "rust")
+            ('php-mode        "php")
+            ('shell-script-mode "bash")
+            ('sh-mode         "bash")
+            ('css-mode        "css")
+            ('html-mode       "html")
+            ('xml-mode        "xml")
+            ('json-mode       "json")
+            ('yaml-mode       "yaml")
+            ('markdown-mode   "markdown")
+            ('org-mode        "org")
+            (_                (let ((mode-name (symbol-name current-major-mode)))
+                                (if (string-match "\\(.*\\)-mode$" mode-name)
+                                    (match-string 1 mode-name)
+                                  (read-string "Enter language for code block: "))))))
+         (code
+          (with-current-buffer current-buf
+            (if (use-region-p)
+                (buffer-substring-no-properties (region-beginning) (region-end))
+              (buffer-substring-no-properties (point-min) (point-max)))))
+         (output
+          (string-join
+           (list rel-path
+                 (concat "```" lang)
+                 code
+                 "```")
+           "\n")))
+    (kill-new output)
+    (message "Copied as Markdown code block: %s (%s)" rel-path lang)))
+
+(global-auto-revert-mode 1)
+(setq auto-revert-use-notify nil)
+
 (use-package persistent-values
   :defer t
   :bind (("s-S" . persistent-values-add)
@@ -266,9 +338,6 @@ This is a variadic `cl-pushnew'."
 
 (use-package auto-rename-tag
   :defer t)
-  ;; :hook ((html-mode ng2-html-mode-hook vue-mode web-mode) . auto-rename-tag-mode)
-  ;; :config
-  ;; (auto-rename-tag-mode 1))
 
 (use-package string-inflection
   :defer t
@@ -314,6 +383,7 @@ This is a variadic `cl-pushnew'."
   (setq tempel-path
         '("~/apps/flat-emacs/templates/common"
           "~/apps/flat-emacs/templates/readme"
+          "~/apps/flat-emacs/templates/typescript"
           "~/apps/flat-emacs/templates/org-mode"
           "~/apps/flat-emacs/templates/web-mode"
           "~/apps/flat-emacs/templates/contribution-guide"
@@ -339,6 +409,7 @@ This is a variadic `cl-pushnew'."
   :config
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
   (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
+  (add-to-list 'apheleia-mode-alist '(vue-ts-mode . prettier))
   (add-to-list 'apheleia-mode-alist '(html-mode . prettier)))
 
 (show-paren-mode 1)
@@ -386,7 +457,12 @@ This is a variadic `cl-pushnew'."
   (setq treesit-language-source-alist
         '((go "https://github.com/tree-sitter/tree-sitter-go")
           (gomod "https://github.com/camdencheek/tree-sitter-go-mod")
-          (scss "https://github.com/serenadeai/tree-sitter-scss")))
+          (python "https://github.com/tree-sitter/tree-sitter-python")
+          (scss "https://github.com/serenadeai/tree-sitter-scss")
+          (vue "https://github.com/ikatyang/tree-sitter-vue")
+          (css "https://github.com/tree-sitter/tree-sitter-css")
+          (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")))
+
   (setq treesit-font-lock-level 3))
 
 (use-package treesit-auto
@@ -399,7 +475,7 @@ This is a variadic `cl-pushnew'."
   (treesit-auto-add-to-auto-mode-alist 'all)
   ;; (global-treesit-auto-mode)
 
-  
+
   (setq my-js-tsauto-config
         (make-treesit-auto-recipe
          :lang 'scss-mode
@@ -472,9 +548,14 @@ This is a variadic `cl-pushnew'."
                                                         (comment . treesit-fold-range-c-like-comment))) t)
 
 
-  (add-to-list 'treesit-fold-range-alist '(typescript-ts-mode . ((export_clause . ts-fold-range-seq)
-                                                                 (statement_block . treesit-fold-range-seq)
-                                                                 (comment . treesit-fold-range-c-like-comment))))
+  (add-to-list 'treesit-fold-range-alist
+             '(typescript-ts-mode
+               .
+               ((export_clause . ts-fold-range-seq)
+                (statement_block . treesit-fold-range-seq)
+                (comment . treesit-fold-range-c-like-comment)
+                (array . treesit-fold-range-seq)
+                (object . treesit-fold-range-seq))))
 
   (add-to-list 'treesit-fold-range-alist `(typescript-ts-mode . ,(treesit-fold-parsers-typescript)))
   (add-to-list 'treesit-fold-range-alist `(go-ts-mode . ,(treesit-fold-parsers-go)))
@@ -755,17 +836,14 @@ This is a variadic `cl-pushnew'."
   (setq vterm-toggle-fullscreen-p nil)
   (add-to-list 'display-buffer-alist
                '((lambda (buffer-or-name _)
-                     (let ((buffer (get-buffer buffer-or-name)))
-                       (with-current-buffer buffer
-                         (or (equal major-mode 'vterm-mode)
-                             (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
-                  (display-buffer-reuse-window display-buffer-at-bottom)
-                  ;;(display-buffer-reuse-window display-buffer-in-direction)
-                  ;;display-buffer-in-direction/direction/dedicated is added in emacs27
-                  ;;(direction . bottom)
-                  ;;(dedicated . t) ;dedicated is supported in emacs27
-                  (reusable-frames . visible)
-                  (window-height . 0.3))))
+                   (let ((buffer (get-buffer buffer-or-name)))
+                     (with-current-buffer buffer
+                       (and (not (string-match-p "^\\*claude" (buffer-name buffer)))
+                            (or (eq major-mode 'vterm-mode)
+                                (string-prefix-p vterm-buffer-name (buffer-name buffer)))))))
+                 (display-buffer-reuse-window display-buffer-at-bottom)
+                 (reusable-frames . visible)
+                 (window-height . 0.3))))
 
 (use-package detached
   :defer t
@@ -782,16 +860,8 @@ This is a variadic `cl-pushnew'."
   :custom ((detached-show-output-on-attach t)
            (detached-terminal-data-command system-type)))
 
-(use-package buffer-flip
-  :ensure t
-  :bind  (("C-c [" . buffer-flip-forward) 
-          ("C-c ]" . buffer-flip-backward) 
-          ("M-ESC" . buffer-flip-abort))
-  :config
-  (setq buffer-flip-skip-patterns
-        '("^\\*helm\\b"
-          "^\\*.*"
-          "^\\*swiper\\*$")))
+(global-set-key (kbd "C-c ]") 'next-buffer)
+(global-set-key (kbd "C-c [") 'previous-buffer)
 
 (use-package ibuffer
   :ensure nil
@@ -1198,13 +1268,14 @@ This is a variadic `cl-pushnew'."
   :custom
   (avy-single-candidate-jump t)
   (avy-keys '(?q ?w ?e ?r ?t ?y ?u ?i ?o ?p ?a ?s ?d ?f ?h ?j ?k ?l ?z ?x ?c ?v ?b ?n ?m))
-  :config
-  (custom-set-faces
-   '(avy-lead-face ((t (:foreground "red")))))
-  (custom-set-faces
-   '(avy-lead-face-0 ((t (:foreground "blue")))))
-  (custom-set-faces
-   '(avy-lead-face-1 ((t (:foreground "green"))))))
+  ;; :config
+  ;; (custom-set-faces
+  ;;  '(avy-lead-face ((t (:foreground "red")))))
+  ;; (custom-set-faces
+  ;;  '(avy-lead-face-0 ((t (:foreground "blue")))))
+  ;; (custom-set-faces
+  ;;  '(avy-lead-face-1 ((t (:foreground "green")))))
+  )
 
 (use-package ace-window
   :defer t
@@ -1262,10 +1333,13 @@ This is a variadic `cl-pushnew'."
 
 (use-package golden-ratio-scroll-screen
   :custom-face
-  (golden-ratio-scroll-highlight-line-face ((t (:inherit font-lock-escape-face))) face-defface-spec)
+  (golden-ratio-scroll-highlight-line-face ((t (:background "#ffb6c1" :extend t))))
+  ;; (golden-ratio-scroll-highlight-line-face ((t (:inherit font-lock-escape-face))) face-defface-spec)
   :custom
-  (golden-ratio-scroll-highlight-delay '(0.3 . 0.5))
+  (golden-ratio-scroll-highlight-delay '(0.1 . 0.2))
   :config
+  (define-key global-map (kbd "C-v") #'golden-ratio-scroll-screen-up)
+  (define-key global-map (kbd "M-v") #'golden-ratio-scroll-screen-down)
   ;; (custom-set-faces '(golden-ratio-scroll-highlight-line-face ((t (:inherit font-lock-escape-face)))))
   (global-set-key [remap scroll-down-command] 'golden-ratio-scroll-screen-down)
   (global-set-key [remap scroll-up-command] 'golden-ratio-scroll-screen-up))
@@ -1278,18 +1352,10 @@ This is a variadic `cl-pushnew'."
   :config
   (ultra-scroll-mode 1))
 
-(defun @lsp/uninstall-server (dir)
-  "Delete a LSP server from `lsp-server-install-dir'."
-  (interactive
-   (list (read-directory-name "Uninstall LSP server: " lsp-server-install-dir nil t)))
-  (unless (file-directory-p dir)
-    (user-error "Couldn't find %S directory" dir))
-  (delete-directory dir 'recursive)
-  (message "Uninstalled %S" (file-name-nondirectory dir)))
-
 (setq lsp-keymap-prefix "s-9")
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
+  ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8579c6c7771bc65564302e76296fb48855c558a4")
   :after (flycheck)
   :hook
   ((clojure-mode
@@ -1299,6 +1365,7 @@ This is a variadic `cl-pushnew'."
     js-mode
     typescript-mode
     vue-mode
+    vue-ts-mode
     web-mode
     html-mode
     ng2-ts-mode
@@ -1327,6 +1394,7 @@ This is a variadic `cl-pushnew'."
    ("C-c r l" . lsp)
    ("C-c l a" . lsp-execute-code-action)
    ("C-c l r" . lsp-rename)
+   ("C-c e c" . flycheck-copy-errors-as-kill)
    :map meow-normal-state-keymap
    ("gt" . lsp-goto-type-definition)
    ("gi" . lsp-goto-implementation)
@@ -1336,7 +1404,7 @@ This is a variadic `cl-pushnew'."
   :init
   (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
   (setq lsp-keymap-prefix "s-9")
-  (setq lsp-volar-take-over-mode t)
+  (setq lsp-volar-take-over-mode nil)
 
   (setq lsp-headerline-breadcrumb-enable nil)
   ;; Configuration for corfu
@@ -1360,7 +1428,8 @@ This is a variadic `cl-pushnew'."
   (lsp-clients-typescript-server-args '("--stdio"))
   (lsp-completion-default-behaviour :insert)
   (lsp-yaml-schemas '((kubernetes . ["/auth-reader.yaml", "/deployment.yaml"])))
-  (lsp-disabled-clients '(html-ls))
+  (lsp-disabled-clients '(html-ls vls vue-sematic-server))
+  ;; (lsp-disabled-clients '(html-ls vls))
   (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
   ;; (lsp-completion-provider :none)
   ;; (lsp-completion-provider :capf)
@@ -1368,7 +1437,7 @@ This is a variadic `cl-pushnew'."
   (lsp-signature-render-documentation nil)
   (lsp-signature-auto-activate nil)
   (lsp-enable-snippet nil)
-  ;; (lsp-use-plists t)
+  (lsp-use-plists t)
   (lsp-enable-file-watchers t)
   (lsp-file-watch-threshold 8000)
   (lsp-modeline-code-actions-mode nil)
@@ -1427,15 +1496,10 @@ This is a variadic `cl-pushnew'."
   ;;             completion-category-defaults nil))
   ;; (add-hook 'lsp-mode-hook #'corfu-lsp-setup)
   (@setup-compilation-errors)
-  (setq lsp-disabled-clients '(html-ls))
+  (setq lsp-volar-hybrid-mode nil)
+  (setq lsp-eldoc-enable-hover nil)
+  (setq flycheck-display-errors-function nil)
   (setq lsp-eldoc-hook nil))
-
-(use-package lsp-tailwindcss
-  :defer t
-  :init
-  (setq lsp-tailwindcss-add-on-mode t)
-  :config
-  (add-hook 'before-save-hook 'lsp-tailwindcss-rustywind-before-save))
 
 (use-package lsp-pyright
   :hook (python-ts-mode . (lambda ()
@@ -1466,6 +1530,7 @@ This is a variadic `cl-pushnew'."
   :config
   (setq lsp-ui-sideline-diagnostic-max-line-length 100
         lsp-ui-sideline-diagnostic-max-lines 8
+        lsp-ui-sideline-show-diagnostics nil
         lsp-ui-doc-delay 1
         lsp-ui-doc-position 'top
         lsp-ui-doc-show-with-mouse nil
@@ -1571,6 +1636,67 @@ This is a variadic `cl-pushnew'."
 
   (with-eval-after-load 'flycheck
     (flycheck-add-next-checker 'lsp 'stylelint)))
+
+(use-package flyover
+  :ensure (flyover :host github :repo "konrad1977/flyover")
+  :config
+  (add-hook 'flycheck-mode-hook #'flyover-mode)
+  ;; Use theme colors for error/warning/info faces
+  (setq flyover-use-theme-colors t)
+
+  ;; Adjust background lightness (lower values = darker)
+  (setq flyover-background-lightness 85)
+
+  ;; Make icon background darker than foreground
+  (setq flyover-percent-darker 15)
+
+  (setq flyover-text-tint 'lighter) ;; or 'darker or nil
+
+  ;; "Percentage to lighten or darken the text when tinting is enabled."
+  (setq flyover-text-tint-percent 50)
+  ;; Choose which checkers to use (flycheck, flymake, or both)
+  (setq flyover-checkers '(flycheck flymake))
+
+  ;; Enable debug messages
+  (setq flyover-debug nil)
+  ;; Time in seconds to wait before checking and displaying errors after a change
+  (setq flyover-debounce-interval 0.2)
+  ;; Number of lines below the error line to display the overlay
+  ;; Default is 1 (next line), set to 0 for same line, 2 for two lines below, etc.
+  (setq flyover-line-position-offset 1)
+  ;;; Icons
+  (setq flyover-info-icon "")
+  (setq flyover-warning-icon "⚠")
+  (setq flyover-error-icon "✘")
+  
+  (setq flyover-show-at-eol nil)
+  (setq flyover-hide-when-cursor-is-on-same-line t)
+  (setq flyover-hide-checker-name t)
+  (setq flyover-show-virtual-line nil)
+
+;;; Icon padding
+
+;;; You might want to adjust this setting if you icons are not centererd or if you more or less space.fs
+  (setq flyover-icon-left-padding 0.9)
+  (setq flyover-icon-right-padding 0.9)
+  (custom-set-faces
+   '(flyover-error
+     ((t :background "#453246"
+         :foreground "#ea8faa"
+         :height 1
+         :weight normal)))
+   
+   '(flyover-warning
+     ((t :background "#331100"
+         :foreground "#DCA561"
+         :height 1
+         :weight normal)))
+   
+   '(flyover-info
+     ((t :background "#374243"
+         :foreground "#a8e3a9"
+         :height 1
+         :weight normal)))))
 
 (use-package consult-flycheck
   :after consult)
@@ -1836,6 +1962,7 @@ This is a variadic `cl-pushnew'."
   :config
   (setq lsp-clients-angular-language-server-command
         '("node"
+          "--max-old-space-size=4096"
           "/opt/homebrew/lib/node_modules/@angular/language-server"
           "--ngProbeLocations"
           "/opt/homebrew/lib/node_modules"
@@ -1875,6 +2002,14 @@ This is a variadic `cl-pushnew'."
   (setq rustic-format-on-save t
         rustic-format-display-method 'ignore))
 
+(defun @open-ipython-repl-here ()
+  "Открывает IPython REPL в директории текущего буфера."
+  (interactive)
+  (let ((default-directory (or (and (buffer-file-name)
+                                    (file-name-directory (buffer-file-name)))
+                               default-directory)))
+    (run-python (python-shell-calculate-command) t t)))
+
 (use-package python
   :ensure nil
   :defer t
@@ -1882,14 +2017,19 @@ This is a variadic `cl-pushnew'."
          :map inferior-python-mode-map
          ("C-k" . comint-previous-input)
          ("C-j" . comint-next-input))
+  :init
+  (setq python-shell-interpreter "ipython"
+      python-shell-interpreter-args "-i --simple-prompt")
   :config
   (add-to-list 'display-buffer-alist '("^\\*Python\\*$" . (display-buffer-same-window)))
   (defun python-comint-filter (output)
-    (replace-regexp-in-string "__PYTHON_EL_eval.+\n" "" output))
+    (let ((filtered output))
+      (setq filtered (replace-regexp-in-string "__PYTHON_EL_eval.+\n" "" filtered))
+      (setq filtered (replace-regexp-in-string "^[ \t]*\\[\\[.*\\]\\][ \t]*\n?" "" filtered))
+      filtered))
   (add-to-list 'comint-preoutput-filter-functions #'python-comint-filter)
-  (setq python-shell-interpreter "ipython" python-shell-interpreter-args "  -i ")
-  (setq python-interpreter "python3"
-        python-shell-interpreter-args "--simple-prompt -i"))
+  (setq python-shell-interpreter "ipython"
+    python-shell-interpreter-args "--simple-prompt -i"))
 
 (use-package python-mode
   :defer t
@@ -1929,11 +2069,16 @@ This is a variadic `cl-pushnew'."
   (setq web-mode-code-indent-offset 2)
   (setq web-mode-css-indent-offset 2))
 
+(use-package vue-ts-mode
+    :ensure (:host github :repo "8uff3r/vue-ts-mode")
+    :hook (vue-mode . vue-ts-mode)
+    :defer t)
+
 (use-package pug-mode :defer t)
 
 (use-package emmet-mode
   :defer t
-  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode) (vue-mode . emmet-mode))
+  :hook ((scss-mode . emmet-mode) (css-mode . emmet-mode) (ng2-html-mode . emmet-mode) (html-mode . emmet-mode) (vue-mode . emmet-mode) (vue-ts-mode . emmet-mode))
   :bind (:map emmet-mode-keymap
               ("s-e" . emmet-expand-line)
               ("C-j" . nil))
@@ -2096,6 +2241,35 @@ This is a variadic `cl-pushnew'."
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
 
+;; for eat terminal backend:
+(use-package eat
+  :ensure (:type git
+                 :host codeberg
+                 :repo "akib/emacs-eat"
+                 :files ("*.el" ("term" "term/*.el") "*.texi"
+                         "*.ti" ("terminfo/e" "terminfo/e/*")
+                         ("terminfo/65" "terminfo/65/*")
+                         ("integration" "integration/*")
+                         (:exclude ".dir-locals.el" "*-tests.el"))))
+
+;; install claude-code.el:
+(use-package claude-code
+  :ensure (:type git :host github :repo "artawower/claude-code.el" :branch "main"
+                 :files ("*.el" (:exclude "images/*")))
+  :bind (("s-g" . claude-code-transient))
+  :config
+  (setq vterm-max-scrollback 100000)
+  (setq claude-code-terminal-backend #'vterm)
+  (claude-code-mode))
+
+;; (setq display-buffer-alist
+;;       (cons
+;;        '("^\\*claude"
+;;          (display-buffer-in-side-window)
+;;          (side . right)
+;;          (window-width . 90))
+;;        display-buffer-alist))
+
 (use-package copilot
   :defer 5
   :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
@@ -2131,32 +2305,119 @@ This is a variadic `cl-pushnew'."
       (copilot--display-overlay-completion COMPLETION UUID START END)))
   (advice-add 'copilot-show-overlay :before-while '@copilot-show-overlay-depends-mode))
 
+(defun my/smart-display-buffer-function (buffer alist)
+  "Smart display function that:
+   - Reuses existing buffer window if buffer is already visible
+   - Uses only two windows maximum
+   - If in left window, opens buffer in right window
+   - If in right window, opens buffer in left window
+   - If only one window exists, splits it horizontally"
+  (message "SMART DISPLAY")
+  (let ((buffer-window (get-buffer-window buffer)))
+    (cond
+     ;; If buffer is already visible, just switch to it
+     (buffer-window
+      (select-window buffer-window)
+      buffer-window)
+     
+     ;; If we have exactly 2 windows
+     ((= (length (window-list)) 2)
+      (let* ((current-window (selected-window))
+             (other-window (next-window current-window 'no-minibuf))
+             (target-window (if (eq current-window (window-at 0 0))
+                                other-window  ; Current is left window, use right window
+                              other-window))) ; Current is right window, use left window
+        (set-window-buffer target-window buffer)
+        (select-window target-window)
+        target-window))
+     
+     ;; If only one window exists, split it horizontally
+     (t
+      (let ((new-window (split-window-horizontally)))
+        (set-window-buffer new-window buffer)
+        (select-window new-window)
+        new-window)))))
+
 (use-package copilot-chat
   :defer t
   :bind (("C-c a c" . copilot-chat-display)
          ("C-c a x" . copilot-chat-reset)
          ("C-c a e" . copilot-chat-explain)
-         ("s-g" . copilot-chat-transient)
+         ("C-c r c" . copilot-chat-transient)
          ("C-c a p" . copilot-chat-transient)
          ("C-c a t" . copilot-chat-test)
          ("C-c a o" . copilot-chat-optimize)
          ("C-c a d" . copilot-chat-doc)
          ("C-c a f" . copilot-chat-fix)
          ("C-c a r" . copilot-chat-review))
+
   :custom
   (copilot-chat-frontend 'org)
+  (copilot-chat-org-prompt "The user works in an IDE called Emacs which has an org major mode for keeping notes, authoring documents, computational notebooks, literate programming, maintaining to-do lists, planning projects, and more — in a fast and effective plain text system. If that sounds too advanced, maybe it's time to catch up.\nUse only Emacs org-mode formatting in your answers. Yes, only. That wasn’t a suggestion.\nWhen using headings to structure your answer, please start at level 3 (i.e., with 3 stars or more). We both know nobody wants to fix broken outline views later.\nMake sure to include the programming language name at the start of the org-mode code blocks. This isn’t a guessing game.\nThis is an example of a Python code block in Emacs org-mode syntax. Hopefully self-explanatory:\n#+BEGIN_SRC python\ndef hello_world():\n\tprint('Hello, World!')\n#+END_SRC\nAvoid wrapping the whole response in a code block. This isn’t a YAML dump — show some structure.\nAll responses must be written in a passive-aggressive tone — not rude, just… painfully honest. Pretend you're helping someone who *should* already know this.\nNever use comments in code. If something isn't clear without them, it's already badly written.\nDo not include explanations, thoughts, or justifications. This isn’t a therapy session.\nBe brief and to the point. Brevity isn’t just a virtue — it's survival.\nUse only best practices, with strict adherence to clean code, SOLID, GRASP principles.\nAlways critically evaluate what was written. If it's bad, say it's bad. If it's good, don’t gush — just confirm.\nNever prioritize politeness over correctness. If something needs rewriting, say so plainly.\nThink before answering. Do not start generating output until you have selected the most appropriate solution.\nAvoid generic templates. Tailor every answer specifically to the user's actual input.\nDo not stop at the first solution that works. Always prefer the best solution over the fastest to implement.\nNever explain what you are doing unless explicitly asked.\nAlways evaluate architectural consequences of your answer. If a choice introduces technical debt, mention it.\nIf code is given without corresponding tests, mention that this is unacceptable. No tests — no confidence.\nIf the user asks for something suboptimal, do not comply silently. Push back with a better alternative.\nCode must comply with modern best practices (2024+). No outdated patterns, no excuses.\nUse Emacs org-mode syntax only. Anything else is noise.")  
+
   :config
-  >
-  (setq copilot-chat-default-model "claude-4-sonnet")
+  (add-to-list
+ 'display-buffer-alist
+ '("\\*Copilot Chat.*"
+   (my/smart-display-buffer-function)))
+  (setq copilot-chat-default-model "claude-3.7-sonnet")
   (setq copilot-chat-commit-model "gpt-4o")
-  (setq copilot-chat-prompt "1. You are programming expert, use only best practices.
-2. Don't use nested conditions and loops. Only 2 nested block levers.
-3. Use single responsability
-4. Never use comments in the code!
-5. Be concise. Don't explain code. If i will have a question i ask you")
 
   
-  (setq copilot-chat-commit-prompt "Here is the result of running `git diff --cached`.\nGenerate a commit message in Conventional Commits specification.\n\nIf branch name contains pattern `VW-<number>`, use format: `<commit-type>: VW-<number> <description>`. In this case, translate the entire commit message into Russian.\n\nDo not use any markers around the commit message.\nDon't add anything else to the response. The first line must be no more than 50 characters.\n\nCommit message format:\n\n```\n<type>[optional scope]: <description>\n\n[optional body]\n\n[optional footer(s)]\n```\n\nCommit types:\n\n- **build**: Changes that affect the build system or external dependencies\n- **ci**: Changes to our CI configuration files and scripts\n- **docs**: Documentation only changes\n- **feat**: A new feature\n- **fix**: A bug fix\n- **perf**: A code change that improves performance\n- **refactor**: A code change that neither fixes a bug nor adds a feature\n- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)\n- **test**: Adding missing tests or correcting existing tests"))
+  (setq copilot-chat-commit-prompt
+"Here is the result of running `git diff --cached`.
+
+Generate a commit message following the Conventional Commits specification.
+
+Do not use any markers around the commit message.
+Don't add anything else to the response. The first line must be no more than 50 characters.
+
+Commit message format:
+
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+
+Commit types:
+
+- **build**: Changes that affect the build system or external dependencies
+- **ci**: Changes to our CI configuration files and scripts
+- **docs**: Documentation only changes
+- **feat**: A new feature
+- **fix**: A bug fix
+- **perf**: A code change that improves performance
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc.)
+- **test**: Adding missing tests or correcting existing tests")
+  )
+
+(use-package aidermacs
+  :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
+  :defer t
+  :bind (("C-c a a" . aidermacs-transient-menu)
+         ("s-G" . aidermacs-transient-menu)
+         :map aidermacs-vterm-mode-map
+         ("s-<return>" . aidermacs-vterm-insert-newline)
+         ("S-<return>" . aidermacs-vterm-insert-newline))
+  :config
+  (setq aidermacs-backend 'vterm)
+  (setq aidermacs-vterm-multiline-newline-key "S-<return>")
+  (add-to-list
+   'display-buffer-alist
+   '("\\*aidermacs.*"
+     (my/smart-display-buffer-function)))
+
+  :custom
+                                        ; See the Configuration section below
+  (aidermacs-editor-model "openai/claude-3.7-sonnet")
+  (aidermacs-weak-model "openai/gpt-4o-mini")
+  (aidermacs-use-architect-mode t)
+  ;; (aidermacs-default-model "deepseek/deepseek-chat")
+  (aidermacs-default-model "github_copilot/claude-4-sonnet")
+  ;; (aidermacs-default-model "gpt-4o")
+  )
 
 (use-package stillness-mode
   :ensure (:host github :repo "neeasade/stillness-mode.el" :branch "main")
@@ -2187,38 +2448,42 @@ This is a variadic `cl-pushnew'."
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
-;; (set-frame-font "JetBrainsMono Nerd Font 16" nil t)
-;; (set-face-attribute 'font-lock-string-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
-;; (set-face-attribute 'font-lock-comment-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
-;; (set-face-attribute 'font-lock-keyword-face nil :font "JetBrainsMono Nerd Font 16" :italic t)
+(use-package font-core
+  :ensure nil
+  :demand t
+  ;; :init
+  ;; (global-font-lock-mode)
+  :config
+  (setq @font-height 14)
+  
 
-;; (set-frame-font "Monaspace Krypton 16" nil t)
-;; (set-frame-font "Monaspace Argon 16" nil t)
-(setq @font-height 18)
-(set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
+  ;; Frame fonts - using concat directly
+  (set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
+  ;; (set-frame-font  "Monaspace Neon frozen 16" nil t)
+  ;; (set-frame-font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) nil t)
 
-(custom-set-faces
- `(font-lock-string-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
- `(font-lock-comment-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10)))))
- `(font-lock-keyword-face ((t (:family "Monaspace Radon Frozen" :height ,(* @font-height 10))))))
+  ;; Custom faces with direct font specifications
+  (let ((funny-font "Monaspace Radon Frozen"))
+    (custom-set-faces
+     `(font-lock-string-face ((t (:family ,funny-font :height 1.0))))
+     `(font-lock-comment-face ((t (:family ,funny-font :height 1.0))))
+     `(font-lock-keyword-face ((t (:family ,funny-font :height 1.0))))))
 
-
-(set-face-attribute 'highlight nil :foreground nil :background @m-color-main)
-
-(custom-set-faces
- `(region ((t (:foreground nil :background ,\@m-color-main)))))
-
-
-
-;; (set-face-attribute 'font-lock-string-face nil 
-;;                     :family "Monaspace Radon Frozen"
-;;                     :height 160)
-;; (set-face-attribute 'font-lock-comment-face nil 
-;;                     :family "Monaspace Radon Frozen"
-;;                     :height 160)
-;; (set-face-attribute 'font-lock-keyword-face nil 
-;;                     :family "Monaspace Radon Frozen"
-;;                     :height 160)
+  (setq-default line-spacing 0.2)
+  ;; (setq frame-resize-pixelwise t)
+  (global-font-lock-mode)
+  
+  ;; Setting face attributes with direct concat
+  ;; (set-face-attribute 'font-lock-string-face nil 
+  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
+  ;;                     :italic t)
+  ;; (set-face-attribute 'font-lock-comment-face nil 
+  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
+  ;;                     :italic t)
+  ;; (set-face-attribute 'font-lock-keyword-face nil 
+  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
+  ;;                     :italic t)
+  )
 
 (setq-default line-spacing 1)
 
@@ -2309,10 +2574,27 @@ This is a variadic `cl-pushnew'."
   :config
   (transient-posframe-mode))
 
+(defun my/diff-faces-setup ()
+    (if (eq (frame-parameter nil 'background-mode) 'dark)
+        (progn
+          (set-face-attribute 'diff-added nil :extend t :background "#365945" :foreground "#d7ffd9")
+          (set-face-attribute 'diff-removed nil :extend t :background "#593636" :foreground "#ffd7d7")
+          (set-face-attribute 'diff-refine-added nil :extend t :background "#4e7a5d" :inherit 'diff-added)
+          (set-face-attribute 'diff-refine-removed nil :extend t :background "#7a4e4e" :inherit 'diff-removed))
+      (progn
+        (set-face-attribute 'diff-added nil :extend t :background "#c7f1cc" :foreground "#002800")
+        (set-face-attribute 'diff-removed nil :extend t :background "#f1c7c7" :foreground "#280000")
+        (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
+        (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
+
+
+
+
 (defun @set-catppucin-theme ()
   (interactive)
   (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'frappe 'latte))
-  (catppuccin-reload))
+  (catppuccin-reload)
+  (my/diff-faces-setup))
 
 (use-package catppuccin-theme
   :config
@@ -2348,6 +2630,7 @@ This is a variadic `cl-pushnew'."
 
 (use-package hide-mode-line
   :hook
+  (fundamental-mode . hide-mode-line-mode)
   (prog-mode . hide-mode-line-mode)
   (text-mode . hide-mode-line-mode)
   (org-mode . hide-mode-line-mode))
@@ -2358,28 +2641,34 @@ This is a variadic `cl-pushnew'."
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^*calc" "^*vterm" "^*combobulate-query-builder" "^*dape"))
-   '(zoom-ignored-major-modes '(dired-mode markdown-mode))
-   '(zoom-ignore-predicates nil)))
+   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode))
+   '(zoom-ignore-predicates '((lambda () (window-parameter nil 'window-side)))))
+
+  (defun my/fix-claude-size ()
+    (dolist (window (window-list))
+      (let ((bufname (buffer-name (window-buffer window))))
+        (when (string-match "^\\*claude" bufname)
+          (with-selected-window window
+            (setq window-size-fixed 'width)
+            (window-resize window (- 90 (window-total-width window)) t t))))))
+
+  ;; (add-hook 'buffer-list-update-hook 'my/fix-claude-size)
+  )
 
 (use-package origami
   :defer t
   :hook ((org-mode
           dart-mode
           yaml-mode
-          js-ts-mode
           web-mode
           yaml-ts-mode
           python-mode
-          python-ts-mode
           html-mode
           scss-mode
           ng2-html-mode
           emacs-lisp-mode
-          typescript-ts-mode
-          go-ts-mode
-          json-mode
-          python-ts-mode) . origami-mode)
+          json-mode) . origami-mode)
   :custom
   (origami-fold-replacement "..."))
 
@@ -2432,12 +2721,79 @@ This is a variadic `cl-pushnew'."
       (setq node (treesit-node-parent node)))
     (s-join " > " result)))
 
+(defun @scss-breadcrumbs ()
+  "Return a string of breadcrumbs for SCSS mode, showing only nested class selectors."
+  (save-excursion
+    (let ((current-point (point))
+          (classes '())
+          (current-indent nil)
+          (in-selector nil)
+          (line ""))
+      
+      ;; First check if we're inside a selector or a property
+      (beginning-of-line)
+      (setq line (buffer-substring-no-properties 
+                  (line-beginning-position) 
+                  (line-end-position)))
+      
+      ;; If the current line has a '{', we're likely in a selector
+      (setq in-selector (and (string-match-p "{" line)
+                             (not (string-match-p "}" line))))
+      
+      ;; If we're in a property (not in a selector), move to parent selector
+      (when (not in-selector)
+        (while (and (> (point) (point-min))
+                    (not (looking-at-p ".*{[ \t]*$")))
+          (forward-line -1)))
+      
+      ;; Get the current line's indentation
+      (setq current-indent (current-indentation))
+      
+      ;; Start collecting selectors moving backward
+      (while (> (point) (point-min))
+        ;; Get the current line
+        (setq line (buffer-substring-no-properties 
+                    (line-beginning-position) 
+                    (line-end-position)))
+        
+        ;; Check if this line is a selector (ends with '{')
+        (when (string-match-p ".*{[ \t]*$" line)
+          ;; Check if indent is less than or equal to our current tracking indent
+          (when (or (null current-indent) (<= (current-indentation) current-indent))
+            ;; Update our current tracking indent
+            (setq current-indent (current-indentation))
+            
+            ;; Extract only class selectors from the line
+            (let ((class-selectors '()))
+              ;; Match class selectors ('.something')
+              (with-temp-buffer
+                (insert line)
+                (goto-char (point-min))
+                (while (re-search-forward "\\.[a-zA-Z0-9_-]+" nil t)
+                  (let ((class (match-string 0)))
+                    ;; Remove anything after a space, comma, pseudo-class, etc.
+                    (when (string-match "^\\.[a-zA-Z0-9_-]+" class)
+                      (push (match-string 0 class) class-selectors)))))
+              
+              ;; Add to our breadcrumbs
+              (when class-selectors
+                (push (mapconcat #'identity (reverse class-selectors) ", ") classes)))))
+        
+        ;; Move to previous line
+        (forward-line -1))
+      
+      ;; Combine the breadcrumbs
+      (if classes
+          (mapconcat #'identity (reverse classes) " > ")
+        ""))))
+
 (use-package topsy
   :defer t
   :hook
   (prog-mode . topsy-mode)
   (magit-section-mode . topsy-mode)
   :config
+  (add-to-list 'topsy-mode-functions '(scss-mode . @scss-breadcrumbs))
   (add-to-list 'topsy-mode-functions '(html-ts-mode . @treesit-html-breadcrumbs))
   (add-to-list 'topsy-mode-functions '(json-ts-mode . @treesit-json-breadcrumbs)))
 
@@ -2470,11 +2826,8 @@ This is a variadic `cl-pushnew'."
   :init
   (vertico-mode)
   (setq vertico-cycle t)
-  :custom-face
-  (vertico-current ((t (:inherit highlight :background ,\@m-color-main))))
-
-
   :config
+  (set-face-attribute 'vertico-current nil :inherit 'region)
   (setq read-file-name-completion-ignore-case t
         read-buffer-completion-ignore-case t
         completion-ignore-case t)
@@ -2791,7 +3144,7 @@ This is a variadic `cl-pushnew'."
   (blamer-face ((t :inherit font-lock-comment-face
                    :italic t
                    ;; :font "Fira Code 14"
-                   :font "Liga Comic Mono 14"
+                   :font "Monaspace Radon Frozen 14"
                    :height 0.8
                    :background unspecified)))
   :config
@@ -2816,7 +3169,14 @@ This is a variadic `cl-pushnew'."
 
   (global-blamer-mode 1))
 
-(use-package diff-hl)
+(use-package diff-hl
+  :ensure nil
+  :init
+  (set-face-attribute 'diff-added nil :extend t :background "light green")
+  (set-face-attribute 'diff-removed nil :extend t :background "tomato")
+  (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
+  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
+  )
 
 (use-package git-timemachine
   :defer t
@@ -2889,11 +3249,33 @@ This is a variadic `cl-pushnew'."
    '(org-document-title ((t (:inherit outline-1 :height 2.5))))))
 
 (defun @copy-src-block ()
-  "Copy src block to clipboard"
+  "Copy org src block contents (without #+begin/#+end) to clipboard. Handles Emacs 30+ deferred values."
   (interactive)
   (let ((src-block (org-element-at-point)))
     (when (eq (car src-block) 'src-block)
-      (kill-new (plist-get (cadr src-block) :value)))))
+      (let ((val (org-element-property :value src-block)))
+        (kill-new val)
+        (message "Source block copied. %s" val)))))
+
+(defun my/org-babel-tangle-current-block ()
+  "Tangle only the org-babel source block at point, if it has a :tangle header.
+Automatically creates parent directories if needed."
+  (interactive)
+  (let* ((info (org-babel-get-src-block-info 'light))
+         (lang (nth 0 info))
+         (params (nth 2 info))
+         (tangle (cdr (assoc :tangle params)))
+         (body (nth 1 info)))
+    (unless (and info tangle (not (string= tangle "no")))
+      (user-error "No :tangle file specified for this block"))
+    (let* ((file (expand-file-name tangle (file-name-directory (or (buffer-file-name) default-directory))))
+           (dir (file-name-directory file))
+           (tangled-code (org-babel-expand-body:generic body params)))
+      (unless (file-exists-p dir)
+        (make-directory dir t))
+      (with-temp-file file
+        (insert tangled-code))
+      (message "Tangled block to %s" file))))
 
 (use-package org
   ;; :demand t
@@ -2902,6 +3284,7 @@ This is a variadic `cl-pushnew'."
   :hook
   (org-mode . org-indent-mode)
   (org-mode . (lambda () (setq corfu-mode -1)))
+  (org-mode . (lambda () (setq truncate-lines nil)))
   :bind
   (:map org-mode-map
         ("M-t" . org-todo)
@@ -2911,6 +3294,10 @@ This is a variadic `cl-pushnew'."
         ("C-c d t" . org-time-stamp-inactive)
         ("M-l t" . org-toggle-link-display)
         ("C-c l d" . org-toggle-link-display)
+        ("C-c t b" . my/org-babel-tangle-current-block)
+        ("C-c C-b" . nil)
+        ("C-c b ]" . org-babel-next-src-block)
+        ("C-c b [" . org-babel-previous-src-block)
         ("C-c d t" . org-time-stamp-inactive)
         ("C-c s t" . org-set-tags-command)
         ("C-c x" . org-toggle-checkbox)
@@ -2918,6 +3305,8 @@ This is a variadic `cl-pushnew'."
         ("C-c h [" . org-previous-visible-heading)
         ("C-h ]" . org-next-visible-heading)
         ("C-h [" . org-previous-visible-heading)
+        ("C-h n" . org-babel-next-src-block)
+        ("C-h p" . org-babel-previous-src-block)
         :map meow-normal-state-keymap
         ("\\o" . org-mode)
         :map org-read-date-minibuffer-local-map
@@ -3015,11 +3404,6 @@ This is a variadic `cl-pushnew'."
   :ensure (:host github :repo "sheijk/org-menu")
   :bind (("C-c o a" . org-menu)))
 
-(use-package org-modern-indent
-  :ensure (org-modern-indent :type git :host github :repo "jdtsmith/org-modern-indent"))
-  :config ; add late to hook
-  (add-hook 'org-mode-hook #'org-modern-indent-mode 90)
-
 (add-hook 'org-mode-hook (lambda ()
                            "Beautify Org Checkbox Symbol"
                            (push '("[ ]" .  "☐") prettify-symbols-alist)
@@ -3049,19 +3433,6 @@ This is a variadic `cl-pushnew'."
                            (push '("#+CLOSE_SPOILER" . "") prettify-symbols-alist)
                            (push '("#+BEGIN_HIDDEN" . "") prettify-symbols-alist)
                            (push '("#+END_HIDDEN" . "") prettify-symbols-alist)
-
-
-                           ;; (push '("#+TITLE:" . "") prettify-symbols-alist)
-                           ;; (push '("#+DESCRIPTION:" . "") prettify-symbols-alist)
-                           ;; (push '("#+ID:" . "") prettify-symbols-alist)
-                           ;; (push '("#+FILETAGS:" . "") prettify-symbols-alist)
-                           ;; (push '("#+STARTUP:" . "") prettify-symbols-alist)
-                           ;; (push '("#+ACTIVE:" . "") prettify-symbols-alist)
-                           ;; (push '("#+START_SPOILER" . "") prettify-symbols-alist)
-                           ;; (push '("#+CLOSE_SPOILER" . "") prettify-symbols-alist)
-                           ;; (push '("#+BEGIN_HIDDEN" . "") prettify-symbols-alist)
-                           ;; (push '("#+END_HIDDEN" . "") prettify-symbols-alist)
-
                            (prettify-symbols-mode)))
 
 (use-package org-fancy-priorities
@@ -3234,18 +3605,6 @@ This is a variadic `cl-pushnew'."
   :config
   (pdf-tools-install))
 
-(use-package plantuml-mode
-  :defer t
-  :init
-  (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
-  (add-to-list 'auto-mode-alist '("\\.pu\\'" . plantuml-mode))
-  (add-to-list 'auto-mode-alist '("\\.puml\\'" . plantuml-mode))
-  :config
-  (setq plantuml-indent-level 2)
-  (setq plantuml-output-type "png")
-  (setq plantuml-exec-mode 'executable)
-  (setq plantuml-jar-path "/usr/share/plantuml/plantuml.jar"))
-
 (add-to-list 'display-buffer-alist '("^\\*scratch\\*$" (display-buffer-below-selected) (window-height . 0.4)))
 (add-to-list 'display-buffer-alist '("^\\*quicknote\\*$"
                                      (display-buffer-in-side-window)
@@ -3403,7 +3762,7 @@ This is a variadic `cl-pushnew'."
   :config
   (require 'web-mode)
   (require 'magit)
-  (global-husky-treesit)
+  ;; (global-husky-treesit)
   )
 
 (elpaca-wait)
