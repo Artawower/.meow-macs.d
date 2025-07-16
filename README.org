@@ -2256,6 +2256,29 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   (with-eval-after-load 'flycheck
     (flycheck-add-next-checker 'lsp 'stylelint)))
 #+END_SRC
+**** Flycheck functions
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/flycheck-copy-errors-buffer ()
+    "Open flycheck errors buffer, copy all contents, and close window."
+    (interactive)
+    (let ((flycheck-buffer (get-buffer "*Flycheck errors*")))
+      (if flycheck-buffer
+          (let ((original-window (selected-window)))
+            ;; Open flycheck errors buffer
+            (flycheck-list-errors)
+            ;; Switch to errors buffer
+            (when (get-buffer-window "*Flycheck errors*")
+              (select-window (get-buffer-window "*Flycheck errors*"))
+              ;; Copy all buffer contents
+              (mark-whole-buffer)
+              (copy-region-as-kill (point-min) (point-max))
+              ;; Close the window
+              (quit-window)
+              ;; Return to original window
+              (select-window original-window)
+              (message "Flycheck errors copied to kill ring")))
+        (message "No flycheck errors buffer found"))))
+#+END_SRC
 *** Beatiful flycheck, flyover
 https://github.com/konrad1977/flyover
 #+BEGIN_SRC emacs-lisp :results silent
