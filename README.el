@@ -403,8 +403,7 @@ This is a variadic `cl-pushnew'."
 
 (use-package apheleia
   :hook (prog-mode . apheleia-global-mode)
-  :bind
-  (:map meow-normal-state-keymap
+  :bind (:map meow-normal-state-keymap
            ("\\p" . apheleia-format-buffer))
   :config
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
@@ -449,6 +448,7 @@ This is a variadic `cl-pushnew'."
   :ensure nil
   :hook
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
+  ;; (markdown-ts-mode . #'my/markdown-outline-setup)
   :mode (("\\.js\\'" . js-ts-mode)
          ("\\.mjs\\'" . js-ts-mode))
   :custom
@@ -461,7 +461,10 @@ This is a variadic `cl-pushnew'."
           (scss "https://github.com/serenadeai/tree-sitter-scss")
           (vue "https://github.com/ikatyang/tree-sitter-vue")
           (css "https://github.com/tree-sitter/tree-sitter-css")
-          (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")))
+          (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")
+          (markdown "https://github.com/ikatyang/tree-sitter-markdown")
+          (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "split_parser" "tree-sitter-markdown-inline/src")
+          ))
 
   (setq treesit-font-lock-level 3))
 
@@ -812,6 +815,7 @@ This is a variadic `cl-pushnew'."
   (vterm-max-scrollback 5000)
   :config
   (set-face-attribute 'vterm-color-black nil :foreground @m-color-secondary :background @m-color-secondary)
+  (setq vterm-clear-scrollback t)
   (defun @clear-term-history ()
     "Clear terminal history inside vterm."
     (interactive)
@@ -1416,6 +1420,7 @@ This is a variadic `cl-pushnew'."
   (lsp-log-io nil)
   (lsp-headerline-breadcrumb-enable nil)
   (lsp-idle-delay 0.3)
+  (lsp-auto-guess-root t)
   (lsp-completion-provider :capf)
   (lsp-enable-on-type-formatting nil)
   (lsp-eldoc-render-all nil)
@@ -1428,7 +1433,7 @@ This is a variadic `cl-pushnew'."
   (lsp-clients-typescript-server-args '("--stdio"))
   (lsp-completion-default-behaviour :insert)
   (lsp-yaml-schemas '((kubernetes . ["/auth-reader.yaml", "/deployment.yaml"])))
-  (lsp-disabled-clients '(html-ls vls vue-sematic-server))
+  (lsp-disabled-clients '(html-ls vls vue-semantic-server))
   ;; (lsp-disabled-clients '(html-ls vls))
   (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
   ;; (lsp-completion-provider :none)
@@ -1501,6 +1506,152 @@ This is a variadic `cl-pushnew'."
   (setq flycheck-display-errors-function nil)
   (setq lsp-eldoc-hook nil))
 
+(setq lsp-disabled-clients '(vls vue-semantic-server))
+;; (with-eval-after-load 'lsp-mode
+;;   (setq lsp-clients 
+;; (seq-remove (lambda (client) 
+;;                      (memq (lsp--client-server-id client)
+
+;;;; Vue Take Over Mode via tsserver + @vue/typescript-plugin
+;;;; Paste into init.el / config.el  -*- lexical-binding: t; -*-
+
+(with-eval-after-load 'lsp-mode
+
+;; -------- USER OPTIONS --------
+(defvar my/vue-ts-plugin-location nil
+  "Абсолютный путь к каталогу @vue/typescript-plugin (где package.json).
+Если nil — искать автоматически (проект -> глобаль -> внутри @vue/language-server).")
+
+(defvar my/vue-root-markers
+  '("pnpm-workspace.yaml" "yarn.lock" "bun.lockb" "package.json"
+    "tsconfig.json" "jsconfig.json" ".git")
+  "Файлы/папки для определения корня проекта.")
+
+(setq lsp-auto-guess-root t
+      lsp-enable-file-watchers t
+      lsp-file-watch-threshold 20000
+      lsp-clients-typescript-max-ts-server-memory 4096)
+
+(require 'lsp-mode)
+(require 'subr-x)
+
+;; -------- helpers --------
+(defun my/trim (s) (string-trim (or s "")))
+
+(defun my/vue-project-root ()
+  (or (when (fboundp 'project-current)
+        (when-let* ((pr (project-current nil))) (car (project-roots pr))))
+      (when (fboundp 'lsp-workspace-root) (lsp-workspace-root))
+      default-directory))
+
+(defun my/find-up (start markers)
+  (seq-some (lambda (m)
+              (let ((dir (locate-dominating-file start m)))
+                (when dir (expand-file-name dir))))
+            markers))
+
+(defun my/vue-find-root ()
+  (or (my/find-up (or buffer-file-name default-directory) my/vue-root-markers)
+      (file-name-directory (or buffer-file-name default-directory))
+      default-directory))
+
+(defun my/vue-find-plugin-in-project ()
+  (when-let* ((root (my/vue-project-root))
+              (nm   (locate-dominating-file root "node_modules")))
+    (let* ((p1 (expand-file-name "node_modules/@vue/typescript-plugin" nm))
+           (p2 (expand-file-name "node_modules/@vue/language-server/node_modules/@vue/typescript-plugin" nm)))
+      (cond ((file-exists-p p1) p1)
+            ((file-exists-p p2) p2)))))
+
+(defun my/npm-root-global ()
+  (when-let* ((npm (executable-find "npm")))
+    (my/trim (with-temp-buffer
+               (ignore-errors (call-process npm nil t nil "root" "-g"))
+               (buffer-string)))))
+
+(defun my/vue-find-plugin-global ()
+  (when-let* ((root (my/npm-root-global)))
+    (let* ((p1 (expand-file-name "@vue/typescript-plugin" root))
+           (p2 (expand-file-name "@vue/language-server/node_modules/@vue/typescript-plugin" root)))
+      (cond ((file-exists-p p1) p1)
+            ((file-exists-p p2) p2)))))
+
+(defun my/vue-plugin-location ()
+  (or my/vue-ts-plugin-location
+      (my/vue-find-plugin-in-project)
+      (my/vue-find-plugin-global)))
+
+(defun my/vue-plugins-vector ()
+  (let ((loc (my/vue-plugin-location)))
+    (unless (and loc (file-exists-p loc))
+      (message "[vue-takeover] WARN: @vue/typescript-plugin not found. Set `my/vue-ts-plugin-location` or install it."))
+    (vector (list :name "@vue/typescript-plugin"
+                  :location (or loc (my/vue-project-root))
+                  :languages ["vue"]))))
+
+;; -------- language-ids & tsserver defaults --------
+(with-eval-after-load 'lsp-mode
+  ;; *.vue должны иметь id "vue"
+  (dolist (pair '((vue-ts-mode . "vue") (vue-mode . "vue") (web-mode . "vue")))
+    (add-to-list 'lsp-language-id-configuration pair))
+  ;; подстрахуем маппинг TS/JS
+  (dolist (pair '((typescript-mode     . "typescript")
+                  (typescript-ts-mode  . "typescript")
+                  (tsx-ts-mode         . "typescriptreact")
+                  (js-mode             . "javascript")
+                  (js2-mode            . "javascript")
+                  (js-ts-mode          . "javascript")
+                  (rjsx-mode           . "javascriptreact")))
+    (add-to-list 'lsp-language-id-configuration pair)))
+
+(with-eval-after-load 'lsp-javascript
+  (setq lsp-clients-typescript-prefer-use-project-ts-server t
+        lsp-clients-typescript-plugins (my/vue-plugins-vector)))
+
+;; -------- Vue buffers: start ts-ls, disable Volar/VLS --------
+(defun my/vue-buffer-p ()
+  (and buffer-file-name (string-equal (file-name-extension buffer-file-name) "vue")))
+
+(defun my/disable-vue-servers ()
+  (setq-local lsp-disabled-clients '(vue-semantic-server volar vls vetur-ls)))
+
+(with-eval-after-load 'lsp-mode
+  (lsp-register-client
+   (make-lsp-client
+    :new-connection (lsp-stdio-connection '("typescript-language-server" "--stdio"))
+    :server-id 'ts-ls-vue
+    :multi-root t
+    :priority -1
+    :add-on? nil
+    :activation-fn (lambda (&rest _) (my/vue-buffer-p))
+    :initialization-options (lambda ()
+                              (list :plugins (vconcat (or lsp-clients-typescript-plugins
+                                                          (my/vue-plugins-vector)))))
+    :language-id "vue"))
+
+  (defun my/vue-ensure-lsp ()
+    (when (my/vue-buffer-p)
+      (my/disable-vue-servers)
+      (let* ((root (my/vue-find-root))
+             (tru-root (file-truename root))
+             (session (lsp-session)))
+        (unless (seq-some (lambda (f) (string-equal (file-truename f) tru-root))
+                          (lsp-session-folders session))
+          (lsp-workspace-folders-add tru-root))
+        (let ((default-directory tru-root))
+          (lsp-deferred)))))
+
+  (dolist (hook '(vue-ts-mode-hook vue-mode-hook web-mode-hook))
+    (add-hook hook #'my/vue-ensure-lsp)))
+)
+
+(use-package lsp-tailwindcss
+  :defer t
+  :init
+  (setq lsp-tailwindcss-add-on-mode t)
+  :config
+  (add-hook 'before-save-hook 'lsp-tailwindcss-rustywind-before-save))
+
 (use-package lsp-pyright
   :hook (python-ts-mode . (lambda ()
                           (require 'lsp-pyright)
@@ -1530,7 +1681,7 @@ This is a variadic `cl-pushnew'."
   :config
   (setq lsp-ui-sideline-diagnostic-max-line-length 100
         lsp-ui-sideline-diagnostic-max-lines 8
-        lsp-ui-sideline-show-diagnostics nil
+        lsp-ui-sideline-show-diagnostics t
         lsp-ui-doc-delay 1
         lsp-ui-doc-position 'top
         lsp-ui-doc-show-with-mouse nil
@@ -1637,66 +1788,30 @@ This is a variadic `cl-pushnew'."
   (with-eval-after-load 'flycheck
     (flycheck-add-next-checker 'lsp 'stylelint)))
 
-(use-package flyover
-  :ensure (flyover :host github :repo "konrad1977/flyover")
-  :config
-  (add-hook 'flycheck-mode-hook #'flyover-mode)
-  ;; Use theme colors for error/warning/info faces
-  (setq flyover-use-theme-colors t)
-
-  ;; Adjust background lightness (lower values = darker)
-  (setq flyover-background-lightness 85)
-
-  ;; Make icon background darker than foreground
-  (setq flyover-percent-darker 15)
-
-  (setq flyover-text-tint 'lighter) ;; or 'darker or nil
-
-  ;; "Percentage to lighten or darken the text when tinting is enabled."
-  (setq flyover-text-tint-percent 50)
-  ;; Choose which checkers to use (flycheck, flymake, or both)
-  (setq flyover-checkers '(flycheck flymake))
-
-  ;; Enable debug messages
-  (setq flyover-debug nil)
-  ;; Time in seconds to wait before checking and displaying errors after a change
-  (setq flyover-debounce-interval 0.2)
-  ;; Number of lines below the error line to display the overlay
-  ;; Default is 1 (next line), set to 0 for same line, 2 for two lines below, etc.
-  (setq flyover-line-position-offset 1)
-  ;;; Icons
-  (setq flyover-info-icon "")
-  (setq flyover-warning-icon "⚠")
-  (setq flyover-error-icon "✘")
-  
-  (setq flyover-show-at-eol nil)
-  (setq flyover-hide-when-cursor-is-on-same-line t)
-  (setq flyover-hide-checker-name t)
-  (setq flyover-show-virtual-line nil)
-
-;;; Icon padding
-
-;;; You might want to adjust this setting if you icons are not centererd or if you more or less space.fs
-  (setq flyover-icon-left-padding 0.9)
-  (setq flyover-icon-right-padding 0.9)
-  (custom-set-faces
-   '(flyover-error
-     ((t :background "#453246"
-         :foreground "#ea8faa"
-         :height 1
-         :weight normal)))
-   
-   '(flyover-warning
-     ((t :background "#331100"
-         :foreground "#DCA561"
-         :height 1
-         :weight normal)))
-   
-   '(flyover-info
-     ((t :background "#374243"
-         :foreground "#a8e3a9"
-         :height 1
-         :weight normal)))))
+(defun my/flycheck-copy-errors-buffer ()
+    "Open flycheck errors buffer, copy all contents, and close window."
+    (interactive)
+    (let ((original-window (selected-window)))
+      ;; Always open flycheck errors buffer first
+      (flycheck-list-errors)
+      ;; Check if the errors buffer exists and has content
+      (let ((flycheck-buffer (get-buffer "*Flycheck errors*")))
+        (if (and flycheck-buffer (get-buffer-window "*Flycheck errors*"))
+            (progn
+              ;; Switch to errors buffer
+              (select-window (get-buffer-window "*Flycheck errors*"))
+              ;; Copy all buffer contents
+              (mark-whole-buffer)
+              (copy-region-as-kill (point-min) (point-max))
+              ;; Close the window
+              (quit-window)
+              ;; Return to original window
+              (select-window original-window)
+              (message "Flycheck errors copied to kill ring"))
+          (progn
+            ;; If buffer still doesn't exist or has no window, return to original
+            (select-window original-window)
+            (message "No flycheck errors found"))))))
 
 (use-package consult-flycheck
   :after consult)
@@ -2102,6 +2217,8 @@ This is a variadic `cl-pushnew'."
   :config
   (setq js-indent-level 2))
 
+(use-package jq-mode :defer t)
+
 (use-package dart-mode
   :defer t
   :hook (dart-mode . flutter-test-mode))
@@ -2152,10 +2269,29 @@ This is a variadic `cl-pushnew'."
 (use-package jinja2-mode
   :defer t)
 
+(defun my/markdown-outline-setup ()
+  (outline-minor-mode 1)
+  (setq-local outline-regexp "^\\(#+\\) ")
+  (setq-local outline-level
+      (lambda ()
+        (length (match-string 1)))))
+
 (use-package markdown-mode
   :hook
-  (markdown-mode . nb/markdown-unhighlight)
+  (markdown-ts-mode . markdown-mode)
+  ;; (markdown-mode . nb/markdown-unhighlight)
+  ;; (markdown-mode . #'my/markdown-outline-setup)
+  :bind
+  (:map markdown-ts-mode-map
+        ("C-h ]" . markdown-next-visible-heading)
+        ("C-h [" . markdown-previous-visible-heading)
+        :map markdown-mode-map
+        ("C-h ]" . markdown-next-visible-heading)
+        ("C-h [" . markdown-previous-visible-heading))
   :config
+  (add-hook 'markdown-ts-mode-hook #'my/markdown-outline-setup)
+  (add-hook 'markdown-mode-hook #'my/markdown-outline-setup)
+
   (defvar nb/current-line '(0 . 0)
     "(start . end) of current line in current buffer")
   (make-variable-buffer-local 'nb/current-line)
@@ -2185,6 +2321,8 @@ This is a variadic `cl-pushnew'."
     (markdown-toggle-markup-hiding 'toggle)
     (font-lock-add-keywords nil '((nb/unhide-current-line)) t)
     (add-hook 'post-command-hook #'nb/refontify-on-linemove nil t))
+  
+  (add-hook 'markdown-mode-hook #'nb/markdown-unhighlight)
   :custom-face
   (markdown-header-delimiter-face ((t (:foreground "#616161" :height 0.9))))
   (markdown-header-face-1 ((t (:height 1.6  :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face))))
@@ -2254,7 +2392,8 @@ This is a variadic `cl-pushnew'."
 
 ;; install claude-code.el:
 (use-package claude-code
-  :ensure (:type git :host github :repo "artawower/claude-code.el" :branch "main"
+  ;; :ensure (:type git :host github :repo "artawower/claude-code.el" :branch "main"
+  :ensure (:type git :host github :repo "stevemolitor/claude-code.el" :branch "main"
                  :files ("*.el" (:exclude "images/*")))
   :bind (("s-g" . claude-code-transient))
   :config
@@ -2269,6 +2408,14 @@ This is a variadic `cl-pushnew'."
 ;;          (side . right)
 ;;          (window-width . 90))
 ;;        display-buffer-alist))
+
+(use-package claude-code-prompt-extensions
+  :after claude-code
+  :ensure (:type git
+                 :host github
+                 :repo "Artawower/claude-code.el")
+  :config
+  (claude-code-prompt-extensions-setup))
 
 (use-package copilot
   :defer 5
@@ -2360,8 +2507,8 @@ This is a variadic `cl-pushnew'."
  'display-buffer-alist
  '("\\*Copilot Chat.*"
    (my/smart-display-buffer-function)))
-  (setq copilot-chat-default-model "claude-3.7-sonnet")
-  (setq copilot-chat-commit-model "gpt-4o")
+  (setq copilot-chat-default-model "gpt-5")
+  (setq copilot-chat-commit-model "gpt-5")
 
   
   (setq copilot-chat-commit-prompt
@@ -2489,6 +2636,7 @@ Commit types:
 
 (use-package helpful
   :defer t
+  :hook (helpful-mode . meow-normal-mode)
   :bind (("C-h k" . helpful-key)
          ("C-h C-k" . helpful-key)
          ("C-h p" . describe-package)
@@ -3541,6 +3689,87 @@ Automatically creates parent directories if needed."
   (setq org-download-method 'directory)
   (setq org-download-link-format "[[./%s]]\n")
   (setq org-download-heading-lvl nil))
+
+(use-package org-smart-enter
+  :ensure (org-smart-enter :type git :host github :repo "artawower/org-smart-enter.el")
+  :hook (org-mode . org-smart-enter-mode)
+  :config
+  (org-smart-enter-setup))
+
+(use-package org-ql
+  :defer t
+  :config
+
+  
+  (defun my/org-ql-search-files (&optional files query-str)
+    "Display ONLY the files where QUERY matches.
+
+FILES is a list of files to search (defaults to `org-agenda-files` if nil).
+QUERY-STR is a string in `org-ql` query syntax, e.g.: (tags \"books\").
+
+When called interactively without FILES or QUERY-STR, prompts for a query.
+Results are displayed as a clickable list of file names in a dedicated buffer."
+    (interactive)
+    (let* ((files (or files (org-agenda-files)))
+           ;; Convert string to Lisp form
+           (sexp (or (and query-str (read query-str))
+                     (read (read-string "org-ql query: ")))))
+      (let* ((hits (org-ql-select files sexp
+                     :action (lambda () (buffer-file-name))))
+             ;; Remove duplicates while preserving order
+             (uniq (delete-dups (cl-copy-list hits)))
+             (buf (get-buffer-create "*org-ql files*")))
+        (with-current-buffer buf
+          (read-only-mode -1)
+          (erase-buffer)
+          (insert (format "Files matching %S: %d\n\n" sexp (length uniq)))
+          ;; Insert clickable buttons for each file
+          (dolist (f uniq)
+            (insert-text-button
+             (file-name-nondirectory f)
+             'follow-link t
+             'action (lambda (_btn) (find-file f)))
+            (insert "\n"))
+          (goto-char (point-min))
+          (read-only-mode 1)
+          (special-mode))
+        (display-buffer buf))))
+
+  ;; Org link handler: [[org-ql-files:(tags "books")]]
+  (org-link-set-parameters
+   "org-ql-files"
+   :follow (lambda (q) (my/org-ql-search-files nil q)))
+  
+  (org-link-set-parameters
+   "org-ql-roam"
+   :follow (lambda (query)
+             (org-ql-search (org-roam-list-files) (read query)))))
+
+(use-package raindrop
+  :defer t
+  :bind (("C-c r s" . raindrop-search))
+  :ensure (raindrop :host github :repo "artawower/raindrop.el"))
+
+(use-package raindrop-org
+  :after raindrop
+  :ensure nil
+  :defer t)
+
+(use-package raindrop-search
+  :ensure nil
+  :after raindrop
+  :bind (("C-c r s" . raindrop-search))
+  :defer t)
+
+(use-package ob-raindrop
+  :after (org raindrop)
+  :commands (org-babel-execute:raindrop)
+  :ensure nil
+  :init
+  (with-eval-after-load 'org
+    (add-to-list 'org-babel-load-languages '(raindrop . t))
+    (when (boundp 'org-babel-load-languages)
+      (org-babel-do-load-languages 'org-babel-load-languages org-babel-load-languages))))
 
 (use-package google-translate
   :defer 10
