@@ -104,7 +104,8 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
   ;; Enable :ensure use-package keyword.
   (elpaca-use-package-mode)
   ;; Assume :ensure t unless otherwise specified.
-  (setq elpaca-use-package-by-default t))
+  (setq elpaca-use-package-by-default t)
+  (setq use-package-compute-statistics t))
 
 ;; Block until current queue processed.
 (elpaca-wait)
@@ -126,15 +127,6 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 #+END_SRC
 
 * Core
-** Ensure all emacs lisp files are byte compiled
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package compile-angel
-  :ensure t
-  :demand t
-  :config
-  (setq compile-angel-verbose t)
-  (compile-angel-on-load-mode))
-#+END_SRC
 ** Debug init
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package benchmark-init
@@ -223,7 +215,7 @@ unreadable. Returns the names of envvars that were changed."
 (ignore-errors
   (when cnfg/private-config-path
     (load cnfg/private-config-path))
-  (elpaca-wait))
+  )
 #+END_SRC
 ** Setup external apps
 *** Browser
@@ -621,11 +613,15 @@ Another all formtter. Based on prettier and black
           (vue "https://github.com/ikatyang/tree-sitter-vue")
           (css "https://github.com/tree-sitter/tree-sitter-css")
           (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")
-          (markdown "https://github.com/ikatyang/tree-sitter-markdown")
-          (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "split_parser" "tree-sitter-markdown-inline/src")
+          ;; (markdown "https://github.com/ikatyang/tree-sitter-markdown")
+          ;; (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "split_parser" "tree-sitter-markdown-inline/src")
+          ;; (markdown-inline "https://github.com/ikatyang/tree-sitter-markdown"))
           ))
 
-  (setq treesit-font-lock-level 3))
+        (setq treesit-extra-load-path '("~/.emacs.d/tree-sitter"))
+        (setq treesit-font-lock-level 3)
+        (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
+        (add-to-list 'auto-mode-alist '("\\.markdown\\'" . markdown-mode)))
 #+END_SRC
 
 *** Tree sitterm automatic grammar installation
@@ -636,6 +632,10 @@ Another all formtter. Based on prettier and black
            :repo "noctuid/treesit-auto"
            :branch "bind-around-set-auto-mode-0")
   :config
+  ;; (setq treesit-auto-langs
+  ;;       (cl-remove-if (lambda (lang)
+  ;;                       (memq lang '(markdown markdown-inline)))
+  ;;                     treesit-auto-langs))
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
   ;; (global-treesit-auto-mode)
@@ -1185,7 +1185,7 @@ Function to open vterm in provided file directory
          ("C-c TAB r" . tab-rename)
          ("C-c TAB l" . tabspaces-restore-session))
   :custom
-  (tabspaces-use-filtered-buffers-as-default nil)
+  (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
   (tabspaces-include-buffers '())
@@ -1193,7 +1193,7 @@ Function to open vterm in provided file directory
   (tabspaces-todo-file-name "project-todo.org")
   ;; sessions
   (tabspaces-session nil)
-  (tabspaces-session-auto-restore t)
+  (tabspaces-session-auto-restore nil)
   (tab-bar-new-tab-choice nil))
 #+END_SRC
 ** Tab bar
@@ -1507,10 +1507,27 @@ Move to husky
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
+
+  ;; (add-hook 'minibuffer-setup-hook (lambda ()
+  ;;                                    (meow-insert-mode)
+  ;;           (define-key meow-normal-state-keymap [escape] 'meow-minibuffer-quit)
+  ;;           (define-key meow-insert-state-keymap [escape] 'meow-minibuffer-quit)
+  ;;           (define-key meow-insert-state-keymap (kbd "C-<return>") 'meow-normal-mode)))
+
+;; (add-hook 'minibuffer-setup-hook
+;;             (lambda ()
+;;               (meow-insert-mode)
+;;               (local-set-key (kbd "C-<return>") 
+;;                              (lambda () 
+;;                              (interactive)
+;;                                 (meow-normal-mode)
+;;                                 (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
+;;               (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
+
   (advice-add #'meow-change :after 
-            (lambda ()
-              (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
-                (indent-for-tab-command))))
+              (lambda ()
+                (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
+                  (indent-for-tab-command))))
   (meow-global-mode 1))
 #+END_SRC
 
@@ -1687,6 +1704,7 @@ Function for preserve better jump befor buffer changed only for prog mode.
   (advice-add 'meow-end-of-thing :around #'@better-jump-preserve-pos-advice)
   (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
   (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
+  (advice-add 'husky-lsp-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
   (advice-add 'find-file :before #'@better-jump-save-prog-mode-pos)
   (advice-add 'project-find-file :before #'@better-jump-save-prog-mode-pos)
@@ -1931,8 +1949,17 @@ Bookmark for navigation inside file
 
 ** Lsp-mode
 *** LSP-mode Core package
+Corfu fn
+#+BEGIN_SRC emacs-lisp :results silent
+  ;; Configuration for corfu
+  ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
+  (defun my/lsp-mode-setup-completion ()
+    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+          '(flex))) ;; Configure flex
+
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp
-(setq lsp-keymap-prefix "s-9")
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8579c6c7771bc65564302e76296fb48855c558a4")
@@ -1982,16 +2009,10 @@ Bookmark for navigation inside file
   :bind-keymap
   ("s-9" . lsp-command-map)
   :init
-  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
   (setq lsp-keymap-prefix "s-9")
   (setq lsp-volar-take-over-mode nil)
-
+  (setq lsp-keymap-prefix "s-9")
   (setq lsp-headerline-breadcrumb-enable nil)
-  ;; Configuration for corfu
-  ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
-  (defun my/lsp-mode-setup-completion ()
-    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-          '(flex))) ;; Configure flex
   :custom
   (lsp-log-io nil)
   (lsp-headerline-breadcrumb-enable nil)
@@ -2022,18 +2043,25 @@ Bookmark for navigation inside file
   (lsp-enable-file-watchers t)
   (lsp-file-watch-threshold 8000)
   (lsp-modeline-code-actions-mode nil)
-(lsp-modeline-code-actions-enable nil)
-(lsp-modeline-workspace-status-enable nil)
-(lsp-modeline-code-action-icons-enable nil)
-(lsp-modeline-diagnostics-mode nil)
-(lsp-modeline-diagnostics-enable nil)
+  (lsp-modeline-code-actions-enable nil)
+  (lsp-modeline-workspace-status-enable nil)
+  (lsp-modeline-code-action-icons-enable nil)
+  (lsp-modeline-diagnostics-mode nil)
+  (lsp-modeline-diagnostics-enable nil)
   :config
+  (setq lsp-clients-angular-language-server-command
+        '("node" "./node_modules/@angular/language-server/index.js"
+          "--stdio"
+          "--tsProbeLocations" "."
+          "--ngProbeLocations" "."))
+  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
   (setq lsp-auto-execute-action nil)
   (setq lsp-javascript-display-return-type-hints t)
   (setq lsp-json-schemas
         `[
           (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
           (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
+          (:fileMatch ["opencode.json"] :url "https://opencode.ai/config.json")
           ])
   (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
   ;; Eslint
@@ -2243,6 +2271,7 @@ Custom server:
 *** LSP. Pyright
 #+BEGIN_SRC emacs-lisp
 (use-package lsp-pyright
+  :defer t
   :hook (python-ts-mode . (lambda ()
                           (require 'lsp-pyright)
                           (lsp-deferred)))
@@ -2385,10 +2414,9 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
       ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
       :modes (scss-mode css-mode less-css-mode))
     
-    ;; Добавляем в список чекеров
-    (add-to-list 'flycheck-checkers 'stylelint))
+    (add-to-list 'flycheck-checkers 'stylelint)
+    (flycheck-add-next-checker 'lsp 'stylelint))
 
-  ;; Автоматическое включение stylelint в scss-mode
   (add-hook 'scss-mode-hook
             (lambda ()
               (flycheck-select-checker 'stylelint)
@@ -2793,6 +2821,12 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :custom
   (elisp-autofmt-python-bin "/opt/homebrew/bin/python3"))
 #+END_SRC
+*** Semantic highlight
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package semel
+  :ensure (semel :repo "eshelyaron/semel" :host github)
+  :hook (emacs-lisp-mode . semel-mode))
+#+END_SRC
 ** Clojure
 *** Main mode
 #+BEGIN_SRC emacs-lisp
@@ -2825,17 +2859,22 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 ** Angular
 #+BEGIN_SRC emacs-lisp 
 (use-package ng2-mode
-  :after typescript-mode
+  :after (typescript-mode lsp-mode)
   :config
   (setq lsp-clients-angular-language-server-command
-        '("node"
-          "--max-old-space-size=4096"
-          "/opt/homebrew/lib/node_modules/@angular/language-server"
-          "--ngProbeLocations"
-          "/opt/homebrew/lib/node_modules"
-          "--tsProbeLocations"
-          "/opt/homebrew/lib/node_modules"
-          "--stdio")))
+        '("node" "./node_modules/@angular/language-server/index.js"
+          "--stdio"
+          "--tsProbeLocations" "."
+          "--ngProbeLocations" "."))
+  ;; (setq lsp-clients-angular-language-server-command
+  ;;       '("volta" "run" "node"
+  ;;         "--max-old-space-size=4096"
+  ;;         "node_modules/@angular/language-server/index.js"
+  ;;         "--stdio"
+  ;;         "--ngProbeLocations" "node_modules"
+  ;;         "--tsProbeLocations" "node_modules"
+  ;;         "--tsProbeLocations" "/Users/darkawower/.volta/tools/image/packages/typescript/lib/node_modules"))
+  )
 #+END_SRC
 
 ** Js
@@ -3098,22 +3137,16 @@ Jq mode
   :defer t)
 #+END_SRC
 ** Markdown
-*** Markdown functions
-#+BEGIN_SRC emacs-lisp :results silent
-  (defun my/markdown-outline-setup ()
-    (outline-minor-mode 1)
-    (setq-local outline-regexp "^\\(#+\\) ")
-    (setq-local outline-level
-        (lambda ()
-          (length (match-string 1)))))
-#+END_SRC
-*** Mode
+*** COMMENT Mode
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package markdown-mode
+  :mode (("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode))
+  :after tree-sitter
   :hook
   (markdown-ts-mode . markdown-mode)
-  ;; (markdown-mode . nb/markdown-unhighlight)
-  ;; (markdown-mode . #'my/markdown-outline-setup)
+  (markdown-mode . nb/markdown-unhighlight)
+  (markdown-mode . #'my/markdown-outline-setup)
   :bind
   (:map markdown-ts-mode-map
         ("C-h ]" . markdown-next-visible-heading)
@@ -3164,6 +3197,15 @@ Jq mode
   (markdown-header-face-4 ((t (:height 1.15 :foreground "#BF616A" :weight bold :inherit markdown-header-face))))
   (markdown-header-face-5 ((t (:height 1.1  :foreground "#b48ead" :weight bold :inherit markdown-header-face))))
   (markdown-header-face-6 ((t (:height 1.05 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))))
+#+END_SRC
+*** Outline
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/markdown-outline-setup ()
+  (setq-local outline-regexp "^\\(#{1,6}\\)\\s-+")
+  (setq-local outline-level (lambda () (looking-at outline-regexp) (length (match-string 1))))
+  (outline-minor-mode 1))
+(add-hook 'markdown-ts-mode-hook #'my/markdown-outline-setup)
+(add-hook 'markdown-mode-hook #'my/markdown-outline-setup)
 #+END_SRC
 *** Function for generating table of content TOC
 #+BEGIN_SRC emacs-lisp
@@ -3220,6 +3262,10 @@ Jq mode
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
 #+END_SRC
+** Fish
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package fish-mode :defer t)
+#+END_SRC
 * AI
 ** COMMENT Claude code ide
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3274,6 +3320,15 @@ Jq mode
                  :repo "Artawower/claude-code.el")
   :config
   (claude-code-prompt-extensions-setup))
+#+END_SRC
+
+** COMMENT Eca. Multiple AI tools
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eca
+  :defer t
+  :bind (:map eca-chat-mode-map
+              ("C-j" . eca-chat-go-to-next-user-message)
+              ("C-k" . eca-chat-go-to-prev-user-message)))
 #+END_SRC
 
 ** Copilot
@@ -3479,10 +3534,6 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
   (atomic-chrome-start-server))
 #+end_src
 
-#+BEGIN_SRC emacs-lisp
-(elpaca-wait)
-#+END_SRC
-
 * UI/UX
 ** No resize when completion
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3537,42 +3588,29 @@ Disable scrolls
 #+END_SRC
 ** Fonts
 #+BEGIN_SRC emacs-lisp
+(defun my/apply-fonts-to-frame (frame)
+  (with-selected-frame frame
+    (when (display-graphic-p frame)
+      (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
+      (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
+      (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
+      (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
+      (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 100)
+      (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 100)
+      (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 100)
+      (setq-local line-spacing 0.2)
+      (when (fboundp 'set-fontset-font)
+        (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend)))))
+
 (use-package font-core
   :ensure nil
   :demand t
-  ;; :init
-  ;; (global-font-lock-mode)
   :config
   (setq @font-height 14)
-  
-
-  ;; Frame fonts - using concat directly
-  (set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
-  ;; (set-frame-font  "Monaspace Neon frozen 16" nil t)
-  ;; (set-frame-font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) nil t)
-
-  ;; Custom faces with direct font specifications
-  (let ((funny-font "Monaspace Radon Frozen"))
-    (custom-set-faces
-     `(font-lock-string-face ((t (:family ,funny-font :height 1.0))))
-     `(font-lock-comment-face ((t (:family ,funny-font :height 1.0))))
-     `(font-lock-keyword-face ((t (:family ,funny-font :height 1.0))))))
-
-  (setq-default line-spacing 0.2)
-  ;; (setq frame-resize-pixelwise t)
-  (global-font-lock-mode)
-  
-  ;; Setting face attributes with direct concat
-  ;; (set-face-attribute 'font-lock-string-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  ;; (set-face-attribute 'font-lock-comment-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  ;; (set-face-attribute 'font-lock-keyword-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  )
+  (defconst my/font-default "Monaspace Neon Frozen")
+  (defconst my/font-funny   "Monaspace Radon Frozen")
+  (add-hook 'after-make-frame-functions #'my/apply-fonts-to-frame)
+  (my/apply-fonts-to-frame (selected-frame)))
 
 (setq-default line-spacing 1)
 #+END_SRC
@@ -3774,6 +3812,7 @@ Very pretty titlebar for Mac os
 *** Auto dark mode
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package auto-dark
+  :defer t
   :custom
   (auto-dark-dark-theme 'catppuccin)
   (auto-dark-light-theme 'catppuccin)
@@ -3782,6 +3821,7 @@ Very pretty titlebar for Mac os
   (auto-dark-allow-osascript nil)
   (auto-dark-allow-powershell nil)
   :hook
+  (after-init . auto-dark-mode)
   (auto-dark-dark-mode
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
@@ -4239,13 +4279,20 @@ Function for search in buffer depends or visual or normal line
 *** COMMENT Consult gh
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package consult-gh
-  :ensure (consult-gh :type git :host github :repo "armindarvish/consult-gh")
   :after consult
   :config
   (require 'consult-gh-transient)
-  (require 'consult-gh-embark)
-  (consult-gh-embark-mode +1)
   (consult-gh-forge-mode +1))
+#+END_SRC
+
+
+Embark
+
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package consult-gh-embark
+  :after consult-gh
+  :config
+  (consult-gh-embark-mode +1))
 #+END_SRC
 ** Bulk grep operation
 #+BEGIN_SRC emacs-lisp 
@@ -4345,6 +4392,7 @@ Dependencies
   :hook
   (magit-process-mode . compilation-minor-mode)
   :config
+  (setq magit-diff-refine-hunk t)
   (setq magit-process-timestamp-format "%H:%M")
   (setq magit-display-buffer-function #'magit-display-buffer-fullcolumn-most-v1)
   ;; Reset magit numbers
@@ -4364,7 +4412,6 @@ Dependencies
   (setcdr magit-process-mode-map (cdr (make-keymap)))
   (set-keymap-parent magit-process-mode-map special-mode-map)
   (setq magit-process-finish-apply-ansi-colors t))
-(elpaca-wait)
 #+END_SRC
 
 ** Magit todos
@@ -4406,7 +4453,8 @@ Improved styles for git changes
 ** Blamer
 #+BEGIN_SRC emacs-lisp
 (use-package blamer
-  :defer 2
+  :defer t 
+  :hook ((prog-mode . blamer-mode))
   ;; :ensure (:type git :host github :repo "artawower/blamer.el" :branch "fix/emacs-buffers-spawns")
   :bind (("C-c b i" . blamer-show-commit-info)
          ("C-c b h" . (lambda () (interactive) (blamer-show-commit-info 'visual)))
@@ -4426,7 +4474,6 @@ Improved styles for git changes
                    :height 0.8
                    :background unspecified)))
   :config
-  (tooltip-mode)
   (setq blamer-tooltip-function 'blamer-tooltip-commit-message)
 
 
@@ -4443,20 +4490,50 @@ Improved styles for git changes
         (forge-browse-commit commit-hash))))
 
   (setq blamer-bindings '(("<mouse-3>" . blamer-callback-open-remote)
-                          ("<mouse-1>" . blamer-callback-show-commit-diff)))
-
-  (global-blamer-mode 1))
+                          ("<mouse-1>" . blamer-callback-show-commit-diff))))
 #+END_SRC
 ** Diff hl
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package diff-hl
   :ensure nil
-  :init
+  :config
   (set-face-attribute 'diff-added nil :extend t :background "light green")
   (set-face-attribute 'diff-removed nil :extend t :background "tomato")
   (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
   (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
   )
+#+END_SRC
+
+** Ediff
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package ediff
+  :ensure nil
+  :defer t
+  :config
+  ;; ediff inherit from diff-added, diff removed and diff base
+  (setq ediff-window-setup-function 'ediff-setup-windows-plain)
+  (setq ediff-split-window-function #'split-window-horizontally)
+
+  (setq ediff-highlight-all-diffs t)
+
+  (set-face-attribute 'ediff-current-diff-A nil
+                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-current-diff-B nil
+                      :background "#d6ffd6" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-odd-diff-A nil
+                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-odd-diff-B nil
+                      :background "#d6ffd6" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-odd-diff-C nil
+                      :background "#fff4cc" :foreground "#7a4e00" :extend t)
+
+  (set-face-attribute 'ediff-fine-diff-A nil :background "#ff4d4d" :foreground "white" :weight 'bold :extend t)
+(set-face-attribute 'ediff-fine-diff-B nil :background "#33cc33" :foreground "white" :weight 'bold :extend t)
+(set-face-attribute 'ediff-fine-diff-C nil :background "#ffcc00" :foreground "black" :weight 'bold :extend t)
+
+  (set-face-attribute 'ediff-even-diff-A nil :background "#ffbfbf" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-even-diff-B nil :background "#bfffbf" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-even-diff-C nil :background "#ffe680" :foreground "#7a4e00" :extend t))
 #+END_SRC
 
 ** Timemachine
@@ -4607,6 +4684,7 @@ Automatically creates parent directories if needed."
   ;; :demand t
   :mode (("\\.org$" . org-mode))
   :ensure nil
+  :after meow
   :hook
   (org-mode . org-indent-mode)
   (org-mode . (lambda () (setq corfu-mode -1)))
@@ -4920,12 +4998,11 @@ My own package for publish roam files
   (org-smart-enter-setup))
 #+END_SRC
 
-** Org ql
+** COMMENT Org ql
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-ql
   :defer t
   :config
-
   
   (defun my/org-ql-search-files (&optional files query-str)
     "Display ONLY the files where QUERY matches.
@@ -5050,16 +5127,6 @@ Ob raindrop (dynamic block)
   :defer 2
   :config
   (global-wakatime-mode))
-#+END_SRC
-*** Ui 
-#+BEGIN_SRC emacs-lisp 
-(use-package wakatime-ui
-  :after wakatime-mode
-  :ensure (wakatime-ui :host github :repo "Artawower/wakatime-ui.el")
-  :custom
-  (wakatim-ui-schedule-url "https://wakatime.com/share/@darkawower/af1bfb85-2c8b-44e4-9873-c4a91b512e8d.png")
-  :config
-  (wakatime-ui-mode))
 #+END_SRC
 * Remote
 * Emacs for everything
@@ -5304,5 +5371,5 @@ Override autosave function. What is the sense save buffer whic doesn't exist???
 #+END_SRC
 * End config
 #+BEGIN_SRC emacs-lisp :results silent
-(elpaca-wait)
+;; (elpaca-wait)
 #+END_SRC

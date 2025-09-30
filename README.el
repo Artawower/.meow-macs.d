@@ -65,7 +65,8 @@
   ;; Enable :ensure use-package keyword.
   (elpaca-use-package-mode)
   ;; Assume :ensure t unless otherwise specified.
-  (setq elpaca-use-package-by-default t))
+  (setq elpaca-use-package-by-default t)
+  (setq use-package-compute-statistics t))
 
 ;; Block until current queue processed.
 (elpaca-wait)
@@ -82,13 +83,6 @@
                           ))
 (customize-set-variable 'package-enable-at-startup nil)
 ;; (package-initialize)
-
-(use-package compile-angel
-  :ensure t
-  :demand t
-  :config
-  (setq compile-angel-verbose t)
-  (compile-angel-on-load-mode))
 
 (use-package benchmark-init
   :ensure t
@@ -164,7 +158,7 @@ unreadable. Returns the names of envvars that were changed."
 (ignore-errors
   (when cnfg/private-config-path
     (load cnfg/private-config-path))
-  (elpaca-wait))
+  )
 
 (when (eq system-type 'darwin)
   (setq browse-url-firefox-program nil)
@@ -462,11 +456,15 @@ This is a variadic `cl-pushnew'."
           (vue "https://github.com/ikatyang/tree-sitter-vue")
           (css "https://github.com/tree-sitter/tree-sitter-css")
           (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")
-          (markdown "https://github.com/ikatyang/tree-sitter-markdown")
-          (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "split_parser" "tree-sitter-markdown-inline/src")
+          ;; (markdown "https://github.com/ikatyang/tree-sitter-markdown")
+          ;; (markdown-inline "https://github.com/tree-sitter-grammars/tree-sitter-markdown" "split_parser" "tree-sitter-markdown-inline/src")
+          ;; (markdown-inline "https://github.com/ikatyang/tree-sitter-markdown"))
           ))
 
-  (setq treesit-font-lock-level 3))
+        (setq treesit-extra-load-path '("~/.emacs.d/tree-sitter"))
+        (setq treesit-font-lock-level 3)
+        (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
+        (add-to-list 'auto-mode-alist '("\\.markdown\\'" . markdown-mode)))
 
 (use-package treesit-auto
   :ensure (treesit-auto
@@ -474,6 +472,10 @@ This is a variadic `cl-pushnew'."
            :repo "noctuid/treesit-auto"
            :branch "bind-around-set-auto-mode-0")
   :config
+  ;; (setq treesit-auto-langs
+  ;;       (cl-remove-if (lambda (lang)
+  ;;                       (memq lang '(markdown markdown-inline)))
+  ;;                     treesit-auto-langs))
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
   ;; (global-treesit-auto-mode)
@@ -896,7 +898,7 @@ This is a variadic `cl-pushnew'."
          ("C-c TAB r" . tab-rename)
          ("C-c TAB l" . tabspaces-restore-session))
   :custom
-  (tabspaces-use-filtered-buffers-as-default nil)
+  (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
   (tabspaces-include-buffers '())
@@ -904,7 +906,7 @@ This is a variadic `cl-pushnew'."
   (tabspaces-todo-file-name "project-todo.org")
   ;; sessions
   (tabspaces-session nil)
-  (tabspaces-session-auto-restore t)
+  (tabspaces-session-auto-restore nil)
   (tab-bar-new-tab-choice nil))
 
 (use-package tab-bar
@@ -1167,10 +1169,27 @@ This is a variadic `cl-pushnew'."
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
+
+  ;; (add-hook 'minibuffer-setup-hook (lambda ()
+  ;;                                    (meow-insert-mode)
+  ;;           (define-key meow-normal-state-keymap [escape] 'meow-minibuffer-quit)
+  ;;           (define-key meow-insert-state-keymap [escape] 'meow-minibuffer-quit)
+  ;;           (define-key meow-insert-state-keymap (kbd "C-<return>") 'meow-normal-mode)))
+
+;; (add-hook 'minibuffer-setup-hook
+;;             (lambda ()
+;;               (meow-insert-mode)
+;;               (local-set-key (kbd "C-<return>") 
+;;                              (lambda () 
+;;                              (interactive)
+;;                                 (meow-normal-mode)
+;;                                 (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
+;;               (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
+
   (advice-add #'meow-change :after 
-            (lambda ()
-              (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
-                (indent-for-tab-command))))
+              (lambda ()
+                (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
+                  (indent-for-tab-command))))
   (meow-global-mode 1))
 
 (use-package meow-tree-sitter
@@ -1315,6 +1334,7 @@ This is a variadic `cl-pushnew'."
   (advice-add 'meow-end-of-thing :around #'@better-jump-preserve-pos-advice)
   (advice-add 'avy-goto-word-1 :around #'@better-jump-preserve-pos-advice)
   (advice-add 'husky-actions-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
+  (advice-add 'husky-lsp-find-definition :before (lambda () (call-interactively #'better-jumper-set-jump)))
   (advice-add 'evil-jump-item :around #'@better-jump-preserve-pos-advice)
   (advice-add 'find-file :before #'@better-jump-save-prog-mode-pos)
   (advice-add 'project-find-file :before #'@better-jump-save-prog-mode-pos)
@@ -1356,7 +1376,12 @@ This is a variadic `cl-pushnew'."
   :config
   (ultra-scroll-mode 1))
 
-(setq lsp-keymap-prefix "s-9")
+;; Configuration for corfu
+;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
+(defun my/lsp-mode-setup-completion ()
+  (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+        '(flex))) ;; Configure flex
+
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8579c6c7771bc65564302e76296fb48855c558a4")
@@ -1406,16 +1431,10 @@ This is a variadic `cl-pushnew'."
   :bind-keymap
   ("s-9" . lsp-command-map)
   :init
-  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
   (setq lsp-keymap-prefix "s-9")
   (setq lsp-volar-take-over-mode nil)
-
+  (setq lsp-keymap-prefix "s-9")
   (setq lsp-headerline-breadcrumb-enable nil)
-  ;; Configuration for corfu
-  ;; https://github.com/minad/corfu/wiki#configuring-corfu-for-lsp-mode
-  (defun my/lsp-mode-setup-completion ()
-    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-          '(flex))) ;; Configure flex
   :custom
   (lsp-log-io nil)
   (lsp-headerline-breadcrumb-enable nil)
@@ -1446,18 +1465,25 @@ This is a variadic `cl-pushnew'."
   (lsp-enable-file-watchers t)
   (lsp-file-watch-threshold 8000)
   (lsp-modeline-code-actions-mode nil)
-(lsp-modeline-code-actions-enable nil)
-(lsp-modeline-workspace-status-enable nil)
-(lsp-modeline-code-action-icons-enable nil)
-(lsp-modeline-diagnostics-mode nil)
-(lsp-modeline-diagnostics-enable nil)
+  (lsp-modeline-code-actions-enable nil)
+  (lsp-modeline-workspace-status-enable nil)
+  (lsp-modeline-code-action-icons-enable nil)
+  (lsp-modeline-diagnostics-mode nil)
+  (lsp-modeline-diagnostics-enable nil)
   :config
+  (setq lsp-clients-angular-language-server-command
+        '("node" "./node_modules/@angular/language-server/index.js"
+          "--stdio"
+          "--tsProbeLocations" "."
+          "--ngProbeLocations" "."))
+  (define-key lsp-mode-map (kbd "s-9") lsp-command-map)
   (setq lsp-auto-execute-action nil)
   (setq lsp-javascript-display-return-type-hints t)
   (setq lsp-json-schemas
         `[
           (:fileMatch ["ng-openapi-gen.json"] :url "https://raw.githubusercontent.com/cyclosproject/ng-openapi-gen/master/ng-openapi-gen-schema.json")
           (:fileMatch ["package.json"] :url "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/package.json")
+          (:fileMatch ["opencode.json"] :url "https://opencode.ai/config.json")
           ])
   (set-face-attribute 'lsp-face-highlight-read nil :foreground "#61AFEF" :bold t :underline nil)
   ;; Eslint
@@ -1653,6 +1679,7 @@ This is a variadic `cl-pushnew'."
   (add-hook 'before-save-hook 'lsp-tailwindcss-rustywind-before-save))
 
 (use-package lsp-pyright
+  :defer t
   :hook (python-ts-mode . (lambda ()
                           (require 'lsp-pyright)
                           (lsp-deferred)))
@@ -1776,10 +1803,9 @@ This is a variadic `cl-pushnew'."
       ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
       :modes (scss-mode css-mode less-css-mode))
     
-    ;; Добавляем в список чекеров
-    (add-to-list 'flycheck-checkers 'stylelint))
+    (add-to-list 'flycheck-checkers 'stylelint)
+    (flycheck-add-next-checker 'lsp 'stylelint))
 
-  ;; Автоматическое включение stylelint в scss-mode
   (add-hook 'scss-mode-hook
             (lambda ()
               (flycheck-select-checker 'stylelint)
@@ -2054,6 +2080,10 @@ This is a variadic `cl-pushnew'."
   :custom
   (elisp-autofmt-python-bin "/opt/homebrew/bin/python3"))
 
+(use-package semel
+  :ensure (semel :repo "eshelyaron/semel" :host github)
+  :hook (emacs-lisp-mode . semel-mode))
+
 (use-package clojure-mode
   :hook ((clojure-mode . paren-face-mode))
   :defer t)
@@ -2073,17 +2103,22 @@ This is a variadic `cl-pushnew'."
   (setq typescript-indent-level 2))
 
 (use-package ng2-mode
-  :after typescript-mode
+  :after (typescript-mode lsp-mode)
   :config
   (setq lsp-clients-angular-language-server-command
-        '("node"
-          "--max-old-space-size=4096"
-          "/opt/homebrew/lib/node_modules/@angular/language-server"
-          "--ngProbeLocations"
-          "/opt/homebrew/lib/node_modules"
-          "--tsProbeLocations"
-          "/opt/homebrew/lib/node_modules"
-          "--stdio")))
+        '("node" "./node_modules/@angular/language-server/index.js"
+          "--stdio"
+          "--tsProbeLocations" "."
+          "--ngProbeLocations" "."))
+  ;; (setq lsp-clients-angular-language-server-command
+  ;;       '("volta" "run" "node"
+  ;;         "--max-old-space-size=4096"
+  ;;         "node_modules/@angular/language-server/index.js"
+  ;;         "--stdio"
+  ;;         "--ngProbeLocations" "node_modules"
+  ;;         "--tsProbeLocations" "node_modules"
+  ;;         "--tsProbeLocations" "/Users/darkawower/.volta/tools/image/packages/typescript/lib/node_modules"))
+  )
 
 (use-package js2-mode
   :defer t
@@ -2270,67 +2305,11 @@ This is a variadic `cl-pushnew'."
   :defer t)
 
 (defun my/markdown-outline-setup ()
-  (outline-minor-mode 1)
-  (setq-local outline-regexp "^\\(#+\\) ")
-  (setq-local outline-level
-      (lambda ()
-        (length (match-string 1)))))
-
-(use-package markdown-mode
-  :hook
-  (markdown-ts-mode . markdown-mode)
-  ;; (markdown-mode . nb/markdown-unhighlight)
-  ;; (markdown-mode . #'my/markdown-outline-setup)
-  :bind
-  (:map markdown-ts-mode-map
-        ("C-h ]" . markdown-next-visible-heading)
-        ("C-h [" . markdown-previous-visible-heading)
-        :map markdown-mode-map
-        ("C-h ]" . markdown-next-visible-heading)
-        ("C-h [" . markdown-previous-visible-heading))
-  :config
-  (add-hook 'markdown-ts-mode-hook #'my/markdown-outline-setup)
-  (add-hook 'markdown-mode-hook #'my/markdown-outline-setup)
-
-  (defvar nb/current-line '(0 . 0)
-    "(start . end) of current line in current buffer")
-  (make-variable-buffer-local 'nb/current-line)
-
-  (defun nb/unhide-current-line (limit)
-    "Font-lock function"
-    (let ((start (max (point) (car nb/current-line)))
-          (end (min limit (cdr nb/current-line))))
-      (when (< start end)
-        (remove-text-properties start end
-                                '(invisible t display "" composition ""))
-        (goto-char limit)
-        t)))
-
-  (defun nb/refontify-on-linemove ()
-    "Post-command-hook"
-    (let* ((start (line-beginning-position))
-           (end (line-beginning-position 2))
-           (needs-update (not (equal start (car nb/current-line)))))
-      (setq nb/current-line (cons start end))
-      (when needs-update
-        (font-lock-fontify-block 3))))
-
-  (defun nb/markdown-unhighlight ()
-    "Enable markdown concealling"
-    (interactive)
-    (markdown-toggle-markup-hiding 'toggle)
-    (font-lock-add-keywords nil '((nb/unhide-current-line)) t)
-    (add-hook 'post-command-hook #'nb/refontify-on-linemove nil t))
-  
-  (add-hook 'markdown-mode-hook #'nb/markdown-unhighlight)
-  :custom-face
-  (markdown-header-delimiter-face ((t (:foreground "#616161" :height 0.9))))
-  (markdown-header-face-1 ((t (:height 1.6  :foreground "#A3BE8C" :weight extra-bold :inherit markdown-header-face))))
-  (markdown-header-face-2 ((t (:height 1.4  :foreground "#EBCB8B" :weight extra-bold :inherit markdown-header-face))))
-  (markdown-header-face-3 ((t (:height 1.2  :foreground "#D08770" :weight extra-bold :inherit markdown-header-face))))
-  (markdown-header-face-4 ((t (:height 1.15 :foreground "#BF616A" :weight bold :inherit markdown-header-face))))
-  (markdown-header-face-5 ((t (:height 1.1  :foreground "#b48ead" :weight bold :inherit markdown-header-face))))
-  (markdown-header-face-6 ((t (:height 1.05 :foreground "#5e81ac" :weight semi-bold :inherit markdown-header-face)))))
+  (setq-local outline-regexp "^\\(#{1,6}\\)\\s-+")
+  (setq-local outline-level (lambda () (looking-at outline-regexp) (length (match-string 1))))
+  (outline-minor-mode 1))
+(add-hook 'markdown-ts-mode-hook #'my/markdown-outline-setup)
+(add-hook 'markdown-mode-hook #'my/markdown-outline-setup)
 
 (defun @markdown-toc ()
   "Extract level 2 and 3 headings from the current Markdown buffer.
@@ -2378,6 +2357,8 @@ This is a variadic `cl-pushnew'."
   (markdown-xwidget-github-theme "light")
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
+
+(use-package fish-mode :defer t)
 
 ;; for eat terminal backend:
 (use-package eat
@@ -2595,42 +2576,29 @@ Commit types:
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
+(defun my/apply-fonts-to-frame (frame)
+  (with-selected-frame frame
+    (when (display-graphic-p frame)
+      (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
+      (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
+      (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
+      (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
+      (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 100)
+      (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 100)
+      (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 100)
+      (setq-local line-spacing 0.2)
+      (when (fboundp 'set-fontset-font)
+        (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend)))))
+
 (use-package font-core
   :ensure nil
   :demand t
-  ;; :init
-  ;; (global-font-lock-mode)
   :config
   (setq @font-height 14)
-  
-
-  ;; Frame fonts - using concat directly
-  (set-frame-font (concat "Monaspace Neon frozen " (number-to-string @font-height)) nil t)
-  ;; (set-frame-font  "Monaspace Neon frozen 16" nil t)
-  ;; (set-frame-font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) nil t)
-
-  ;; Custom faces with direct font specifications
-  (let ((funny-font "Monaspace Radon Frozen"))
-    (custom-set-faces
-     `(font-lock-string-face ((t (:family ,funny-font :height 1.0))))
-     `(font-lock-comment-face ((t (:family ,funny-font :height 1.0))))
-     `(font-lock-keyword-face ((t (:family ,funny-font :height 1.0))))))
-
-  (setq-default line-spacing 0.2)
-  ;; (setq frame-resize-pixelwise t)
-  (global-font-lock-mode)
-  
-  ;; Setting face attributes with direct concat
-  ;; (set-face-attribute 'font-lock-string-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  ;; (set-face-attribute 'font-lock-comment-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  ;; (set-face-attribute 'font-lock-keyword-face nil 
-  ;;                     :font (concat "JetBrainsMono Nerd Font " (number-to-string @font-height)) 
-  ;;                     :italic t)
-  )
+  (defconst my/font-default "Monaspace Neon Frozen")
+  (defconst my/font-funny   "Monaspace Radon Frozen")
+  (add-hook 'after-make-frame-functions #'my/apply-fonts-to-frame)
+  (my/apply-fonts-to-frame (selected-frame)))
 
 (setq-default line-spacing 1)
 
@@ -2753,6 +2721,7 @@ Commit types:
                                        (list :foreground (catppuccin-get-color 'blue))))))
 
 (use-package auto-dark
+  :defer t
   :custom
   (auto-dark-dark-theme 'catppuccin)
   (auto-dark-light-theme 'catppuccin)
@@ -2761,6 +2730,7 @@ Commit types:
   (auto-dark-allow-osascript nil)
   (auto-dark-allow-powershell nil)
   :hook
+  (after-init . auto-dark-mode)
   (auto-dark-dark-mode
    . (lambda () (@set-catppucin-theme)))
   (auto-dark-light-mode
@@ -3228,6 +3198,7 @@ Commit types:
   :hook
   (magit-process-mode . compilation-minor-mode)
   :config
+  (setq magit-diff-refine-hunk t)
   (setq magit-process-timestamp-format "%H:%M")
   (setq magit-display-buffer-function #'magit-display-buffer-fullcolumn-most-v1)
   ;; Reset magit numbers
@@ -3247,7 +3218,6 @@ Commit types:
   (setcdr magit-process-mode-map (cdr (make-keymap)))
   (set-keymap-parent magit-process-mode-map special-mode-map)
   (setq magit-process-finish-apply-ansi-colors t))
-(elpaca-wait)
 
 (use-package magit-todos
   :after magit
@@ -3276,7 +3246,8 @@ Commit types:
   (define-fringe-bitmap 'git-gutter-fr:deleted [128 192 224 240] nil nil 'bottom))
 
 (use-package blamer
-  :defer 2
+  :defer t 
+  :hook ((prog-mode . blamer-mode))
   ;; :ensure (:type git :host github :repo "artawower/blamer.el" :branch "fix/emacs-buffers-spawns")
   :bind (("C-c b i" . blamer-show-commit-info)
          ("C-c b h" . (lambda () (interactive) (blamer-show-commit-info 'visual)))
@@ -3296,7 +3267,6 @@ Commit types:
                    :height 0.8
                    :background unspecified)))
   :config
-  (tooltip-mode)
   (setq blamer-tooltip-function 'blamer-tooltip-commit-message)
 
 
@@ -3313,18 +3283,45 @@ Commit types:
         (forge-browse-commit commit-hash))))
 
   (setq blamer-bindings '(("<mouse-3>" . blamer-callback-open-remote)
-                          ("<mouse-1>" . blamer-callback-show-commit-diff)))
-
-  (global-blamer-mode 1))
+                          ("<mouse-1>" . blamer-callback-show-commit-diff))))
 
 (use-package diff-hl
   :ensure nil
-  :init
+  :config
   (set-face-attribute 'diff-added nil :extend t :background "light green")
   (set-face-attribute 'diff-removed nil :extend t :background "tomato")
   (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
   (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
   )
+
+(use-package ediff
+  :ensure nil
+  :defer t
+  :config
+  ;; ediff inherit from diff-added, diff removed and diff base
+  (setq ediff-window-setup-function 'ediff-setup-windows-plain)
+  (setq ediff-split-window-function #'split-window-horizontally)
+
+  (setq ediff-highlight-all-diffs t)
+
+  (set-face-attribute 'ediff-current-diff-A nil
+                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-current-diff-B nil
+                      :background "#d6ffd6" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-odd-diff-A nil
+                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-odd-diff-B nil
+                      :background "#d6ffd6" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-odd-diff-C nil
+                      :background "#fff4cc" :foreground "#7a4e00" :extend t)
+
+  (set-face-attribute 'ediff-fine-diff-A nil :background "#ff4d4d" :foreground "white" :weight 'bold :extend t)
+(set-face-attribute 'ediff-fine-diff-B nil :background "#33cc33" :foreground "white" :weight 'bold :extend t)
+(set-face-attribute 'ediff-fine-diff-C nil :background "#ffcc00" :foreground "black" :weight 'bold :extend t)
+
+  (set-face-attribute 'ediff-even-diff-A nil :background "#ffbfbf" :foreground "#8b0000" :extend t)
+  (set-face-attribute 'ediff-even-diff-B nil :background "#bfffbf" :foreground "#004d00" :extend t)
+  (set-face-attribute 'ediff-even-diff-C nil :background "#ffe680" :foreground "#7a4e00" :extend t))
 
 (use-package git-timemachine
   :defer t
@@ -3429,6 +3426,7 @@ Automatically creates parent directories if needed."
   ;; :demand t
   :mode (("\\.org$" . org-mode))
   :ensure nil
+  :after meow
   :hook
   (org-mode . org-indent-mode)
   (org-mode . (lambda () (setq corfu-mode -1)))
@@ -3696,55 +3694,6 @@ Automatically creates parent directories if needed."
   :config
   (org-smart-enter-setup))
 
-(use-package org-ql
-  :defer t
-  :config
-
-  
-  (defun my/org-ql-search-files (&optional files query-str)
-    "Display ONLY the files where QUERY matches.
-
-FILES is a list of files to search (defaults to `org-agenda-files` if nil).
-QUERY-STR is a string in `org-ql` query syntax, e.g.: (tags \"books\").
-
-When called interactively without FILES or QUERY-STR, prompts for a query.
-Results are displayed as a clickable list of file names in a dedicated buffer."
-    (interactive)
-    (let* ((files (or files (org-agenda-files)))
-           ;; Convert string to Lisp form
-           (sexp (or (and query-str (read query-str))
-                     (read (read-string "org-ql query: ")))))
-      (let* ((hits (org-ql-select files sexp
-                     :action (lambda () (buffer-file-name))))
-             ;; Remove duplicates while preserving order
-             (uniq (delete-dups (cl-copy-list hits)))
-             (buf (get-buffer-create "*org-ql files*")))
-        (with-current-buffer buf
-          (read-only-mode -1)
-          (erase-buffer)
-          (insert (format "Files matching %S: %d\n\n" sexp (length uniq)))
-          ;; Insert clickable buttons for each file
-          (dolist (f uniq)
-            (insert-text-button
-             (file-name-nondirectory f)
-             'follow-link t
-             'action (lambda (_btn) (find-file f)))
-            (insert "\n"))
-          (goto-char (point-min))
-          (read-only-mode 1)
-          (special-mode))
-        (display-buffer buf))))
-
-  ;; Org link handler: [[org-ql-files:(tags "books")]]
-  (org-link-set-parameters
-   "org-ql-files"
-   :follow (lambda (q) (my/org-ql-search-files nil q)))
-  
-  (org-link-set-parameters
-   "org-ql-roam"
-   :follow (lambda (query)
-             (org-ql-search (org-roam-list-files) (read query)))))
-
 (use-package raindrop
   :defer t
   :bind (("C-c r s" . raindrop-search))
@@ -3803,14 +3752,6 @@ Results are displayed as a clickable list of file names in a dedicated buffer."
   :defer 2
   :config
   (global-wakatime-mode))
-
-(use-package wakatime-ui
-  :after wakatime-mode
-  :ensure (wakatime-ui :host github :repo "Artawower/wakatime-ui.el")
-  :custom
-  (wakatim-ui-schedule-url "https://wakatime.com/share/@darkawower/af1bfb85-2c8b-44e4-9873-c4a91b512e8d.png")
-  :config
-  (wakatime-ui-mode))
 
 (use-package tramp
   :ensure nil
@@ -3994,4 +3935,4 @@ Results are displayed as a clickable list of file names in a dedicated buffer."
   ;; (global-husky-treesit)
   )
 
-(elpaca-wait)
+;; (elpaca-wait)
