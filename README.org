@@ -269,7 +269,6 @@ Currently i don't use it. But when necessary i just eval this code
     (call-interactively 'find-file)))
 #+END_SRC
 
-
 ** Push multiple values
 #+BEGIN_SRC emacs-lisp 
 (defmacro pushnew! (place &rest values)
@@ -290,7 +289,6 @@ This is a variadic `cl-pushnew'."
   (interactive "p")
   (kill-line (- 1 arg)))
 #+END_SRC
-
 
 ** Copy region or buffer as markdown snippet
 TODO: move to package
@@ -356,6 +354,74 @@ TODO: move to package
     (message "Copied as Markdown code block: %s (%s)" rel-path lang)))
 #+END_SRC
 
+** Copy with AI contenxt
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/copy-with-ai-context (beg end)
+  "Copy selected region with context for AI tools.
+
+The format is:
+<project-related-path>, line numbers <from>:<to>
+```<lang>
+<code>
+```"
+  (interactive "r")
+  (unless (use-region-p)
+    (user-error "No active region"))
+  (let* ((rb (min beg end))
+         (re (max beg end))
+         (from (line-number-at-pos rb))
+         (to (line-number-at-pos
+              (if (and (> re rb)
+                       (eq (char-before re) ?\n))
+                  (1- re)
+                re)))
+         (code (buffer-substring-no-properties rb re))
+         ;; Determine language from file extension or major mode
+         (ext  (and buffer-file-name (downcase (or (file-name-extension buffer-file-name) ""))))
+         (mode (downcase (replace-regexp-in-string "-mode\\'" "" (symbol-name major-mode))))
+         (lang (cond
+                ((and ext (not (string-empty-p ext))) ext)
+                ((and mode (not (string-empty-p mode))) mode)
+                (t "text")))
+         ;; Get project-related path using file-info--get-project-related-path if available
+         (path (if (fboundp 'file-info--get-project-related-path)
+                   (or (file-info--get-project-related-path)
+                       (or buffer-file-name (buffer-name)))
+                 (or buffer-file-name (buffer-name))))
+         ;; Format the final string
+         (payload (format "%s, line numbers %d:%d\n```%s\n%s\n```"
+                          path from to lang code)))
+    ;; Copy to kill-ring (and clipboard if enabled)
+    (kill-new payload)
+    (message "Copied %d chars: %s, lines %d:%d"
+             (length payload) path from to)))
+
+#+END_SRC
+** Run vitest from current buffer
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/run-vitest-from-current-buffer ()
+  "Run vitest for the current buffer's file."
+  (interactive)
+  (let* ((file (file-info--get-project-related-path)))
+    (if file
+        (compile (format "bun run test %s" (shell-quote-argument file)))
+      (message "Buffer is not visiting a file."))))
+#+END_SRC
+** Open git diff for current blame line
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/magit-show-commit-at-point ()
+  "Open Magit revision for commit that last modified the current line."
+  (interactive)
+  (let* ((file (buffer-file-name))
+         (line (line-number-at-pos))
+         (hash (string-trim
+                (shell-command-to-string
+                 (format "git blame -L %d,%d --porcelain %s | sed -n '1s/ .*//p'"
+                         line line file)))))
+    (if (string-match-p "^[0-9a-f]\\{7,40\\}$" hash)
+        (magit-show-commit hash)
+      (message "No commit found for current line."))))
+#+END_SRC
 * Editing
 ** Autorevert mode
 #+BEGIN_SRC emacs-lisp :results silent
@@ -1845,90 +1911,6 @@ Bookmark for navigation inside file
                                "/opt/homebrew/lib/node_modules"
                                "--stdio")))
 #+END_SRC
-*** Flymake
-**** Package
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package flymake
-  :ensure nil
-  :bind
-  (("C-j" . flymake-goto-next-error)
-   ("C-k" . flymake-goto-prev-error)
-   ("C-c e l" . flymake-show-diagnostics-buffer))
-  :hook (prog-mode . flymake-mode)
-  :config)
-#+END_SRC
-
-**** Eslint flymake
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package eslint-flymake
-  :ensure (eslint-flymake
-             :type git
-             :host github
-             :repo "emacs-pe/eslint-flymake")
-  :hook ((js-mode            . eslint-flymake-setup)
-         (js-jsx-mode        . eslint-flymake-setup)
-         (typescript-ts-mode . eslint-flymake-setup)
-         (tsx-ts-mode        . eslint-flymake-setup)))
-#+END_SRC
-
-**** Flymake stylelint
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package flymake-stylelint
-  :ensure (flymake-stylelint
-             :type git
-             :host github
-             :repo "orzechowskid/flymake-stylelint")
-  :hook ((css-mode . flymake-stylelint-enable)
-         (scss-mode . flymake-stylelint-enable)
-         (less-mode . flymake-stylelint-enable)
-         (web-mode . flymake-stylelint-enable))
-  :config
-  (setq flymake-stylelint-executable "stylelint"))
-#+END_SRC
-
-
-*** Flymake eslint
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package flymake-eslint
-  :config
-  (flymake-eslint-enable))
-#+END_SRC
-
-*** Eldoc
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package eldoc :ensure t
-  :init
-  (defun my/eldoc-clear-doc-hook ()
-    ;; (setq eldoc-last-message nil) ; needed?
-    (when (bound-and-true-p eldoc--doc-buffer)
-      (with-current-buffer eldoc--doc-buffer
-        (let ((inhibit-read-only t))
-          (erase-buffer)))))
-  (add-hook 'window-state-change-hook #'my/eldoc-clear-doc-hook)
-  :custom
-  (eldoc-idle-delay 0)
-  :config
-
-  (setq eldoc-message-function (lambda (&rest params) nil))
-  (global-eldoc-mode))
-#+END_SRC
-
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package eldoc-box
-  :bind (:map meow-normal-state-keymap
-              ("\\h" . eldoc-box-help-at-point))
-)
-#+END_SRC
-*** Flymake, sideline
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package sideline-flymake
-  :hook (flymake-mode . sideline-mode)
-  :init
-  (setq sideline-flymake-display-mode 'point) ; 'point to show errors only on point
-
-                                              ; 'line to show errors on the current line
-  (setq sideline-backends-right '(sideline-flymake)))
-#+END_SRC
 *** COMMENT Eglot grammarly
 #+BEGIN_SRC emacs-lisp
 (use-package eglot-grammarly
@@ -1948,6 +1930,11 @@ Bookmark for navigation inside file
 #+END_SRC
 
 ** Lsp-mode
+for eslint install:
+#+BEGIN_SRC emacs-lisp :results silent :tangle no
+(url-copy-file (lsp-vscode-extension-url "dbaeumer" "vscode-eslint" "3.0.16") "~/tmp/foo.zip")
+(lsp-unzip "~/tmp/foo.zip" lsp-eslint-unzipped-path)
+#+END_SRC
 *** LSP-mode Core package
 Corfu fn
 #+BEGIN_SRC emacs-lisp :results silent
@@ -1963,7 +1950,7 @@ Corfu fn
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8579c6c7771bc65564302e76296fb48855c558a4")
-  :after (flycheck)
+  ;; :after (flycheck)
   :hook
   ((clojure-mode
     scss-mode
@@ -2069,23 +2056,6 @@ Corfu fn
   (setq lsp-eslint-server-command `("node"
                                     "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
                                     "--stdio"))
-  ;; Flycheck patch checkers
-  (require 'flycheck)
-  (require 'lsp-diagnostics)
-  (lsp-diagnostics-flycheck-enable)
-  (mapc #'lsp-flycheck-add-mode '(typescript-mode js-mode css-mode vue-html-mode))
-  ;; Golang
-  (defun lsp-go-install-save-hooks ()
-    (flycheck-add-next-checker 'lsp '(warning . go-gofmt) 'append)
-    (flycheck-add-next-checker 'lsp '(warning . go-golint))
-    (flycheck-add-next-checker 'lsp '(warning . go-errcheck))
-    (flycheck-add-next-checker 'lsp '(warning . go-staticcheck))
-
-    ;; (add-hook 'before-save-hook #'lsp-format-buffer t t)
-    (add-hook 'before-save-hook #'lsp-organize-imports t t))
-
-  (add-hook 'go-mode-hook #'lsp-go-install-save-hooks)
-
   (setq lsp-enable-symbol-highlighting t
         lsp-enable-snippet nil  ;; Not supported by company capf, which is the recommended company backend
         lsp-pyls-plugins-flake8-enabled nil)
@@ -2106,9 +2076,20 @@ Corfu fn
   ;; (add-hook 'lsp-mode-hook #'corfu-lsp-setup)
   (@setup-compilation-errors)
   (setq lsp-volar-hybrid-mode nil)
-  (setq lsp-eldoc-enable-hover nil)
-  (setq flycheck-display-errors-function nil)
-  (setq lsp-eldoc-hook nil))
+
+
+  (lsp-register-client
+   (make-lsp-client
+    :new-connection (lsp-stdio-connection '("vtsls" "--stdio"))
+    :activation-fn (lsp-activate-on "typescript" "javascript" "typescriptreact" "javascriptreact")
+    :priority 1 
+    :server-id 'vtsls
+    :multi-root t
+    :initialization-options (lambda ()
+                              (list :typescript (list :tsdk "/path/to/typescript/lib")))))
+
+  (setq lsp-clients-typescript-server-args '("--stdio"))
+  )
 #+END_SRC
 
 #+RESULTS:
@@ -2379,7 +2360,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
 (use-package lsp-java
   :hook (java-mode . lsp-))
 #+END_SRC
-*** Flycheck
+** COMMENT Flycheck
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
   :bind (("C-j" . flycheck-next-error)
@@ -2394,7 +2375,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   (setq flycheck-mode-line nil)
   ;; Change flycheck errors on save
   (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
-  (setq flycheck-idle-change-delay 0.2)
+  (setq flycheck-idle-change-delay 0.5)
 
   (set-face-attribute 'flycheck-fringe-error nil :background 'unspecified :foreground @m-color-secondary)
   (set-face-attribute 'flycheck-error-list-error nil :background 'unspecified :foreground @m-color-secondary)
@@ -2404,6 +2385,29 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   (flycheck-add-mode 'javascript-eslint 'typescript-mode)
   (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
   (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode)
+  (require 'lsp-diagnostics)
+  (lsp-diagnostics-flycheck-enable)
+  (mapc #'lsp-flycheck-add-mode '(typescript-mode js-mode css-mode vue-html-mode))
+  (setq flycheck-display-errors-function nil)
+  (setq lsp-eldoc-hook nil)
+  (setq lsp-eldoc-enable-hover nil)
+
+  ;; Flycheck patch checkers
+  ;; Golang
+  (defun lsp-go-install-save-hooks ()
+    (flycheck-add-next-checker 'lsp '(warning . go-gofmt) 'append)
+    (flycheck-add-next-checker 'lsp '(warning . go-golint))
+    (flycheck-add-next-checker 'lsp '(warning . go-errcheck))
+    (flycheck-add-next-checker 'lsp '(warning . go-staticcheck))
+
+    ;; (add-hook 'before-save-hook #'lsp-format-buffer t t)
+    (add-hook 'before-save-hook #'lsp-organize-imports t t))
+
+  (add-hook 'go-mode-hook #'lsp-go-install-save-hooks)
+
+
+
+
 
   (with-eval-after-load 'flycheck
     (flycheck-define-checker stylelint
@@ -2516,13 +2520,133 @@ https://github.com/konrad1977/flyover
          :height 1
          :weight normal)))))
 #+End_Src
-*** Consult flycheck
+*** COMMENT Consult flycheck
 #+BEGIN_SRC emacs-lisp
 (use-package consult-flycheck
   :after consult)
 #+END_SRC
 
 
+** Flymake
+**** Package
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flymake
+  :ensure nil
+  :after (lsp-mode)
+  :bind
+  (("C-j" . flymake-goto-next-error)
+   ("C-k" . flymake-goto-prev-error)
+   ("C-c e l" . flymake-show-diagnostics-buffer)
+   ("C-c l e" . flymake-show-diagnostics-buffer))
+  :hook 
+  (prog-mode . flymake-mode)
+  (flymake-diagnostics-buffer-mode . meow-normal-mode)
+  :config
+  (setq lsp-diagnostics-provider :flymake)
+  (setq flymake-show-diagnostics-at-end-of-line nil)
+  ;; Patch https://github.com/emacs-lsp/lsp-mode/issues/2808
+  (defun my/lsp-diagnostics--flymake-update-diagnostics ()
+    "Report new diagnostics to flymake."
+    (funcall lsp-diagnostics--flymake-report-fn
+             (-some->> (lsp-diagnostics t)
+               (gethash (lsp--fix-path-casing buffer-file-name))
+               (--map (-let* (((&Diagnostic :message :severity?
+                                            :range (range &as &Range
+                                                          :start (&Position :line start-line :character)
+                                                          :end (&Position :line end-line))) it)
+                              ((start . end) (lsp--range-to-region range)))
+                        (when (= start end)
+                          (if-let ((region (flymake-diag-region (current-buffer)
+                                                                (1+ start-line)
+                                                                character)))
+                              (setq start (car region)
+                                    end (cdr region))
+                            (lsp-save-restriction-and-excursion
+                              (goto-char (point-min))
+                              (setq start (line-beginning-position (1+ start-line))
+                                    end (line-end-position (1+ end-line))))))
+                        (flymake-make-diagnostic (current-buffer)
+                                                 start
+                                                 end
+                                                 (cl-case severity?
+                                                   (1 :error)
+                                                   (2 :warning)
+                                                   (t :note))
+                                                 message))))))
+  (advice-add #'lsp-diagnostics--flymake-update-diagnostics
+              :override #'my/lsp-diagnostics--flymake-update-diagnostics)
+  (setq flymake-start-on-flymake-mode t
+        flymake-start-on-save-buffer t
+        flymake-start-on-newline t
+        flymake-no-changes-timeout 0.5)
+  
+  )
+#+END_SRC
+
+**** COMMENT Eslint flymake
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eslint-flymake
+  :ensure (eslint-flymake
+             :type git
+             :host github
+             :repo "emacs-pe/eslint-flymake")
+  :hook ((js-mode            . eslint-flymake-setup)
+         (js-jsx-mode        . eslint-flymake-setup)
+         (typescript-ts-mode . eslint-flymake-setup)
+         (tsx-ts-mode        . eslint-flymake-setup)))
+#+END_SRC
+
+**** Flymake stylelint
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flymake-stylelint
+  :ensure (flymake-stylelint
+             :type git
+             :host github
+             :repo "orzechowskid/flymake-stylelint")
+  :hook ((css-mode . flymake-stylelint-enable)
+         (scss-mode . flymake-stylelint-enable)
+         (less-mode . flymake-stylelint-enable)
+         (web-mode . flymake-stylelint-enable))
+  :config
+  (setq flymake-stylelint-executable "stylelint"))
+#+END_SRC
+
+
+*** Eldoc
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eldoc :ensure t
+  :init
+  (defun my/eldoc-clear-doc-hook ()
+    ;; (setq eldoc-last-message nil) ; needed?
+    (when (bound-and-true-p eldoc--doc-buffer)
+      (with-current-buffer eldoc--doc-buffer
+        (let ((inhibit-read-only t))
+          (erase-buffer)))))
+  (add-hook 'window-state-change-hook #'my/eldoc-clear-doc-hook)
+  :custom
+  (eldoc-idle-delay 0)
+  :config
+
+  (setq eldoc-message-function (lambda (&rest params) nil))
+  (global-eldoc-mode))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eldoc-box
+  :bind (:map meow-normal-state-keymap
+              ("\\h" . eldoc-box-help-at-point))
+)
+#+END_SRC
+*** COMMENT Flymake, sideline
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package sideline-flymake
+  :hook (flymake-mode . sideline-mode)
+  :init
+  (setq sideline-flymake-display-mode 'point) ; 'point to show errors only on point
+
+                                              ; 'line to show errors on the current line
+  (setq sideline-backends-right '(sideline-flymake)))
+#+END_SRC
 ** Pipenv
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package pipenv
@@ -2848,6 +2972,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 (setenv "TSSERVER_LOG_FILE" "/tmp/tsserver.log")
 (use-package typescript-mode
   :defer t  
+  :mode ("\\.mts\\'" . typescript--tsmode)
   :hook (typescript-mode . (lambda () (setq-local fill-column 120)))
   :custom
   (lsp-clients-typescript-server-args '("--stdio"))
@@ -3638,7 +3763,9 @@ Disable scrolls
 #+BEGIN_SRC emacs-lisp
 (use-package helpful
   :defer t
-  :hook (helpful-mode . meow-normal-mode)
+  :hook 
+  (helpful-mode . meow-normal-mode)
+  (help-mode . meow-normal-mode)
   :bind (("C-h k" . helpful-key)
          ("C-h C-k" . helpful-key)
          ("C-h p" . describe-package)
@@ -3857,8 +3984,8 @@ Very pretty titlebar for Mac os
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude"))
-   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode))
+   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode))
    '(zoom-ignore-predicates '((lambda () (window-parameter nil 'window-side)))))
 
   (defun my/fix-claude-size ()
@@ -3869,6 +3996,21 @@ Very pretty titlebar for Mac os
             (setq window-size-fixed 'width)
             (window-resize window (- 90 (window-total-width window)) t t))))))
 
+  (defun my/fix-ediff-size ()
+  (let* ((buf (or (and (boundp 'ediff-control-buffer) ediff-control-buffer)
+                  (car (seq-filter
+                        (lambda (b)
+                          (string-match-p "^\\*Ediff Control Panel" (buffer-name b)))
+                        (buffer-list)))))
+         (win (and buf (get-buffer-window buf t))))
+    (when (window-live-p win)
+      (with-selected-window win
+        (setq window-size-fixed t)
+        (window-resize (selected-window)
+                       (- 5 (window-total-height))
+                       nil t)))))
+
+  (add-hook 'ediff-after-setup-windows-hook 'my/fix-ediff-size)
   ;; (add-hook 'buffer-list-update-hook 'my/fix-claude-size)
   )
 #+END_SRC
@@ -4424,6 +4566,17 @@ Dependencies
          ("C-c t l" . magit-todos-list)))
 #+END_SRC
 
+** COMMENT Magit delta
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package magit-delta
+  :after magit
+  :config
+  (setq
+   magit-delta-default-dark-theme "TwoDark"
+    magit-delta-default-light-theme "Github"
+    magit-delta-hide-plus-minus-markers nil)
+  (magit-delta-mode))
+#+END_SRC
 ** Gitgutter
 #+BEGIN_SRC emacs-lisp
 (use-package git-gutter
@@ -4505,6 +4658,57 @@ Improved styles for git changes
 #+END_SRC
 
 ** Ediff
+*** Ediff colors for light and dark mode
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/ediff-face-specs ()
+  (let* ((bg-A (or (face-background 'diff-removed nil t) "#ffecec"))
+         (bg-B (or (face-background 'diff-added   nil t) "#ecffec"))
+         (bg-C (or (face-background 'diff-changed nil t)
+                   (face-background 'diff-refine-changed nil t)
+                   "#fff3e0"))
+         (bg-RA (or (face-background 'diff-refine-removed nil t) "#ffb3b3"))
+         (bg-RB (or (face-background 'diff-refine-added  nil t) "#b3ffb3"))
+         (bg-RC (or (face-background 'diff-refine-changed nil t) "#ffe6a3")))
+    (custom-theme-set-faces
+     'user
+     `(ediff-current-diff-A
+       ((((background dark))  :background "#4c2f2f" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-current-diff-B
+       ((((background dark))  :background "#2f4c2f" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+     `(ediff-current-diff-C
+       ((((background dark))  :background "#2f2f4c" :extend t)
+        (((background light)) :background ,bg-C       :extend t)))
+
+     `(ediff-even-diff-A
+       ((((background dark))  :background "#3a2626" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-even-diff-B
+       ((((background dark))  :background "#263a26" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+
+     `(ediff-odd-diff-A
+       ((((background dark))  :background "#402a2a" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-odd-diff-B
+       ((((background dark))  :background "#2a402a" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+     `(ediff-odd-diff-C
+       ((((background dark))  :background "#403a2a" :extend t)
+        (((background light)) :background ,bg-C       :extend t)))
+
+     `(ediff-fine-diff-A
+       ((((background dark))  :background "#803838" :weight bold :extend t)
+        (((background light)) :background ,bg-RA      :weight bold :extend t)))
+     `(ediff-fine-diff-B
+       ((((background dark))  :background "#387038" :weight bold :extend t)
+        (((background light)) :background ,bg-RB      :weight bold :extend t)))
+     `(ediff-fine-diff-C
+       ((((background dark))  :background "#7a6b38" :weight bold :extend t)
+        (((background light)) :background ,bg-RC      :weight bold :extend t))))))
+#+END_SRC
+*** Edif package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package ediff
   :ensure nil
@@ -4516,24 +4720,20 @@ Improved styles for git changes
 
   (setq ediff-highlight-all-diffs t)
 
-  (set-face-attribute 'ediff-current-diff-A nil
-                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-current-diff-B nil
-                      :background "#d6ffd6" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-odd-diff-A nil
-                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-odd-diff-B nil
-                      :background "#d6ffd6" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-odd-diff-C nil
-                      :background "#fff4cc" :foreground "#7a4e00" :extend t)
 
-  (set-face-attribute 'ediff-fine-diff-A nil :background "#ff4d4d" :foreground "white" :weight 'bold :extend t)
-(set-face-attribute 'ediff-fine-diff-B nil :background "#33cc33" :foreground "white" :weight 'bold :extend t)
-(set-face-attribute 'ediff-fine-diff-C nil :background "#ffcc00" :foreground "black" :weight 'bold :extend t)
+  (my/ediff-face-specs)
+  (add-hook 'ediff-load-hook #'my/ediff-face-specs)
+  (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
 
-  (set-face-attribute 'ediff-even-diff-A nil :background "#ffbfbf" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-even-diff-B nil :background "#bfffbf" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-even-diff-C nil :background "#ffe680" :foreground "#7a4e00" :extend t))
+  (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
+  (add-hook 'ediff-cleanup-hook
+            (lambda ()
+              (dolist (buf (list ediff-buffer-A ediff-buffer-B
+                                 (when (boundp 'ediff-buffer-C) ediff-buffer-C)))
+                (when (buffer-live-p buf)
+                  (with-current-buffer buf
+                    (display-line-numbers-mode -1))))))
+  )
 #+END_SRC
 
 ** Timemachine
@@ -4619,7 +4819,6 @@ Dependency
 #+BEGIN_SRC emacs-lisp
 (use-package ob-typescript
   :after org)
-
 #+END_SRC
 *** Golang
 #+BEGIN_SRC emacs-lisp
@@ -4779,10 +4978,11 @@ Automatically creates parent directories if needed."
         org-default-priority ?C
         org-lowest-priority ?E)
 
-  (setenv "NODE_PATH"
-          (concat
-           (getenv "HOME") "/org-node/node_modules"  ":"
-           (getenv "NODE_PATH")))
+  (setenv "NODE_PATH" "/opt/homebrew/lib/node_modules")
+  ;; (setenv "NODE_PATH"
+  ;;         (concat
+  ;;          (getenv "HOME") "/.volta/tools/image/packages"  ":"
+  ;;          (getenv "NODE_PATH")))
 
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -4881,7 +5081,7 @@ Automatically creates parent directories if needed."
   (setq org-directory "~/Yandex.Disk.localized/Dropbox/org"))
 #+END_SRC
 
-** Org node. Fast org roam alternative
+** COMMENT Org node. Fast org roam alternative
 Dependency
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-mem
@@ -4914,6 +5114,37 @@ Dependency
   (setq org-node-creation-fn #'org-node-fakeroam-new-via-roam-capture)
   (setq org-node-slug-fn #'org-node-fakeroam-slugify-via-roam)
   (setq org-node-datestamp-format "%Y%m%d%H%M%S-"))
+#+END_SRC
+** Org node. Org roam alternative
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-mem
+  :defer
+  :config
+  ;; At least one of these two is needed
+  (setq org-mem-do-sync-with-org-id t)
+  (setq org-mem-watch-dirs
+        (list "~/Yandex.Disk.localized/Dropbox/org-roam/")) ;; Configure me
+  (org-mem-updater-mode))
+
+(use-package org-node
+  :bind
+  (("C-c n r f" . org-node-find)
+   ("C-c n r i" . org-node-insert-link))
+  :config
+  (org-node-cache-mode)
+  (org-node-roam-accelerator-mode)
+  (setq org-node-alter-candidates t)
+  (setq org-node-creation-fn #'org-node-new-via-roam-capture)
+  (setq org-node-file-slug-fn #'org-node-slugify-like-roam-default)
+  (setq org-node-file-timestamp-format "%Y%m%d%H%M%S-")
+  (setq org-node-affixation-fn
+        (defun @prefix-with-tag (node title)
+          "Let NODE's tags prefix TITLE."
+          (list title
+                (when-let ((tags (org-node-get-tags node)))
+                  (propertize (concat "(" (string-join tags ", ") ") ")
+                              'face `(:foreground ,\@m-color-main :weight bold :slant italic)))
+                nil))))
 #+END_SRC
 ** Image inserting to org documents
 #+BEGIN_SRC emacs-lisp
@@ -5117,7 +5348,12 @@ Ob raindrop (dynamic block)
   :config
   (add-to-list 'jinx-camel-modes 'html-ts-mode)
   (add-to-list 'jinx-camel-modes 'html-mode)
-  (add-to-list 'jinx-camel-modes 'typescript-ts-mode))
+  (add-to-list 'jinx-camel-modes 'typescript-ts-mode)
+  (cl-callf cl-union
+      (alist-get 'prog-mode jinx-include-faces)
+    '(font-lock-function-name-face
+      font-lock-variable-name-face)
+    :test #'eq))
  #+END_SRC
 * Productivity
 ** Wakatime. Be productive.
@@ -5137,10 +5373,10 @@ Ob raindrop (dynamic block)
   :config
   (setenv "SHELL" "/bin/bash")
   (setq remote-file-name-inhibit-cache nil)
-  (setq vc-ignore-dir-regexp
-        (format "%s\\|%s"
-                vc-ignore-dir-regexp
-                tramp-file-name-regexp))
+  ;; (setq vc-ignore-dir-regexp
+  ;;       (format "%s\\|%s"
+  ;;               vc-ignore-dir-regexp
+  ;;               tramp-file-name-regexp))
   (setq tramp-verbose 1)
   (add-to-list 'tramp-connection-properties
                (list (regexp-quote "/sshx:user@host:")

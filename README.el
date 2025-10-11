@@ -254,6 +254,67 @@ This is a variadic `cl-pushnew'."
     (kill-new output)
     (message "Copied as Markdown code block: %s (%s)" rel-path lang)))
 
+(defun my/copy-with-ai-context (beg end)
+  "Copy selected region with context for AI tools.
+
+The format is:
+<project-related-path>, line numbers <from>:<to>
+```<lang>
+<code>
+```"
+  (interactive "r")
+  (unless (use-region-p)
+    (user-error "No active region"))
+  (let* ((rb (min beg end))
+         (re (max beg end))
+         (from (line-number-at-pos rb))
+         (to (line-number-at-pos
+              (if (and (> re rb)
+                       (eq (char-before re) ?\n))
+                  (1- re)
+                re)))
+         (code (buffer-substring-no-properties rb re))
+         ;; Determine language from file extension or major mode
+         (ext  (and buffer-file-name (downcase (or (file-name-extension buffer-file-name) ""))))
+         (mode (downcase (replace-regexp-in-string "-mode\\'" "" (symbol-name major-mode))))
+         (lang (cond
+                ((and ext (not (string-empty-p ext))) ext)
+                ((and mode (not (string-empty-p mode))) mode)
+                (t "text")))
+         ;; Get project-related path using file-info--get-project-related-path if available
+         (path (if (fboundp 'file-info--get-project-related-path)
+                   (or (file-info--get-project-related-path)
+                       (or buffer-file-name (buffer-name)))
+                 (or buffer-file-name (buffer-name))))
+         ;; Format the final string
+         (payload (format "%s, line numbers %d:%d\n```%s\n%s\n```"
+                          path from to lang code)))
+    ;; Copy to kill-ring (and clipboard if enabled)
+    (kill-new payload)
+    (message "Copied %d chars: %s, lines %d:%d"
+             (length payload) path from to)))
+
+(defun my/run-vitest-from-current-buffer ()
+  "Run vitest for the current buffer's file."
+  (interactive)
+  (let* ((file (file-info--get-project-related-path)))
+    (if file
+        (compile (format "bun run test %s" (shell-quote-argument file)))
+      (message "Buffer is not visiting a file."))))
+
+(defun my/magit-show-commit-at-point ()
+  "Open Magit revision for commit that last modified the current line."
+  (interactive)
+  (let* ((file (buffer-file-name))
+         (line (line-number-at-pos))
+         (hash (string-trim
+                (shell-command-to-string
+                 (format "git blame -L %d,%d --porcelain %s | sed -n '1s/ .*//p'"
+                         line line file)))))
+    (if (string-match-p "^[0-9a-f]\\{7,40\\}$" hash)
+        (magit-show-commit hash)
+      (message "No commit found for current line."))))
+
 (global-auto-revert-mode 1)
 (setq auto-revert-use-notify nil)
 
@@ -1385,7 +1446,7 @@ This is a variadic `cl-pushnew'."
 (use-package lsp-mode
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8c57bcfa4b0cf9187011425cf276aed006f27df4")
   ;; :ensure (:host github :repo "emacs-lsp/lsp-mode" :rev "8579c6c7771bc65564302e76296fb48855c558a4")
-  :after (flycheck)
+  ;; :after (flycheck)
   :hook
   ((clojure-mode
     scss-mode
@@ -1491,23 +1552,6 @@ This is a variadic `cl-pushnew'."
   (setq lsp-eslint-server-command `("node"
                                     "/Users/darkawower/.vscode/extensions/dbaeumer.vscode-eslint-3.0.10/server/out/eslintServer.js"
                                     "--stdio"))
-  ;; Flycheck patch checkers
-  (require 'flycheck)
-  (require 'lsp-diagnostics)
-  (lsp-diagnostics-flycheck-enable)
-  (mapc #'lsp-flycheck-add-mode '(typescript-mode js-mode css-mode vue-html-mode))
-  ;; Golang
-  (defun lsp-go-install-save-hooks ()
-    (flycheck-add-next-checker 'lsp '(warning . go-gofmt) 'append)
-    (flycheck-add-next-checker 'lsp '(warning . go-golint))
-    (flycheck-add-next-checker 'lsp '(warning . go-errcheck))
-    (flycheck-add-next-checker 'lsp '(warning . go-staticcheck))
-
-    ;; (add-hook 'before-save-hook #'lsp-format-buffer t t)
-    (add-hook 'before-save-hook #'lsp-organize-imports t t))
-
-  (add-hook 'go-mode-hook #'lsp-go-install-save-hooks)
-
   (setq lsp-enable-symbol-highlighting t
         lsp-enable-snippet nil  ;; Not supported by company capf, which is the recommended company backend
         lsp-pyls-plugins-flake8-enabled nil)
@@ -1528,9 +1572,20 @@ This is a variadic `cl-pushnew'."
   ;; (add-hook 'lsp-mode-hook #'corfu-lsp-setup)
   (@setup-compilation-errors)
   (setq lsp-volar-hybrid-mode nil)
-  (setq lsp-eldoc-enable-hover nil)
-  (setq flycheck-display-errors-function nil)
-  (setq lsp-eldoc-hook nil))
+
+
+  (lsp-register-client
+   (make-lsp-client
+    :new-connection (lsp-stdio-connection '("vtsls" "--stdio"))
+    :activation-fn (lsp-activate-on "typescript" "javascript" "typescriptreact" "javascriptreact")
+    :priority 1 
+    :server-id 'vtsls
+    :multi-root t
+    :initialization-options (lambda ()
+                              (list :typescript (list :tsdk "/path/to/typescript/lib")))))
+
+  (setq lsp-clients-typescript-server-args '("--stdio"))
+  )
 
 (setq lsp-disabled-clients '(vls vue-semantic-server))
 ;; (with-eval-after-load 'lsp-mode
@@ -1770,77 +1825,87 @@ This is a variadic `cl-pushnew'."
 (use-package lsp-java
   :hook (java-mode . lsp-))
 
-(use-package flycheck
-  :bind (("C-j" . flycheck-next-error)
-         ("C-k" . flycheck-previous-error)
-         ("C-c f ]" . flycheck-next-error)
-         ("C-c f [" . flycheck-previous-error)
-         ("C-c l e" . flycheck-list-errors)
-         ("C-c f e" . flycheck-list-errors))
-  :init
-  (global-flycheck-mode)
+(use-package flymake
+  :ensure nil
+  :after (lsp-mode)
+  :bind
+  (("C-j" . flymake-goto-next-error)
+   ("C-k" . flymake-goto-prev-error)
+   ("C-c e l" . flymake-show-diagnostics-buffer))
+  :hook (prog-mode . flymake-mode)
   :config
-  (setq flycheck-mode-line nil)
-  ;; Change flycheck errors on save
-  (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
-  (setq flycheck-idle-change-delay 0.2)
+  (setq lsp-diagnostics-provider :flymake)
+  (setq flymake-show-diagnostics-at-end-of-line nil)
+  ;; Patch https://github.com/emacs-lsp/lsp-mode/issues/2808
+  (defun my/lsp-diagnostics--flymake-update-diagnostics ()
+    "Report new diagnostics to flymake."
+    (funcall lsp-diagnostics--flymake-report-fn
+             (-some->> (lsp-diagnostics t)
+               (gethash (lsp--fix-path-casing buffer-file-name))
+               (--map (-let* (((&Diagnostic :message :severity?
+                                            :range (range &as &Range
+                                                          :start (&Position :line start-line :character)
+                                                          :end (&Position :line end-line))) it)
+                              ((start . end) (lsp--range-to-region range)))
+                        (when (= start end)
+                          (if-let ((region (flymake-diag-region (current-buffer)
+                                                                (1+ start-line)
+                                                                character)))
+                              (setq start (car region)
+                                    end (cdr region))
+                            (lsp-save-restriction-and-excursion
+                              (goto-char (point-min))
+                              (setq start (line-beginning-position (1+ start-line))
+                                    end (line-end-position (1+ end-line))))))
+                        (flymake-make-diagnostic (current-buffer)
+                                                 start
+                                                 end
+                                                 (cl-case severity?
+                                                   (1 :error)
+                                                   (2 :warning)
+                                                   (t :note))
+                                                 message))))))
+  (advice-add #'lsp-diagnostics--flymake-update-diagnostics
+              :override #'my/lsp-diagnostics--flymake-update-diagnostics)
+  (setq flymake-start-on-flymake-mode t
+        flymake-start-on-save-buffer t
+        flymake-start-on-newline t
+        flymake-no-changes-timeout 0.5)
+  
+  )
 
-  (set-face-attribute 'flycheck-fringe-error nil :background 'unspecified :foreground @m-color-secondary)
-  (set-face-attribute 'flycheck-error-list-error nil :background 'unspecified :foreground @m-color-secondary)
-  (set-face-attribute 'error nil :background 'unspecified :foreground @m-color-secondary)
+(use-package flymake-stylelint
+  :ensure (flymake-stylelint
+             :type git
+             :host github
+             :repo "orzechowskid/flymake-stylelint")
+  :hook ((css-mode . flymake-stylelint-enable)
+         (scss-mode . flymake-stylelint-enable)
+         (less-mode . flymake-stylelint-enable)
+         (web-mode . flymake-stylelint-enable))
+  :config
+  (setq flymake-stylelint-executable "stylelint"))
 
-  (flycheck-add-mode 'javascript-eslint 'web-mode)
-  (flycheck-add-mode 'javascript-eslint 'typescript-mode)
-  (flycheck-add-mode 'javascript-eslint 'ng2-ts-mode)
-  (flycheck-add-mode 'javascript-eslint 'typescript-ts-mode)
+(use-package eldoc :ensure t
+  :init
+  (defun my/eldoc-clear-doc-hook ()
+    ;; (setq eldoc-last-message nil) ; needed?
+    (when (bound-and-true-p eldoc--doc-buffer)
+      (with-current-buffer eldoc--doc-buffer
+        (let ((inhibit-read-only t))
+          (erase-buffer)))))
+  (add-hook 'window-state-change-hook #'my/eldoc-clear-doc-hook)
+  :custom
+  (eldoc-idle-delay 0)
+  :config
 
-  (with-eval-after-load 'flycheck
-    (flycheck-define-checker stylelint
-      "A SCSS/CSS linter using stylelint."
-      :command ("stylelint" "--formatter" "compact" "--stdin-filename" source-original)
-      :standard-input t
-      :error-patterns
-      ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
-      :modes (scss-mode css-mode less-css-mode))
-    
-    (add-to-list 'flycheck-checkers 'stylelint)
-    (flycheck-add-next-checker 'lsp 'stylelint))
+  (setq eldoc-message-function (lambda (&rest params) nil))
+  (global-eldoc-mode))
 
-  (add-hook 'scss-mode-hook
-            (lambda ()
-              (flycheck-select-checker 'stylelint)
-              (flycheck-mode)))
-
-  (with-eval-after-load 'flycheck
-    (flycheck-add-next-checker 'lsp 'stylelint)))
-
-(defun my/flycheck-copy-errors-buffer ()
-    "Open flycheck errors buffer, copy all contents, and close window."
-    (interactive)
-    (let ((original-window (selected-window)))
-      ;; Always open flycheck errors buffer first
-      (flycheck-list-errors)
-      ;; Check if the errors buffer exists and has content
-      (let ((flycheck-buffer (get-buffer "*Flycheck errors*")))
-        (if (and flycheck-buffer (get-buffer-window "*Flycheck errors*"))
-            (progn
-              ;; Switch to errors buffer
-              (select-window (get-buffer-window "*Flycheck errors*"))
-              ;; Copy all buffer contents
-              (mark-whole-buffer)
-              (copy-region-as-kill (point-min) (point-max))
-              ;; Close the window
-              (quit-window)
-              ;; Return to original window
-              (select-window original-window)
-              (message "Flycheck errors copied to kill ring"))
-          (progn
-            ;; If buffer still doesn't exist or has no window, return to original
-            (select-window original-window)
-            (message "No flycheck errors found"))))))
-
-(use-package consult-flycheck
-  :after consult)
+(use-package eldoc-box
+  :bind (:map meow-normal-state-keymap
+              ("\\h" . eldoc-box-help-at-point))
+)
 
 (use-package pipenv
   :defer t
@@ -2095,6 +2160,7 @@ This is a variadic `cl-pushnew'."
 (setenv "TSSERVER_LOG_FILE" "/tmp/tsserver.log")
 (use-package typescript-mode
   :defer t  
+  :mode ("\\.mts\\'" . typescript--tsmode)
   :hook (typescript-mode . (lambda () (setq-local fill-column 120)))
   :custom
   (lsp-clients-typescript-server-args '("--stdio"))
@@ -2759,8 +2825,8 @@ Commit types:
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude"))
-   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode))
+   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode))
    '(zoom-ignore-predicates '((lambda () (window-parameter nil 'window-side)))))
 
   (defun my/fix-claude-size ()
@@ -2771,6 +2837,21 @@ Commit types:
             (setq window-size-fixed 'width)
             (window-resize window (- 90 (window-total-width window)) t t))))))
 
+  (defun my/fix-ediff-size ()
+  (let* ((buf (or (and (boundp 'ediff-control-buffer) ediff-control-buffer)
+                  (car (seq-filter
+                        (lambda (b)
+                          (string-match-p "^\\*Ediff Control Panel" (buffer-name b)))
+                        (buffer-list)))))
+         (win (and buf (get-buffer-window buf t))))
+    (when (window-live-p win)
+      (with-selected-window win
+        (setq window-size-fixed t)
+        (window-resize (selected-window)
+                       (- 5 (window-total-height))
+                       nil t)))))
+
+  (add-hook 'ediff-after-setup-windows-hook 'my/fix-ediff-size)
   ;; (add-hook 'buffer-list-update-hook 'my/fix-claude-size)
   )
 
@@ -3294,6 +3375,54 @@ Commit types:
   (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
   )
 
+(defun my/ediff-face-specs ()
+  (let* ((bg-A (or (face-background 'diff-removed nil t) "#ffecec"))
+         (bg-B (or (face-background 'diff-added   nil t) "#ecffec"))
+         (bg-C (or (face-background 'diff-changed nil t)
+                   (face-background 'diff-refine-changed nil t)
+                   "#fff3e0"))
+         (bg-RA (or (face-background 'diff-refine-removed nil t) "#ffb3b3"))
+         (bg-RB (or (face-background 'diff-refine-added  nil t) "#b3ffb3"))
+         (bg-RC (or (face-background 'diff-refine-changed nil t) "#ffe6a3")))
+    (custom-theme-set-faces
+     'user
+     `(ediff-current-diff-A
+       ((((background dark))  :background "#4c2f2f" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-current-diff-B
+       ((((background dark))  :background "#2f4c2f" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+     `(ediff-current-diff-C
+       ((((background dark))  :background "#2f2f4c" :extend t)
+        (((background light)) :background ,bg-C       :extend t)))
+
+     `(ediff-even-diff-A
+       ((((background dark))  :background "#3a2626" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-even-diff-B
+       ((((background dark))  :background "#263a26" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+
+     `(ediff-odd-diff-A
+       ((((background dark))  :background "#402a2a" :extend t)
+        (((background light)) :background ,bg-A       :extend t)))
+     `(ediff-odd-diff-B
+       ((((background dark))  :background "#2a402a" :extend t)
+        (((background light)) :background ,bg-B       :extend t)))
+     `(ediff-odd-diff-C
+       ((((background dark))  :background "#403a2a" :extend t)
+        (((background light)) :background ,bg-C       :extend t)))
+
+     `(ediff-fine-diff-A
+       ((((background dark))  :background "#803838" :weight bold :extend t)
+        (((background light)) :background ,bg-RA      :weight bold :extend t)))
+     `(ediff-fine-diff-B
+       ((((background dark))  :background "#387038" :weight bold :extend t)
+        (((background light)) :background ,bg-RB      :weight bold :extend t)))
+     `(ediff-fine-diff-C
+       ((((background dark))  :background "#7a6b38" :weight bold :extend t)
+        (((background light)) :background ,bg-RC      :weight bold :extend t))))))
+
 (use-package ediff
   :ensure nil
   :defer t
@@ -3304,24 +3433,20 @@ Commit types:
 
   (setq ediff-highlight-all-diffs t)
 
-  (set-face-attribute 'ediff-current-diff-A nil
-                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-current-diff-B nil
-                      :background "#d6ffd6" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-odd-diff-A nil
-                      :background "#ffd6d6" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-odd-diff-B nil
-                      :background "#d6ffd6" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-odd-diff-C nil
-                      :background "#fff4cc" :foreground "#7a4e00" :extend t)
 
-  (set-face-attribute 'ediff-fine-diff-A nil :background "#ff4d4d" :foreground "white" :weight 'bold :extend t)
-(set-face-attribute 'ediff-fine-diff-B nil :background "#33cc33" :foreground "white" :weight 'bold :extend t)
-(set-face-attribute 'ediff-fine-diff-C nil :background "#ffcc00" :foreground "black" :weight 'bold :extend t)
+  (my/ediff-face-specs)
+  (add-hook 'ediff-load-hook #'my/ediff-face-specs)
+  (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
 
-  (set-face-attribute 'ediff-even-diff-A nil :background "#ffbfbf" :foreground "#8b0000" :extend t)
-  (set-face-attribute 'ediff-even-diff-B nil :background "#bfffbf" :foreground "#004d00" :extend t)
-  (set-face-attribute 'ediff-even-diff-C nil :background "#ffe680" :foreground "#7a4e00" :extend t))
+  (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
+  (add-hook 'ediff-cleanup-hook
+            (lambda ()
+              (dolist (buf (list ediff-buffer-A ediff-buffer-B
+                                 (when (boundp 'ediff-buffer-C) ediff-buffer-C)))
+                (when (buffer-live-p buf)
+                  (with-current-buffer buf
+                    (display-line-numbers-mode -1))))))
+  )
 
 (use-package git-timemachine
   :defer t
@@ -3521,10 +3646,11 @@ Automatically creates parent directories if needed."
         org-default-priority ?C
         org-lowest-priority ?E)
 
-  (setenv "NODE_PATH"
-          (concat
-           (getenv "HOME") "/org-node/node_modules"  ":"
-           (getenv "NODE_PATH")))
+  (setenv "NODE_PATH" "/opt/homebrew/lib/node_modules")
+  ;; (setenv "NODE_PATH"
+  ;;         (concat
+  ;;          (getenv "HOME") "/.volta/tools/image/packages"  ":"
+  ;;          (getenv "NODE_PATH")))
 
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -3604,16 +3730,25 @@ Automatically creates parent directories if needed."
   (setq org-directory "~/Yandex.Disk.localized/Dropbox/org"))
 
 (use-package org-mem
-  :ensure (:host github :repo "meedstrom/org-mem"))
+  :defer
+  :config
+  ;; At least one of these two is needed
+  (setq org-mem-do-sync-with-org-id t)
+  (setq org-mem-watch-dirs
+        (list "~/Yandex.Disk.localized/Dropbox/org-roam/")) ;; Configure me
+  (org-mem-updater-mode))
 
 (use-package org-node
-  :after (org org-mem)
   :bind
   (("C-c n r f" . org-node-find)
    ("C-c n r i" . org-node-insert-link))
-  :config 
-  (setq org-node-extra-id-dirs `(,(file-truename "~/org-roam")))
+  :config
+  (org-node-cache-mode)
+  (org-node-roam-accelerator-mode)
   (setq org-node-alter-candidates t)
+  (setq org-node-creation-fn #'org-node-new-via-roam-capture)
+  (setq org-node-file-slug-fn #'org-node-slugify-like-roam-default)
+  (setq org-node-file-timestamp-format "%Y%m%d%H%M%S-")
   (setq org-node-affixation-fn
         (defun @prefix-with-tag (node title)
           "Let NODE's tags prefix TITLE."
@@ -3621,16 +3756,7 @@ Automatically creates parent directories if needed."
                 (when-let ((tags (org-node-get-tags node)))
                   (propertize (concat "(" (string-join tags ", ") ") ")
                               'face `(:foreground ,\@m-color-main :weight bold :slant italic)))
-                nil)))
-  (org-node-cache-mode))
-
-(use-package org-node-fakeroam
-  :after org-mem
-  :defer
-  :config
-  (setq org-node-creation-fn #'org-node-fakeroam-new-via-roam-capture)
-  (setq org-node-slug-fn #'org-node-fakeroam-slugify-via-roam)
-  (setq org-node-datestamp-format "%Y%m%d%H%M%S-"))
+                nil))))
 
 (use-package org-yt
   :defer t
@@ -3746,7 +3872,12 @@ Automatically creates parent directories if needed."
   :config
   (add-to-list 'jinx-camel-modes 'html-ts-mode)
   (add-to-list 'jinx-camel-modes 'html-mode)
-  (add-to-list 'jinx-camel-modes 'typescript-ts-mode))
+  (add-to-list 'jinx-camel-modes 'typescript-ts-mode)
+  (cl-callf cl-union
+      (alist-get 'prog-mode jinx-include-faces)
+    '(font-lock-function-name-face
+      font-lock-variable-name-face)
+    :test #'eq))
 
 (use-package wakatime-mode
   :defer 2
@@ -3758,10 +3889,10 @@ Automatically creates parent directories if needed."
   :config
   (setenv "SHELL" "/bin/bash")
   (setq remote-file-name-inhibit-cache nil)
-  (setq vc-ignore-dir-regexp
-        (format "%s\\|%s"
-                vc-ignore-dir-regexp
-                tramp-file-name-regexp))
+  ;; (setq vc-ignore-dir-regexp
+  ;;       (format "%s\\|%s"
+  ;;               vc-ignore-dir-regexp
+  ;;               tramp-file-name-regexp))
   (setq tramp-verbose 1)
   (add-to-list 'tramp-connection-properties
                (list (regexp-quote "/sshx:user@host:")
