@@ -1,4 +1,3 @@
-
 #+STARTUP: content
 #+DESCRIPTION: Minimalistic emacs.
 #+PROPERTY: header-args :results silent
