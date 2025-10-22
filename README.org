@@ -1060,6 +1060,16 @@ Dirvish.
   (dirvish-quick-access-entries ; It's a custom option, `setq' won't work
    '(("h" "~/"                          "Home")
      ("d" "~/Downloads/"                "Downloads")))
+  (dirvish-side-width 45)
+  (dirvish-side-attributes '(vc-state subtree-state file-name collapse))
+  (dirvish-default-layout '(0 0.35 0.65))
+  (dirvish-emerge-group '(("Recent files"  (predicate . recent-files-2h))
+                          ("Documents"     (extensions "pdf" "tex" "bib" "epub"))
+                          ("Video"         (extensions "mp4" "mkv" "webm"))
+                          ("Pictures"      (extensions "jpg" "png" "svg" "gif"))
+                          ("Audio"         (extensions "mp3" "flac" "wav" "ape" "aac"))
+                          ("Archives"      (extensions "gz" "rar" "zip"))))
+
   :config
   (set-face-attribute 'dirvish-hl-line nil :foreground nil :background @m-color-main)
   ;; (dirvish-peek-mode) ; Preview files in minibuffer
@@ -1078,32 +1088,32 @@ Dirvish.
   :bind
   ;; Bind `dirvish|dirvish-side|dirvish-dwim' as you see fit
   (:map dirvish-mode-map
-   ("q" . dirvish-quit)
-   ("f" . avy-goto-word-1)
-   :map dired-mode-map ; Dirvish respects all the keybindings in this map
-   ("q" . dirvish-quit)
-   ("h" . dired-up-directory)
-   ("j" . dired-next-line)
-   ("k" . dired-previous-line)
-   ("l" . dired-find-file)
-   ("i" . wdired-change-to-wdired-mode)
-   ("." . dired-omit-mode)
-   ("b"   . dirvish-bookmark-jump)
-   ("f"   . dirvish-file-info-menu)
-   ("y"   . dirvish-yank-menu)
-   ("N"   . dirvish-narrow)
-   ("^"   . dirvish-history-last)
-   ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
-   ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
-   ("TAB" . dirvish-subtree-toggle)
-   ("M-n" . dirvish-history-go-forward)
-   ("M-p" . dirvish-history-go-backward)
-   ("M-l" . dirvish-ls-switches-menu)
-   ("M-m" . dirvish-mark-menu)
-   ("M-f" . dirvish-toggle-fullscreen)
-   ("M-s" . dirvish-setup-menu)
-   ("M-e" . dirvish-emerge-menu)
-   ("M-j" . dirvish-fd-jump)))
+        ("q" . dirvish-quit)
+        ("f" . avy-goto-word-1)
+        :map dired-mode-map ; Dirvish respects all the keybindings in this map
+        ("q" . dirvish-quit)
+        ("h" . dired-up-directory)
+        ("j" . dired-next-line)
+        ("k" . dired-previous-line)
+        ("l" . dired-find-file)
+        ("i" . wdired-change-to-wdired-mode)
+        ("." . dired-omit-mode)
+        ("b"   . dirvish-bookmark-jump)
+        ("f"   . dirvish-file-info-menu)
+        ("y"   . dirvish-yank-menu)
+        ("N"   . dirvish-narrow)
+        ("^"   . dirvish-history-last)
+        ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
+        ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
+        ("TAB" . dirvish-subtree-toggle)
+        ("M-n" . dirvish-history-go-forward)
+        ("M-p" . dirvish-history-go-backward)
+        ("M-l" . dirvish-ls-switches-menu)
+        ("M-m" . dirvish-mark-menu)
+        ("M-f" . dirvish-toggle-fullscreen)
+        ("M-s" . dirvish-setup-menu)
+        ("M-e" . dirvish-emerge-menu)
+        ("M-j" . dirvish-fd-jump)))
 #+END_SRC
 
 * Terminal :refactor:
@@ -1241,10 +1251,63 @@ Function to open vterm in provided file directory
            (detached-terminal-data-command system-type)))
 #+END_SRC
 * Workspaces
-** Buffer navigation
+** Buffer navigation functions
 #+BEGIN_SRC emacs-lisp :results silent
-(global-set-key (kbd "C-c ]") 'next-buffer)
-(global-set-key (kbd "C-c [") 'previous-buffer)
+(defun my/tabspaces--internal-buffer-p (buf)
+  "Return non-nil if BUF is internal (minibuffer or name starts with a space)."
+  (or (minibufferp buf)
+      (let ((n (buffer-name buf)))
+        (and n (> (length n) 0) (eq (aref n 0) ?\s)))))
+
+(defun my/tabspaces--allowed-p (buf)
+  "Return non-nil if BUF belongs to the current tabspace and is not internal."
+  (and (memq buf (tabspaces--buffer-list))
+       (buffer-live-p buf)
+       (not (my/tabspaces--internal-buffer-p buf))))
+
+(defun my/tabspaces-switch-to-prev-buffer ()
+  "Like `switch-to-prev-buffer' but stay within the current tabspace.
+Falls back to `switch-to-prev-buffer' if `tabspaces-mode' is not active."
+  (interactive)
+  (if (bound-and-true-p tabspaces-mode)
+      (let ((start (current-buffer))
+            ;; Safety to avoid infinite loops in degenerate histories.
+            (limit 100)
+            (found nil))
+        (while (and (> limit 0) (not found))
+          (setq limit (1- limit))
+          (switch-to-prev-buffer)
+          (setq found (or (eq (current-buffer) start) ; wrapped around
+                          (my/tabspaces--allowed-p (current-buffer)))))
+        (unless (my/tabspaces--allowed-p (current-buffer))
+          (switch-to-buffer start)
+          (user-error "No previous buffer in this tabspace")))
+    (call-interactively #'switch-to-prev-buffer)))
+
+(defun my/tabspaces-switch-to-next-buffer ()
+  "Like `switch-to-next-buffer' but stay within the current tabspace.
+Falls back to `switch-to-next-buffer' if `tabspaces-mode' is not active."
+  (interactive)
+  (if (bound-and-true-p tabspaces-mode)
+      (let ((start (current-buffer))
+            (limit 100)
+            (found nil))
+        (while (and (> limit 0) (not found))
+          (setq limit (1- limit))
+          (switch-to-next-buffer)
+          (setq found (or (eq (current-buffer) start)
+                          (my/tabspaces--allowed-p (current-buffer)))))
+        (unless (my/tabspaces--allowed-p (current-buffer))
+          (switch-to-buffer start)
+          (user-error "No next buffer in this tabspace")))
+    (call-interactively #'switch-to-next-buffer)))
+#+END_SRC
+
+
+bindings
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "C-c ]") 'my/tabspaces-switch-to-next-buffer)
+(global-set-key (kbd "C-c [") 'my/tabspaces-switch-to-prev-buffer)
 #+END_SRC
 ** Ibuffer
 #+BEGIN_SRC emacs-lisp :results silent
@@ -1279,6 +1342,8 @@ Function to open vterm in provided file directory
          ("C-c TAB r" . tab-rename)
          ("C-c TAB l" . tabspaces-restore-session))
   :custom
+  (tab-bar-new-tab-choice "*scratch*")
+  (tabspaces-mode 1)
   (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
@@ -1581,6 +1646,7 @@ Move to husky
   ;; (add-to-list 'meow-mode-state-list '(magit-mode . normal))
   (add-to-list 'meow-mode-state-list '(magit-process-mode . normal))
   (add-to-list 'meow-mode-state-list '(compilation-mode . normal))
+  (add-to-list 'meow-mode-state-list '(helpful-mode . normal))
   (add-to-list 'meow-mode-state-list '(detached-compilation-mode-map . normal))
   (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal))
   (add-to-list 'meow-mode-state-list '(debug-mode . normal))
@@ -1598,25 +1664,10 @@ Move to husky
   (meow-setup)
   (set-face-attribute 'meow-position-highlight-number-1 nil :foreground "#61AFEF" :background "#919185048b0a" :bold t :underline nil)
   (set-face-attribute 'meow-position-highlight-number-2 nil :foreground "#4E90CF" :bold t :underline nil)
+  (define-key mode-specific-map (kbd "j") nil)
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
-
-  ;; (add-hook 'minibuffer-setup-hook (lambda ()
-  ;;                                    (meow-insert-mode)
-  ;;           (define-key meow-normal-state-keymap [escape] 'meow-minibuffer-quit)
-  ;;           (define-key meow-insert-state-keymap [escape] 'meow-minibuffer-quit)
-  ;;           (define-key meow-insert-state-keymap (kbd "C-<return>") 'meow-normal-mode)))
-
-;; (add-hook 'minibuffer-setup-hook
-;;             (lambda ()
-;;               (meow-insert-mode)
-;;               (local-set-key (kbd "C-<return>") 
-;;                              (lambda () 
-;;                              (interactive)
-;;                                 (meow-normal-mode)
-;;                                 (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
-;;               (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
 
   (advice-add #'meow-change :after 
               (lambda ()
@@ -1648,6 +1699,9 @@ Move to husky
 (setq mac-option-modifier 'meta) ; make opt key do Super
 (setq mac-control-modifier 'control) ; make Control key do Control
 (setq ns-function-modifier 'hyper)
+;; (when (not window-system)
+;;  (setq mac-option-modifier 'super))
+
 (global-set-key (kbd "s-v") 'yank)
 (global-set-key (kbd "s-s") 'save-buffer)
 (global-set-key (kbd "s-c") 'meow-save)
@@ -1784,6 +1838,7 @@ Function for preserve better jump befor buffer changed only for prog mode.
 
 #+BEGIN_SRC emacs-lisp :noweb yes
 (use-package better-jumper
+  :defer 2
   ;; :demand t
   :bind
   (("C-o" . better-jumper-jump-backward)
@@ -2092,6 +2147,7 @@ Corfu fn
 
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.bun\\'")
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.npm\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.act\\'")
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.pnpm-store\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\venv\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
@@ -2151,7 +2207,6 @@ Custom server:
 
 (setq lsp-auto-guess-root t
       lsp-enable-file-watchers t
-      lsp-file-watch-threshold 20000
       lsp-clients-typescript-max-ts-server-memory 4096)
 
 (require 'lsp-mode)
@@ -2389,6 +2444,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   :hook (java-mode . lsp-))
 #+END_SRC
 ** COMMENT Flycheck
+*** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
   :bind (("C-j" . flycheck-next-error)
@@ -2403,7 +2459,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
   (setq flycheck-mode-line nil)
   ;; Change flycheck errors on save
   (setq flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
-  (setq flycheck-idle-change-delay 0.5)
+  (setq flycheck-idle-change-delay 1.0))
 
   (set-face-attribute 'flycheck-fringe-error nil :background 'unspecified :foreground @m-color-secondary)
   (set-face-attribute 'flycheck-error-list-error nil :background 'unspecified :foreground @m-color-secondary)
@@ -2554,8 +2610,43 @@ https://github.com/konrad1977/flyover
   :after consult)
 #+END_SRC
 
-
 ** Flymake
+**** Copy functions
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/flymake--format-diagnostic (diag)
+  "Return a formatted string for DIAG.
+Format: LINE:COL [TYPE] MESSAGE."
+  (let* ((beg  (flymake-diagnostic-beg diag))
+         (line (line-number-at-pos beg))
+         (col  (save-excursion (goto-char beg) (1+ (current-column))))
+         (typ  (flymake-diagnostic-type diag))
+         (msg  (flymake-diagnostic-text diag)))
+    (format "%d:%d [%s] %s" line col typ msg)))
+
+(defun my/flymake-kill-error ()
+  "Copy the Flymake diagnostic under point to the kill ring.
+If multiple diagnostics are present at point, copy the first one."
+  (interactive)
+  (let* ((diags (flymake-diagnostics (point) (point))))
+    (if (null diags)
+        (user-error "No Flymake diagnostic at point")
+      (let* ((diag (car diags))
+             (text (my/flymake--format-diagnostic diag)))
+        (kill-new text)
+        (message "Copied: %s" text)))))
+
+(defun my/flymake-kill-errors ()
+  "Copy all Flymake diagnostics in the current buffer to the kill ring.
+Each diagnostic is written on a separate line."
+  (interactive)
+  (let* ((diags (flymake-diagnostics)))
+    (if (null diags)
+        (user-error "No Flymake diagnostics in this buffer")
+      (let* ((lines (mapcar #'my/flymake--format-diagnostic diags))
+             (blob  (string-join lines "\n")))
+        (kill-new blob)
+        (message "Copied %d Flymake diagnostics" (length diags))))))
+#+END_SRC
 **** Package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package flymake
@@ -2565,7 +2656,9 @@ https://github.com/konrad1977/flyover
   (("C-j" . flymake-goto-next-error)
    ("C-k" . flymake-goto-prev-error)
    ("C-c e l" . flymake-show-diagnostics-buffer)
-   ("C-c l e" . flymake-show-diagnostics-buffer))
+   ("C-c l e" . flymake-show-diagnostics-buffer)
+   ("C-c e c" . my/flymake-kill-error)
+   ("C-c e C" . my/flymake-kill-errors))
   :hook 
   (prog-mode . flymake-mode)
   (flymake-diagnostics-buffer-mode . meow-normal-mode)
@@ -2606,7 +2699,7 @@ https://github.com/konrad1977/flyover
   (setq flymake-start-on-flymake-mode t
         flymake-start-on-save-buffer t
         flymake-start-on-newline t
-        flymake-no-changes-timeout 0.5)
+        flymake-no-changes-timeout 0.1)
   
   )
 #+END_SRC
@@ -2934,7 +3027,11 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 ** Emacs lisp
 *** Paren mode
 #+BEGIN_SRC emacs-lisp
-(use-package paren-face :defer t :hook (emacs-lisp-mode . paren-face-mode))
+(use-package paren-face
+  :defer t 
+  :hook (prog-mode . paren-face-mode)
+  :config
+  (setq paren-face-regexp (rx (any ?\( ?\) ?\[ ?\] ?\{ ?\}))))
 #+END_SRC
 *** Main mode
 #+BEGIN_SRC emacs-lisp
@@ -3043,6 +3140,17 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+BEGIN_SRC emacs-lisp
 (use-package npm
   :ensure (npm :repo "Artawower/npm.el" :host github)
+  :defer t)
+#+END_SRC
+*** PKG. NPM Script runner
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package pkg-run
+  :ensure (:host github :repo "Artawower/pkg-run")
+  :bind (("C-c j r" . pkg-run-script)
+         ("C-c j m" . pkg-run-menu)
+         ("C-c s r" . pkg-run-script))
+  :custom
+  (pkg-run-package-manager 'bun)
   :defer t)
 #+END_SRC
 *** REPL
@@ -3415,6 +3523,10 @@ Jq mode
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
 #+END_SRC
+** Kdl mode
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package kdl-mode :defer t)
+#+END_SRC
 ** Fish
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package fish-mode :defer t)
@@ -3431,7 +3543,7 @@ Jq mode
   :ensure (:type git :host github :repo "yuya373/claude-code-emacs")
   :bind (("s-g" . claude-code-emacs-transient)))
 #+END_SRC
-** Claude code seamless
+** COMMENT Claude code seamless
 #+BEGIN_SRC emacs-lisp :results silent
 ;; for eat terminal backend:
 (use-package eat
@@ -3619,8 +3731,26 @@ Commit types:
   )
 #+END_SRC
 
+** COMMENT Agent shell
+*** dependencies
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package shell-maker
+  :ensure t)
+#+END_SRC
 
-** Cursor like:
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package acp
+  :ensure (:host github :repo "xenodium/acp.el"))
+#+END_SRC
+*** Core package
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package agent-shell
+  :ensure (:host github :repo "xenodium/agent-shell")
+  :config 
+  (setq agent-shell-google-authentication
+        (agent-shell-google-make-authentication :login t)))
+#+END_SRC
+** COMMENT Cursor like:
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package aidermacs
   :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
@@ -3713,6 +3843,7 @@ Reset themes before apply
 (add-to-list 'frameset-filter-alist '(ns-appearance . dark))
 (menu-bar-mode t)
 (tool-bar-mode -1)
+(menu-bar-mode -1)
 (toggle-scroll-bar -1)
 (setq ring-bell-function 'ignore)
 (setq scroll-step 1)
@@ -3741,19 +3872,61 @@ Disable scrolls
 #+END_SRC
 ** Fonts
 #+BEGIN_SRC emacs-lisp
-(defun my/apply-fonts-to-frame (frame)
-  (with-selected-frame frame
-    (when (display-graphic-p frame)
-      (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
-      (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
-      (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
-      (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
-      (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 100)
-      (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 100)
-      (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 100)
-      (setq-local line-spacing 0.2)
-      (when (fboundp 'set-fontset-font)
-        (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend)))))
+(defun my/apply-fonts-to-frame (&optional frame)
+  "Apply font settings to FRAME (or selected frame if called interactively)."
+  (interactive)
+  (let ((frame (or frame (selected-frame))))
+    (with-selected-frame frame
+      (when (display-graphic-p frame)
+        (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
+        (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
+        (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
+        (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
+        (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height (* 10 @font-height))
+        (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height (* 10 @font-height))
+        (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height (* 10 @font-height))
+
+        (set-face-attribute 'font-lock-variable-name-face frame
+                            :foreground (catppuccin-color 'flamingo)
+                            :height (* 10 @font-height)
+                            :bold nil
+                            :family my/font-default)
+
+        ;; (my/apply-minimal-fonts-to-frame)
+        (setq-local line-spacing 0.2)
+        (when (fboundp 'set-fontset-font)
+          (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend))))))
+
+(defun my/apply-minimal-fonts-to-frame (&optional frame)
+  "Apply font settings to FRAME (or selected frame if called interactively)."
+  (interactive)
+  (let ((frame (or frame (selected-frame))))
+    (with-selected-frame frame
+      (when (display-graphic-p frame)
+        (set-face-attribute 'font-lock-property-use-face frame :inherit 'default)
+
+        ;; (set-face-attribute 'flymake-error nil
+        ;;                     :background "#d20f39"
+        ;;                     :height (* 10 @font-height)
+        ;;                     :bold nil
+        ;;                     :family my/font-default)
+        (set-face-attribute 'font-lock-variable-name-face nil
+                            ;; :foreground "#fe640b"
+                            ;; :foreground "#e78284"
+                            :foreground "#ca9ee6"
+                            :height (* 10 @font-height)
+                            :bold nil
+                            :family my/font-default)
+
+        (set-face-attribute 'font-lock-keyword-face frame
+                            :foreground (face-foreground 'font-lock-comment-face nil 'default)
+                            ;; :foreground (face-foreground 'default nil 'default)
+                            :family my/font-funny
+                            :italic nil
+                            :height (* 10 @font-height)
+                            :inherit 'nil)
+        (setq-local line-spacing 0.2)
+        ))))
 
 (use-package font-core
   :ensure nil
@@ -3839,8 +4012,11 @@ Disable scrolls
 
 ** Disable default splash screen
 #+BEGIN_SRC emacs-lisp 
-(setq inhibit-splash-screen t)
-(setq inhibit-startup-message t)
+(setq
+ inhibit-splash-screen t
+ inhibit-startup-screen t
+ inhibit-startup-message t
+ inhibit-startup-buffer-menu t)
 #+END_SRC
 ** Titlebar color
 Very pretty titlebar for Mac os
@@ -3888,8 +4064,7 @@ Very pretty titlebar for Mac os
 (use-package colorful-mode
   :defer t
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
-  :hook ((html-mode css-mode scss-mode emacs-lisp-mode org-mode) . colorful-mode))
-
+  :hook ((html-mode css-mode scss-mode emacs-lisp-mode org-mode help-mode helpful-mode) . colorful-mode))
 #+END_SRC
 ** Transient posframe
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3947,9 +4122,6 @@ Very pretty titlebar for Mac os
         (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
         (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
 
-
-
-
 (defun @set-catppucin-theme ()
   (interactive)
   (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'frappe 'latte))
@@ -3978,9 +4150,9 @@ Very pretty titlebar for Mac os
   :hook
   (after-init . auto-dark-mode)
   (auto-dark-dark-mode
-   . (lambda () (@set-catppucin-theme)))
+   . (lambda () (@set-catppucin-theme) (my/apply-fonts-to-frame)))
   (auto-dark-light-mode
-   . (lambda () (@set-catppucin-theme)))
+   . (lambda () (@set-catppucin-theme) (my/apply-fonts-to-frame)))
   :init (auto-dark-mode)
   :config (@set-catppucin-theme))
 #+END_SRC
@@ -4000,6 +4172,8 @@ Very pretty titlebar for Mac os
 (use-package hide-mode-line
   :hook
   (fundamental-mode . hide-mode-line-mode)
+  (compilation-mode . hide-mode-line-mode)
+  (magit-mode . hide-mode-line-mode)
   (prog-mode . hide-mode-line-mode)
   (text-mode . hide-mode-line-mode)
   (org-mode . hide-mode-line-mode))
@@ -4008,6 +4182,7 @@ Very pretty titlebar for Mac os
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package zoom
   :defer 0.8
+  :bind (("C-c z m" . zoom-mode))
   :config
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
@@ -4042,7 +4217,30 @@ Very pretty titlebar for Mac os
   ;; (add-hook 'buffer-list-update-hook 'my/fix-claude-size)
   )
 #+END_SRC
-** Folding (origami)
+** Folding, outline
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package outline-indent
+  :ensure t
+  :defer t
+  :hook 
+  ((dart-mode
+    yaml-mode
+    web-mode
+    yaml-ts-mode
+    python-mode
+    html-mode
+    scss-mode
+    ng2-html-mode
+    emacs-lisp-mode
+    json-mode) . outline-indent-minor-mode)
+  (ng2-html-mode . outline-indent-minor-mode)
+  (html-mode . outline-indent-minor-mode)
+  (web-mode . outline-indent-minor-mode)
+  :commands outline-indent-minor-mode
+  :custom
+  (outline-indent-ellipsis " ▼"))
+#+END_SRC
+** COMMENT Folding (origami)
 #+BEGIN_SRC emacs-lisp 
 (use-package origami
   :defer t
@@ -4236,6 +4434,7 @@ Topsy functions
   (setq vertico-cycle t)
   :config
   (set-face-attribute 'vertico-current nil :inherit 'region)
+  (vertico-mouse-mode 1)
   (setq read-file-name-completion-ignore-case t
         read-buffer-completion-ignore-case t
         completion-ignore-case t)
@@ -4754,13 +4953,15 @@ Improved styles for git changes
   (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
 
   (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
+  (add-hook 'ediff-load-hook #'zoom-mode)
   (add-hook 'ediff-cleanup-hook
             (lambda ()
               (dolist (buf (list ediff-buffer-A ediff-buffer-B
                                  (when (boundp 'ediff-buffer-C) ediff-buffer-C)))
                 (when (buffer-live-p buf)
                   (with-current-buffer buf
-                    (display-line-numbers-mode -1))))))
+                    (display-line-numbers-mode -1))))
+              (zoom-mode)))
   )
 #+END_SRC
 
@@ -4795,6 +4996,11 @@ Improved styles for git changes
   :ensure nil
   :bind (("C-c o r" . browse-at-remote)))
 #+END_SRC
+** Github consult
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package consult-gh :defer t)
+#+END_SRC
+
 * Org mode
 ** Org GPG encryption
 #+BEGIN_SRC emacs-lisp
@@ -5146,15 +5352,15 @@ Dependency
 ** Org node. Org roam alternative
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-mem
-  :defer
   :config
   ;; At least one of these two is needed
   (setq org-mem-do-sync-with-org-id t)
   (setq org-mem-watch-dirs
-        (list "~/Yandex.Disk.localized/Dropbox/org-roam/")) ;; Configure me
+        (list "/users/darkawower/Yandex.Disk.localized/Dropbox/org-roam")) ;; Configure me
   (org-mem-updater-mode))
 
 (use-package org-node
+  :after org-mem
   :bind
   (("C-c n r f" . org-node-find)
    ("C-c n r i" . org-node-insert-link))
@@ -5162,6 +5368,7 @@ Dependency
   (org-node-cache-mode)
   (org-node-roam-accelerator-mode)
   (setq org-node-alter-candidates t)
+  ;; (setq org-node-fakeroam-data-dir "~/Yandex.Disk.localized/Dropbox/org-roam/")
   (setq org-node-creation-fn #'org-node-new-via-roam-capture)
   (setq org-node-file-slug-fn #'org-node-slugify-like-roam-default)
   (setq org-node-file-timestamp-format "%Y%m%d%H%M%S-")
@@ -5369,8 +5576,8 @@ Ob raindrop (dynamic block)
   :custom
   (jinx-languages "en_US ru_RU")
   (jinx-camel-modes '(prog-mode org-mode))
-  :bind (("C-c f w" . jinx-correct)
-         ("C-c l c" . jinx-languages)
+  :bind (("C-c s c" . jinx-correct)
+         ("C-c s l" . jinx-languages)
          ("C-c s ]" . jinx-next)
          ("C-c s [" . jinx-previous))
   :config
