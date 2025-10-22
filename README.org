@@ -270,6 +270,12 @@ Currently i don't use it. But when necessary i just eval this code
   :ensure (explain-pause-mode :type git :host github :repo "lastquestion/explain-pause-mode")
   :defer t)
 #+END_SRC
+* Patches
+** Svg support
+https://github.com/d12frosted/homebrew-emacs-plus/issues/774
+#+BEGIN_SRC emacs-lisp :results silent
+(add-to-list 'imagemagick-types-inhibit 'SVG)
+#+END_SRC
 * Functions
 ** Open youtrack
  #+BEGIN_SRC emacs-lisp :results silent
