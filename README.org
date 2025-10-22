@@ -641,8 +641,12 @@ Another all formtter. Based on prettier and black
 (use-package apheleia
   :hook (prog-mode . apheleia-global-mode)
   :bind (:map meow-normal-state-keymap
-           ("\\p" . apheleia-format-buffer))
+              ("\\p" . apheleia-format-buffer))
   :config
+  (setf (alist-get 'kdlfmt apheleia-formatters)
+        '("kdlfmt" "format" "-"))
+  (add-to-list 'apheleia-mode-alist '(kdl-mode . kdlfmt))
+
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
   (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
   (add-to-list 'apheleia-mode-alist '(vue-ts-mode . prettier))
