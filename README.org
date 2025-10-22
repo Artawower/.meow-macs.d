@@ -926,14 +926,6 @@ Another all formtter. Based on prettier and black
   (corfu-quick2 "123456789"))
 #+END_SRC
 
-**** Corfu doc
-#+BEGIN_SRC emacs-lisp :results silent
-(use-package corfu-popupinfo
-  :ensure (corfu-info :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
-  :after corfu
-  :config
-  (setq corfu-popupinfo-delay '(0.5 . 0.5)))
-#+END_SRC
 **** Corfu save history
 
 #+BEGIN_SRC emacs-lisp :results silent
