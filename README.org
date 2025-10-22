@@ -52,6 +52,33 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
   (setq read-process-output-max (* 1024 1024))
 #+END_SRC
 
+** Some performance optimization
+*** Package quick start
+#+BEGIN_SRC emacs-lisp :results silent
+(setq package-quickstart t)
+#+END_SRC
+*** Initial mode
+#+BEGIN_SRC emacs-lisp :results silent
+(setq initial-major-mode 'fundamental-mode)
+#+END_SRC
+*** Buffer naming startup
+https://github.com/D4lj337/Emacs-performance
+#+BEGIN_SRC emacs-lisp :results silent
+(defvar startup/file-name-handler-alist file-name-handler-alist)
+(setq file-name-handler-alist nil)
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (setq file-name-handler-alist startup/file-name-handler-alist)
+            (makunbound 'startup/file-name-handler-alist)))
+#+END_SRC
+
+*** Disable modeline and backups while loading
+#+BEGIN_SRC emacs-lisp :results silent
+(setq
+ mode-line-format nil
+ make-backup-files nil
+ backup-directory-alist '((".*" . "~/.local/share/Trash/files")))
+#+END_SRC
 * Package manager.
 ** Elpaca. Package manager. 
 #+BEGIN_SRC emacs-lisp :results silent
