@@ -2,7 +2,7 @@
 (setq cnfg/config-dir "~/apps/flat-emacs/")
 (setq cnfg/config-path (concat cnfg/config-dir "README.org"))
 (setq cnfg/backup-dir "/Users/darkawower/tmp/emacs-backups")
-(setq cnfg/private-config-path "~/apps/pure-emacs/private.el")
+(setq cnfg/private-config-path "~/apps/flat-emacs/private.el")
 (setq @doom-theme-directory "~/.doom.d/themes")
 
 (setq @m-color-main "#61AFEF"
@@ -19,6 +19,22 @@
           (lambda () (setq gc-cons-threshold (* 20 1024 1024)))))
 
 (setq read-process-output-max (* 1024 1024))
+
+(setq package-quickstart t)
+
+(setq initial-major-mode 'fundamental-mode)
+
+(defvar startup/file-name-handler-alist file-name-handler-alist)
+(setq file-name-handler-alist nil)
+(add-hook 'emacs-startup-hook
+          (lambda ()
+            (setq file-name-handler-alist startup/file-name-handler-alist)
+            (makunbound 'startup/file-name-handler-alist)))
+
+(setq
+ mode-line-format nil
+ make-backup-files nil
+ backup-directory-alist '((".*" . "~/.local/share/Trash/files")))
 
 (defvar elpaca-installer-version 0.11)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
@@ -156,13 +172,15 @@ unreadable. Returns the names of envvars that were changed."
   (setq backup-by-copying t))
 
 (ignore-errors
-  (when cnfg/private-config-path
-    (load cnfg/private-config-path))
-  )
+ (when cnfg/private-config-path
+   (load cnfg/private-config-path))
+ )
 
 (when (eq system-type 'darwin)
   (setq browse-url-firefox-program nil)
   (setq browse-url-browser-function 'browse-url-default-macosx-browser))
+
+(add-to-list 'imagemagick-types-inhibit 'SVG)
 
 (defvar @youtrack-url "https://verifika.youtrack.cloud/issue")
 (defconst @youtrack-url-regexp "VW-[[:digit:]]*")
@@ -459,8 +477,12 @@ The format is:
 (use-package apheleia
   :hook (prog-mode . apheleia-global-mode)
   :bind (:map meow-normal-state-keymap
-           ("\\p" . apheleia-format-buffer))
+              ("\\p" . apheleia-format-buffer))
   :config
+  (setf (alist-get 'kdlfmt apheleia-formatters)
+        '("kdlfmt" "format" "-"))
+  (add-to-list 'apheleia-mode-alist '(kdl-mode . kdlfmt))
+
   (add-to-list 'apheleia-mode-alist '(emacs-lisp-mode . lisp-indent))
   (add-to-list 'apheleia-mode-alist '(html-ts-mode . prettier))
   (add-to-list 'apheleia-mode-alist '(vue-ts-mode . prettier))
@@ -494,6 +516,7 @@ The format is:
   ;;  (tsx-ts-mode . combobulate-mode))
   :config
   (setq combobulate-key-prefix "C-c c o")
+  (define-key combobulate-query-mode-map (kbd "q") nil)
 
   ;; Amend this to the directory where you keep Combobulate's source
   ;; code.
@@ -505,7 +528,8 @@ The format is:
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
   ;; (markdown-ts-mode . #'my/markdown-outline-setup)
   :mode (("\\.js\\'" . js-ts-mode)
-         ("\\.mjs\\'" . js-ts-mode))
+         ("\\.mjs\\'" . js-ts-mode)
+         ("\\.sh" . bash-ts-mode))
   :custom
   (go-ts-mode-indent-offset 2)
   :config
@@ -693,12 +717,6 @@ The format is:
   (corfu-quick1 "123456789")
   (corfu-quick2 "123456789"))
 
-(use-package corfu-popupinfo
-  :ensure (corfu-info :host github :repo "minad/corfu" :files ("extensions/corfu-popupinfo.el"))
-  :after corfu
-  :config
-  (setq corfu-popupinfo-delay '(0.5 . 0.5)))
-
 (use-package corfu-history
   :ensure (corfu-history :host github :repo "minad/corfu" :files ("extensions/corfu-history.el"))
   :after corfu
@@ -766,10 +784,21 @@ The format is:
 (use-package dirvish
   :init
   (dirvish-override-dired-mode)
+  :bind (("C-c o p" . dirvish-side))
   :custom
   (dirvish-quick-access-entries ; It's a custom option, `setq' won't work
    '(("h" "~/"                          "Home")
      ("d" "~/Downloads/"                "Downloads")))
+  (dirvish-side-width 45)
+  (dirvish-side-attributes '(vc-state subtree-state file-name collapse))
+  (dirvish-default-layout '(0 0.35 0.65))
+  (dirvish-emerge-group '(("Recent files"  (predicate . recent-files-2h))
+                          ("Documents"     (extensions "pdf" "tex" "bib" "epub"))
+                          ("Video"         (extensions "mp4" "mkv" "webm"))
+                          ("Pictures"      (extensions "jpg" "png" "svg" "gif"))
+                          ("Audio"         (extensions "mp3" "flac" "wav" "ape" "aac"))
+                          ("Archives"      (extensions "gz" "rar" "zip"))))
+
   :config
   (set-face-attribute 'dirvish-hl-line nil :foreground nil :background @m-color-main)
   ;; (dirvish-peek-mode) ; Preview files in minibuffer
@@ -788,32 +817,32 @@ The format is:
   :bind
   ;; Bind `dirvish|dirvish-side|dirvish-dwim' as you see fit
   (:map dirvish-mode-map
-   ("q" . dirvish-quit)
-   ("f" . avy-goto-word-1)
-   :map dired-mode-map ; Dirvish respects all the keybindings in this map
-   ("q" . dirvish-quit)
-   ("h" . dired-up-directory)
-   ("j" . dired-next-line)
-   ("k" . dired-previous-line)
-   ("l" . dired-find-file)
-   ("i" . wdired-change-to-wdired-mode)
-   ("." . dired-omit-mode)
-   ("b"   . dirvish-bookmark-jump)
-   ("f"   . dirvish-file-info-menu)
-   ("y"   . dirvish-yank-menu)
-   ("N"   . dirvish-narrow)
-   ("^"   . dirvish-history-last)
-   ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
-   ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
-   ("TAB" . dirvish-subtree-toggle)
-   ("M-n" . dirvish-history-go-forward)
-   ("M-p" . dirvish-history-go-backward)
-   ("M-l" . dirvish-ls-switches-menu)
-   ("M-m" . dirvish-mark-menu)
-   ("M-f" . dirvish-toggle-fullscreen)
-   ("M-s" . dirvish-setup-menu)
-   ("M-e" . dirvish-emerge-menu)
-   ("M-j" . dirvish-fd-jump)))
+        ("q" . dirvish-quit)
+        ("f" . avy-goto-word-1)
+        :map dired-mode-map ; Dirvish respects all the keybindings in this map
+        ("q" . dirvish-quit)
+        ("h" . dired-up-directory)
+        ("j" . dired-next-line)
+        ("k" . dired-previous-line)
+        ("l" . dired-find-file)
+        ("i" . wdired-change-to-wdired-mode)
+        ("." . dired-omit-mode)
+        ("b"   . dirvish-bookmark-jump)
+        ("f"   . dirvish-file-info-menu)
+        ("y"   . dirvish-yank-menu)
+        ("N"   . dirvish-narrow)
+        ("^"   . dirvish-history-last)
+        ("s"   . dirvish-quicksort) ; remapped `dired-sort-toggle-or-edit'
+        ("?"   . dirvish-dispatch)  ; remapped `dired-summary'
+        ("TAB" . dirvish-subtree-toggle)
+        ("M-n" . dirvish-history-go-forward)
+        ("M-p" . dirvish-history-go-backward)
+        ("M-l" . dirvish-ls-switches-menu)
+        ("M-m" . dirvish-mark-menu)
+        ("M-f" . dirvish-toggle-fullscreen)
+        ("M-s" . dirvish-setup-menu)
+        ("M-e" . dirvish-emerge-menu)
+        ("M-j" . dirvish-fd-jump)))
 
 (defun @clear-term-history ()
   "Clear terminal history inside vterm."
@@ -927,12 +956,83 @@ The format is:
   :custom ((detached-show-output-on-attach t)
            (detached-terminal-data-command system-type)))
 
-(global-set-key (kbd "C-c ]") 'next-buffer)
-(global-set-key (kbd "C-c [") 'previous-buffer)
+(defun my/tabspaces--internal-buffer-p (buf)
+  "Return non-nil if BUF is internal (minibuffer or name starts with a space)."
+  (or (minibufferp buf)
+      (let ((n (buffer-name buf)))
+        (and n (> (length n) 0) (eq (aref n 0) ?\s)))))
+
+(defun my/tabspaces--allowed-p (buf)
+  "Return non-nil if BUF belongs to the current tabspace and is not internal."
+  (and (memq buf (tabspaces--buffer-list))
+       (buffer-live-p buf)
+       (not (my/tabspaces--internal-buffer-p buf))))
+
+(defun my/tabspaces-switch-to-prev-buffer ()
+  "Like `switch-to-prev-buffer' but stay within the current tabspace.
+Falls back to `switch-to-prev-buffer' if `tabspaces-mode' is not active."
+  (interactive)
+  (if (bound-and-true-p tabspaces-mode)
+      (let ((start (current-buffer))
+            ;; Safety to avoid infinite loops in degenerate histories.
+            (limit 100)
+            (found nil))
+        (while (and (> limit 0) (not found))
+          (setq limit (1- limit))
+          (switch-to-prev-buffer)
+          (setq found (or (eq (current-buffer) start) ; wrapped around
+                          (my/tabspaces--allowed-p (current-buffer)))))
+        (unless (my/tabspaces--allowed-p (current-buffer))
+          (switch-to-buffer start)
+          (user-error "No previous buffer in this tabspace")))
+    (call-interactively #'switch-to-prev-buffer)))
+
+(defun my/tabspaces-switch-to-next-buffer ()
+  "Like `switch-to-next-buffer' but stay within the current tabspace.
+Falls back to `switch-to-next-buffer' if `tabspaces-mode' is not active."
+  (interactive)
+  (if (bound-and-true-p tabspaces-mode)
+      (let ((start (current-buffer))
+            (limit 100)
+            (found nil))
+        (while (and (> limit 0) (not found))
+          (setq limit (1- limit))
+          (switch-to-next-buffer)
+          (setq found (or (eq (current-buffer) start)
+                          (my/tabspaces--allowed-p (current-buffer)))))
+        (unless (my/tabspaces--allowed-p (current-buffer))
+          (switch-to-buffer start)
+          (user-error "No next buffer in this tabspace")))
+    (call-interactively #'switch-to-next-buffer)))
+
+(global-set-key (kbd "C-c ]") 'my/tabspaces-switch-to-next-buffer)
+(global-set-key (kbd "C-c [") 'my/tabspaces-switch-to-prev-buffer)
 
 (use-package ibuffer
   :ensure nil
   :bind ("C-c i b" . ibuffer))
+
+(defun my/safe-tabspaces-kill-buffers-close-workspace ()
+  "Safely kill buffers and close workspace.
+Prevents closing the last frame in daemon mode on macOS."
+  (interactive)
+  (let ((tab-count (length (tab-bar-tabs)))
+        (frame-count (length (frame-list))))
+    (cond
+     ;; If there's only one tab and one visible frame in daemon mode,
+     ;; just kill buffers without closing the workspace
+     ((and (daemonp)
+           (= tab-count 1)
+           (= frame-count 1))
+      (message "Cannot close the last workspace in daemon mode. Killing buffers only.")
+      (tabspaces-clear-buffers))
+     ;; If there's only one tab but multiple frames, it's safe to close
+     ((= tab-count 1)
+      (message "Closing last tab in this frame...")
+      (tabspaces-kill-buffers-close-workspace))
+     ;; Otherwise, proceed normally
+     (t
+      (tabspaces-kill-buffers-close-workspace)))))
 
 (use-package tabspaces
   ;; use this next line only if you also use straight, otherwise ignore it. 
@@ -953,12 +1053,14 @@ The format is:
          ("C-c TAB b" . tabspaces-switch-to-buffer)
          ("C-c TAB B" . switch-to-buffer)
          ("s-w" . delete-window)
-         ("C-c TAB d" . tabspaces-kill-buffers-close-workspace)
+         ("C-c TAB d" . my/safe-tabspaces-kill-buffers-close-workspace)
          ("C-c TAB S" . tabspaces-save-current-project-session)
          ("C-c TAB s" . tabspaces-save-session)
          ("C-c TAB r" . tab-rename)
          ("C-c TAB l" . tabspaces-restore-session))
   :custom
+  (tab-bar-new-tab-choice "*scratch*")
+  (tabspaces-mode 1)
   (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
@@ -1213,6 +1315,7 @@ The format is:
   ;; (add-to-list 'meow-mode-state-list '(magit-mode . normal))
   (add-to-list 'meow-mode-state-list '(magit-process-mode . normal))
   (add-to-list 'meow-mode-state-list '(compilation-mode . normal))
+  (add-to-list 'meow-mode-state-list '(helpful-mode . normal))
   (add-to-list 'meow-mode-state-list '(detached-compilation-mode-map . normal))
   (add-to-list 'meow-mode-state-list '(messages-buffer-mode . normal))
   (add-to-list 'meow-mode-state-list '(debug-mode . normal))
@@ -1227,25 +1330,10 @@ The format is:
   (meow-setup)
   (set-face-attribute 'meow-position-highlight-number-1 nil :foreground "#61AFEF" :background "#919185048b0a" :bold t :underline nil)
   (set-face-attribute 'meow-position-highlight-number-2 nil :foreground "#4E90CF" :bold t :underline nil)
+  (define-key mode-specific-map (kbd "j") nil)
   (@meow-thing-register)
   (@meow-setup-custom-modes)
   (@meow-setup-state-per-modes)
-
-  ;; (add-hook 'minibuffer-setup-hook (lambda ()
-  ;;                                    (meow-insert-mode)
-  ;;           (define-key meow-normal-state-keymap [escape] 'meow-minibuffer-quit)
-  ;;           (define-key meow-insert-state-keymap [escape] 'meow-minibuffer-quit)
-  ;;           (define-key meow-insert-state-keymap (kbd "C-<return>") 'meow-normal-mode)))
-
-;; (add-hook 'minibuffer-setup-hook
-;;             (lambda ()
-;;               (meow-insert-mode)
-;;               (local-set-key (kbd "C-<return>") 
-;;                              (lambda () 
-;;                              (interactive)
-;;                                 (meow-normal-mode)
-;;                                 (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
-;;               (local-set-key (kbd "<escape>") #'meow-minibuffer-quit)))
 
   (advice-add #'meow-change :after 
               (lambda ()
@@ -1268,6 +1356,9 @@ The format is:
 (setq mac-option-modifier 'meta) ; make opt key do Super
 (setq mac-control-modifier 'control) ; make Control key do Control
 (setq ns-function-modifier 'hyper)
+;; (when (not window-system)
+;;  (setq mac-option-modifier 'super))
+
 (global-set-key (kbd "s-v") 'yank)
 (global-set-key (kbd "s-s") 'save-buffer)
 (global-set-key (kbd "s-c") 'meow-save)
@@ -1375,6 +1466,7 @@ The format is:
     (call-interactively #'better-jumper-set-jump)))
 
 (use-package better-jumper
+  :defer 2
   ;; :demand t
   :bind
   (("C-o" . better-jumper-jump-backward)
@@ -1560,6 +1652,7 @@ The format is:
 
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.bun\\'")
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.npm\\'")
+  (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.act\\'")
   (add-to-list 'lsp-file-watch-ignored-directories "[/\\\\]\\.pnpm-store\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\venv\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
@@ -1610,7 +1703,6 @@ The format is:
 
 (setq lsp-auto-guess-root t
       lsp-enable-file-watchers t
-      lsp-file-watch-threshold 20000
       lsp-clients-typescript-max-ts-server-memory 4096)
 
 (require 'lsp-mode)
@@ -1825,14 +1917,53 @@ The format is:
 (use-package lsp-java
   :hook (java-mode . lsp-))
 
+(defun my/flymake--format-diagnostic (diag)
+  "Return a formatted string for DIAG.
+Format: LINE:COL [TYPE] MESSAGE."
+  (let* ((beg  (flymake-diagnostic-beg diag))
+         (line (line-number-at-pos beg))
+         (col  (save-excursion (goto-char beg) (1+ (current-column))))
+         (typ  (flymake-diagnostic-type diag))
+         (msg  (flymake-diagnostic-text diag)))
+    (format "%d:%d [%s] %s" line col typ msg)))
+
+(defun my/flymake-kill-error ()
+  "Copy the Flymake diagnostic under point to the kill ring.
+If multiple diagnostics are present at point, copy the first one."
+  (interactive)
+  (let* ((diags (flymake-diagnostics (point) (point))))
+    (if (null diags)
+        (user-error "No Flymake diagnostic at point")
+      (let* ((diag (car diags))
+             (text (my/flymake--format-diagnostic diag)))
+        (kill-new text)
+        (message "Copied: %s" text)))))
+
+(defun my/flymake-kill-errors ()
+  "Copy all Flymake diagnostics in the current buffer to the kill ring.
+Each diagnostic is written on a separate line."
+  (interactive)
+  (let* ((diags (flymake-diagnostics)))
+    (if (null diags)
+        (user-error "No Flymake diagnostics in this buffer")
+      (let* ((lines (mapcar #'my/flymake--format-diagnostic diags))
+             (blob  (string-join lines "\n")))
+        (kill-new blob)
+        (message "Copied %d Flymake diagnostics" (length diags))))))
+
 (use-package flymake
   :ensure nil
   :after (lsp-mode)
   :bind
   (("C-j" . flymake-goto-next-error)
    ("C-k" . flymake-goto-prev-error)
-   ("C-c e l" . flymake-show-diagnostics-buffer))
-  :hook (prog-mode . flymake-mode)
+   ("C-c e l" . flymake-show-diagnostics-buffer)
+   ("C-c l e" . flymake-show-diagnostics-buffer)
+   ("C-c e c" . my/flymake-kill-error)
+   ("C-c e C" . my/flymake-kill-errors))
+  :hook 
+  (prog-mode . flymake-mode)
+  (flymake-diagnostics-buffer-mode . meow-normal-mode)
   :config
   (setq lsp-diagnostics-provider :flymake)
   (setq flymake-show-diagnostics-at-end-of-line nil)
@@ -1870,7 +2001,7 @@ The format is:
   (setq flymake-start-on-flymake-mode t
         flymake-start-on-save-buffer t
         flymake-start-on-newline t
-        flymake-no-changes-timeout 0.5)
+        flymake-no-changes-timeout 0.1)
   
   )
 
@@ -2114,7 +2245,11 @@ The format is:
   (setq dape-buffer-window-arrangment 'right)
   (setq dape-inline-variables t))
 
-(use-package paren-face :defer t :hook (emacs-lisp-mode . paren-face-mode))
+(use-package paren-face
+  :defer t 
+  :hook (prog-mode . paren-face-mode)
+  :config
+  (setq paren-face-regexp (rx (any ?\( ?\) ?\[ ?\] ?\{ ?\}))))
 
 (use-package elisp-mode
   :defer t
@@ -2194,6 +2329,15 @@ The format is:
 
 (use-package npm
   :ensure (npm :repo "Artawower/npm.el" :host github)
+  :defer t)
+
+(use-package pkg-run
+  :ensure (:host github :repo "Artawower/pkg-run")
+  :bind (("C-c j r" . pkg-run-script)
+         ("C-c j m" . pkg-run-menu)
+         ("C-c s r" . pkg-run-script))
+  :custom
+  (pkg-run-package-manager 'bun)
   :defer t)
 
 (use-package nodejs-repl
@@ -2424,45 +2568,54 @@ The format is:
   (markdown-xwidget-mermaid-theme "default")
   (markdown-xwidget-code-block-theme "default"))
 
+(use-package kdl-mode :defer t)
+
 (use-package fish-mode :defer t)
 
-;; for eat terminal backend:
-(use-package eat
-  :ensure (:type git
-                 :host codeberg
-                 :repo "akib/emacs-eat"
-                 :files ("*.el" ("term" "term/*.el") "*.texi"
-                         "*.ti" ("terminfo/e" "terminfo/e/*")
-                         ("terminfo/65" "terminfo/65/*")
-                         ("integration" "integration/*")
-                         (:exclude ".dir-locals.el" "*-tests.el"))))
+(defun my/open-last-view-diff ()
+  "Open latest view diff from eacs"
+  (interactive)
+  (let* ((win   (selected-window))
+         (pt    (point))
+         (start (window-start win)))
+    (unwind-protect
+        (progn
+          (save-restriction
+            (widen))
+          (goto-char (point-max))
+          (unless (re-search-backward "view_diff" nil t)
+            (user-error "В буфере не найдено 'view diff'"))
+          (goto-char (match-beginning 0))
+          (eca-chat--key-pressed-return))
+      (when (window-live-p win)
+        (set-window-start win start t)
+        (set-window-point win pt)))))
 
-;; install claude-code.el:
-(use-package claude-code
-  ;; :ensure (:type git :host github :repo "artawower/claude-code.el" :branch "main"
-  :ensure (:type git :host github :repo "stevemolitor/claude-code.el" :branch "main"
-                 :files ("*.el" (:exclude "images/*")))
-  :bind (("s-g" . claude-code-transient))
+(use-package eca
+  :defer t
+  :ensure (:type git :host github :repo "editor-code-assistant/eca-emacs" :files (:defaults "*.el"))
+  :custom
+  (eca-chat-use-side-window nil)
+  :bind (("C-c e e" . eca)
+         ("C-c e m" . eca-transient-menu)
+         :map eca-chat-mode-map
+         ("<tab>" . eca-chat-toggle-expandable-block)
+         ("C-c C-v" . my/open-last-view-diff)
+         ("s-<return>" . eca-chat--key-pressed-return)
+         ("<return>" . eca-chat--key-pressed-newline)
+         ("RET" . eca-chat--key-pressed-newline)
+         ("C-k" . eca-chat--key-pressed-previous-prompt-history)
+         ("C-j" . eca-chat--key-pressed-next-prompt-history)
+         ("C-S-j" . eca-chat-go-to-next-expandable-block)
+         ("C-S-k" . eca-chat-go-to-prev-expandable-block)
+         ("C-p" . eca-chat-go-to-prev-user-message)
+         ("C-n" . eca-chat-go-to-next-user-message))
   :config
-  (setq vterm-max-scrollback 100000)
-  (setq claude-code-terminal-backend #'vterm)
-  (claude-code-mode))
-
-;; (setq display-buffer-alist
-;;       (cons
-;;        '("^\\*claude"
-;;          (display-buffer-in-side-window)
-;;          (side . right)
-;;          (window-width . 90))
-;;        display-buffer-alist))
-
-(use-package claude-code-prompt-extensions
-  :after claude-code
-  :ensure (:type git
-                 :host github
-                 :repo "Artawower/claude-code.el")
-  :config
-  (claude-code-prompt-extensions-setup))
+  ;; Add ECA buffers to display-buffer-alist using my/smart-display-buffer-function
+  (add-to-list
+   'display-buffer-alist
+   '("<eca-chat.*"
+     (my/smart-display-buffer-function))))
 
 (use-package copilot
   :defer 5
@@ -2587,31 +2740,9 @@ Commit types:
 - **test**: Adding missing tests or correcting existing tests")
   )
 
-(use-package aidermacs
-  :ensure (:host github :repo "MatthewZMD/aidermacs" :branch "main")
-  :defer t
-  :bind (("C-c a a" . aidermacs-transient-menu)
-         ("s-G" . aidermacs-transient-menu)
-         :map aidermacs-vterm-mode-map
-         ("s-<return>" . aidermacs-vterm-insert-newline)
-         ("S-<return>" . aidermacs-vterm-insert-newline))
-  :config
-  (setq aidermacs-backend 'vterm)
-  (setq aidermacs-vterm-multiline-newline-key "S-<return>")
-  (add-to-list
-   'display-buffer-alist
-   '("\\*aidermacs.*"
-     (my/smart-display-buffer-function)))
-
-  :custom
-                                        ; See the Configuration section below
-  (aidermacs-editor-model "openai/claude-3.7-sonnet")
-  (aidermacs-weak-model "openai/gpt-4o-mini")
-  (aidermacs-use-architect-mode t)
-  ;; (aidermacs-default-model "deepseek/deepseek-chat")
-  (aidermacs-default-model "github_copilot/claude-4-sonnet")
-  ;; (aidermacs-default-model "gpt-4o")
-  )
+(use-package no-distraction
+  :hook ((typescript-ts-mode html-ts-mode) . no-distraction-mode)
+  :ensure (no-distraction :host github :repo "artawower/no-distraction.el"))
 
 (use-package stillness-mode
   :ensure (:host github :repo "neeasade/stillness-mode.el" :branch "main")
@@ -2625,6 +2756,7 @@ Commit types:
 (add-to-list 'frameset-filter-alist '(ns-appearance . dark))
 (menu-bar-mode t)
 (tool-bar-mode -1)
+(menu-bar-mode -1)
 (toggle-scroll-bar -1)
 (setq ring-bell-function 'ignore)
 (setq scroll-step 1)
@@ -2642,19 +2774,61 @@ Commit types:
 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
-(defun my/apply-fonts-to-frame (frame)
-  (with-selected-frame frame
-    (when (display-graphic-p frame)
-      (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
-      (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
-      (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
-      (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
-      (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 100)
-      (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 100)
-      (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 100)
-      (setq-local line-spacing 0.2)
-      (when (fboundp 'set-fontset-font)
-        (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend)))))
+(defun my/apply-fonts-to-frame (&optional frame)
+  "Apply font settings to FRAME (or selected frame if called interactively)."
+  (interactive)
+  (let ((frame (or frame (selected-frame))))
+    (with-selected-frame frame
+      (when (display-graphic-p frame)
+        (set-frame-font (format "%s-%d" my/font-default @font-height) nil t)
+        (set-face-attribute 'default frame :family my/font-default :height (* 10 @font-height))
+        (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 @font-height))
+        (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ @font-height)))
+        (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height (* 10 @font-height))
+        (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height (* 10 @font-height))
+        (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height (* 10 @font-height))
+
+        (set-face-attribute 'font-lock-variable-name-face frame
+                            :foreground (catppuccin-color 'flamingo)
+                            :height (* 10 @font-height)
+                            :bold nil
+                            :family my/font-default)
+
+        ;; (my/apply-minimal-fonts-to-frame)
+        (setq-local line-spacing 0.2)
+        (when (fboundp 'set-fontset-font)
+          (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend))))))
+
+(defun my/apply-minimal-fonts-to-frame (&optional frame)
+  "Apply font settings to FRAME (or selected frame if called interactively)."
+  (interactive)
+  (let ((frame (or frame (selected-frame))))
+    (with-selected-frame frame
+      (when (display-graphic-p frame)
+        (set-face-attribute 'font-lock-property-use-face frame :inherit 'default)
+
+        ;; (set-face-attribute 'flymake-error nil
+        ;;                     :background "#d20f39"
+        ;;                     :height (* 10 @font-height)
+        ;;                     :bold nil
+        ;;                     :family my/font-default)
+        (set-face-attribute 'font-lock-variable-name-face nil
+                            ;; :foreground "#fe640b"
+                            ;; :foreground "#e78284"
+                            :foreground "#ca9ee6"
+                            :height (* 10 @font-height)
+                            :bold nil
+                            :family my/font-default)
+
+        (set-face-attribute 'font-lock-keyword-face frame
+                            :foreground (face-foreground 'font-lock-comment-face nil 'default)
+                            ;; :foreground (face-foreground 'default nil 'default)
+                            :family my/font-funny
+                            :italic nil
+                            :height (* 10 @font-height)
+                            :inherit 'nil)
+        (setq-local line-spacing 0.2)
+        ))))
 
 (use-package font-core
   :ensure nil
@@ -2668,9 +2842,40 @@ Commit types:
 
 (setq-default line-spacing 1)
 
+(defun my/setup-modeline ()
+  (interactive)
+  (let* ((bg (or (face-attribute 'org-block :background nil 'default)
+                 (face-attribute 'mode-line :background nil 'default)))
+         (bg-inactive (face-attribute 'mode-line-inactive :background nil 'default)))
+    (set-face-attribute 'mode-line nil
+                        :background bg
+                        :box `(:line-width 8 :color ,bg))
+    (when (facep 'mode-line-active)
+      (set-face-attribute 'mode-line-active nil
+                          :background bg
+                          :box `(:line-width 8 :color ,bg)))
+    (set-face-attribute 'mode-line-inactive nil
+                        :box `(:line-width 8 :color ,bg-inactive))
+    (set-face-attribute 'header-line nil :inherit 'mode-line)
+    (force-mode-line-update t)))
+
+(add-hook 'emacs-startup-hook #'my/setup-modeline)
+
+(defun my/setup-modeline-once ()
+  "Настройка modeline один раз при первом фокусе"
+  (my/setup-modeline)
+  (remove-hook 'focus-in-hook #'my/setup-modeline-once))
+
+(if (daemonp)
+    ;; В daemon mode ждём первого фокуса на фрейм
+    (add-hook 'focus-in-hook #'my/setup-modeline-once)
+  (add-hook 'window-setup-hook #'my/setup-modeline))
+
 (use-package helpful
   :defer t
-  :hook (helpful-mode . meow-normal-mode)
+  :hook 
+  (helpful-mode . meow-normal-mode)
+  (help-mode . meow-normal-mode)
   :bind (("C-h k" . helpful-key)
          ("C-h C-k" . helpful-key)
          ("C-h p" . describe-package)
@@ -2708,8 +2913,11 @@ Commit types:
   (setq confirm-kill-emacs 'y-or-n-p)
   (defalias 'yes-or-no-p 'y-or-n-p))
 
-(setq inhibit-splash-screen t)
-(setq inhibit-startup-message t)
+(setq
+ inhibit-splash-screen t
+ inhibit-startup-screen t
+ inhibit-startup-message t
+ inhibit-startup-buffer-menu t)
 
 (use-package ns-auto-titlebar
   :config
@@ -2746,7 +2954,7 @@ Commit types:
 (use-package colorful-mode
   :defer t
   :ensure (:type git :host github :repo "DevelopmentCool2449/colorful-mode")
-  :hook ((html-mode css-mode scss-mode emacs-lisp-mode org-mode) . colorful-mode))
+  :hook ((html-mode css-mode scss-mode emacs-lisp-mode org-mode help-mode helpful-mode) . colorful-mode))
 
 (use-package transient-posframe
   :defer 2
@@ -2757,26 +2965,26 @@ Commit types:
   (transient-posframe-mode))
 
 (defun my/diff-faces-setup ()
-    (if (eq (frame-parameter nil 'background-mode) 'dark)
-        (progn
-          (set-face-attribute 'diff-added nil :extend t :background "#365945" :foreground "#d7ffd9")
-          (set-face-attribute 'diff-removed nil :extend t :background "#593636" :foreground "#ffd7d7")
-          (set-face-attribute 'diff-refine-added nil :extend t :background "#4e7a5d" :inherit 'diff-added)
-          (set-face-attribute 'diff-refine-removed nil :extend t :background "#7a4e4e" :inherit 'diff-removed))
+  (if (eq (frame-parameter nil 'background-mode) 'dark)
       (progn
-        (set-face-attribute 'diff-added nil :extend t :background "#c7f1cc" :foreground "#002800")
-        (set-face-attribute 'diff-removed nil :extend t :background "#f1c7c7" :foreground "#280000")
-        (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
-        (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
-
-
+        (set-face-attribute 'diff-added nil :extend t :background "#365945" :foreground "#d7ffd9")
+        (set-face-attribute 'diff-removed nil :extend t :background "#593636" :foreground "#ffd7d7")
+        (set-face-attribute 'diff-refine-added nil :extend t :background "#4e7a5d" :inherit 'diff-added)
+        (set-face-attribute 'diff-refine-removed nil :extend t :background "#7a4e4e" :inherit 'diff-removed))
+    (progn
+      (set-face-attribute 'diff-added nil :extend t :background "#c7f1cc" :foreground "#002800")
+      (set-face-attribute 'diff-removed nil :extend t :background "#f1c7c7" :foreground "#280000")
+      (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
+      (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
 
 
 (defun @set-catppucin-theme ()
   (interactive)
-  (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'frappe 'latte))
+  (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'macchiato 'latte))
   (catppuccin-reload)
-  (my/diff-faces-setup))
+  (my/diff-faces-setup)
+ ;; (my/ediff-faces-setup)
+  )
 
 (use-package catppuccin-theme
   :config
@@ -2798,9 +3006,9 @@ Commit types:
   :hook
   (after-init . auto-dark-mode)
   (auto-dark-dark-mode
-   . (lambda () (@set-catppucin-theme)))
+   . (lambda () (@set-catppucin-theme) (my/apply-fonts-to-frame)))
   (auto-dark-light-mode
-   . (lambda () (@set-catppucin-theme)))
+   . (lambda () (@set-catppucin-theme) (my/apply-fonts-to-frame)))
   :init (auto-dark-mode)
   :config (@set-catppucin-theme))
 
@@ -2815,18 +3023,21 @@ Commit types:
 (use-package hide-mode-line
   :hook
   (fundamental-mode . hide-mode-line-mode)
+  (compilation-mode . hide-mode-line-mode)
+  (magit-mode . hide-mode-line-mode)
   (prog-mode . hide-mode-line-mode)
   (text-mode . hide-mode-line-mode)
   (org-mode . hide-mode-line-mode))
 
 (use-package zoom
   :defer 0.8
+  :bind (("C-c z m" . zoom-mode))
   :config
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff"))
-   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode))
+   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff" "<eca-chat"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode eca-mode eca-chat-mode))
    '(zoom-ignore-predicates '((lambda () (window-parameter nil 'window-side)))))
 
   (defun my/fix-claude-size ()
@@ -2855,21 +3066,26 @@ Commit types:
   ;; (add-hook 'buffer-list-update-hook 'my/fix-claude-size)
   )
 
-(use-package origami
+(use-package outline-indent
+  :ensure t
   :defer t
-  :hook ((org-mode
-          dart-mode
-          yaml-mode
-          web-mode
-          yaml-ts-mode
-          python-mode
-          html-mode
-          scss-mode
-          ng2-html-mode
-          emacs-lisp-mode
-          json-mode) . origami-mode)
+  :hook 
+  ((dart-mode
+    yaml-mode
+    web-mode
+    yaml-ts-mode
+    python-mode
+    html-mode
+    scss-mode
+    ng2-html-mode
+    emacs-lisp-mode
+    json-mode) . outline-indent-minor-mode)
+  (ng2-html-mode . outline-indent-minor-mode)
+  (html-mode . outline-indent-minor-mode)
+  (web-mode . outline-indent-minor-mode)
+  :commands outline-indent-minor-mode
   :custom
-  (origami-fold-replacement "..."))
+  (outline-indent-ellipsis " ▼"))
 
 (use-package tab-bar-echo-area
   :defer 2
@@ -2878,7 +3094,7 @@ Commit types:
   :config
   ;; Does not work with custom-faces.
   (custom-set-faces
-   '(tab-bar-echo-area-tab ((t (:inherit tab-bar-tab)))))
+   `(tab-bar-echo-area-tab ((t (:inherit tab-bar-tab :box (:line-width 6 :color ,(face-attribute 'tab-bar-tab :background)))))))
   
   (custom-set-faces
    '(tab-bar-echo-area-tab-inactive ((t (:inherit tab-bar-tab-inactive)))))
@@ -3027,6 +3243,7 @@ Commit types:
   (setq vertico-cycle t)
   :config
   (set-face-attribute 'vertico-current nil :inherit 'region)
+  (vertico-mouse-mode 1)
   (setq read-file-name-completion-ignore-case t
         read-buffer-completion-ignore-case t
         completion-ignore-case t)
@@ -3052,6 +3269,7 @@ Commit types:
 
 ;; Persist history over Emacs restarts. Vertico sorts by history position.
 (use-package savehist
+  :demand t
   :ensure nil
   :config
   (savehist-mode))
@@ -3372,56 +3590,49 @@ Commit types:
   (set-face-attribute 'diff-added nil :extend t :background "light green")
   (set-face-attribute 'diff-removed nil :extend t :background "tomato")
   (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
-  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
-  )
+  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed))
 
-(defun my/ediff-face-specs ()
-  (let* ((bg-A (or (face-background 'diff-removed nil t) "#ffecec"))
-         (bg-B (or (face-background 'diff-added   nil t) "#ecffec"))
-         (bg-C (or (face-background 'diff-changed nil t)
-                   (face-background 'diff-refine-changed nil t)
-                   "#fff3e0"))
-         (bg-RA (or (face-background 'diff-refine-removed nil t) "#ffb3b3"))
-         (bg-RB (or (face-background 'diff-refine-added  nil t) "#b3ffb3"))
-         (bg-RC (or (face-background 'diff-refine-changed nil t) "#ffe6a3")))
-    (custom-theme-set-faces
-     'user
-     `(ediff-current-diff-A
-       ((((background dark))  :background "#4c2f2f" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-current-diff-B
-       ((((background dark))  :background "#2f4c2f" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-     `(ediff-current-diff-C
-       ((((background dark))  :background "#2f2f4c" :extend t)
-        (((background light)) :background ,bg-C       :extend t)))
-
-     `(ediff-even-diff-A
-       ((((background dark))  :background "#3a2626" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-even-diff-B
-       ((((background dark))  :background "#263a26" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-
-     `(ediff-odd-diff-A
-       ((((background dark))  :background "#402a2a" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-odd-diff-B
-       ((((background dark))  :background "#2a402a" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-     `(ediff-odd-diff-C
-       ((((background dark))  :background "#403a2a" :extend t)
-        (((background light)) :background ,bg-C       :extend t)))
-
-     `(ediff-fine-diff-A
-       ((((background dark))  :background "#803838" :weight bold :extend t)
-        (((background light)) :background ,bg-RA      :weight bold :extend t)))
-     `(ediff-fine-diff-B
-       ((((background dark))  :background "#387038" :weight bold :extend t)
-        (((background light)) :background ,bg-RB      :weight bold :extend t)))
-     `(ediff-fine-diff-C
-       ((((background dark))  :background "#7a6b38" :weight bold :extend t)
-        (((background light)) :background ,bg-RC      :weight bold :extend t))))))
+(defun my/ediff-faces-setup ()
+  "Make Ediff faces copy exact colors from Diff faces."
+  (let* ((add-bg (face-attribute 'diff-added :background nil 'default))
+         (add-fg (face-attribute 'diff-added :foreground nil 'default))
+         (rem-bg (face-attribute 'diff-removed :background nil 'default))
+         (rem-fg (face-attribute 'diff-removed :foreground nil 'default))
+         (chg-bg (if (facep 'diff-changed)
+                     (face-attribute 'diff-changed :background nil 'default)
+                   add-bg))
+         (chg-fg (if (facep 'diff-changed)
+                     (face-attribute 'diff-changed :foreground nil 'default)
+                   add-fg))
+         (radd-bg (if (facep 'diff-refine-added)
+                      (face-attribute 'diff-refine-added :background nil 'default)
+                    add-bg))
+         (radd-fg (if (facep 'diff-refine-added)
+                      (face-attribute 'diff-refine-added :foreground nil 'default)
+                    add-fg))
+         (rrem-bg (if (facep 'diff-refine-removed)
+                      (face-attribute 'diff-refine-removed :background nil 'default)
+                    rem-bg))
+         (rrem-fg (if (facep 'diff-refine-removed)
+                      (face-attribute 'diff-refine-removed :foreground nil 'default)
+                    rem-fg))
+         (rchg-bg (if (facep 'diff-refine-changed)
+                      (face-attribute 'diff-refine-changed :background nil 'default)
+                    radd-bg))
+         (rchg-fg (if (facep 'diff-refine-changed)
+                      (face-attribute 'diff-refine-changed :foreground nil 'default)
+                    radd-fg)))
+    (set-face-attribute 'ediff-current-diff-A nil :inherit nil :background rem-bg :foreground rem-fg :extend t)
+    (set-face-attribute 'ediff-current-diff-B nil :inherit nil :background add-bg :foreground add-fg :extend t)
+    (set-face-attribute 'ediff-current-diff-C nil :inherit nil :background chg-bg :foreground chg-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-A    nil :inherit nil :background rrem-bg :foreground rrem-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-B    nil :inherit nil :background radd-bg :foreground radd-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-C    nil :inherit nil :background rchg-bg :foreground rchg-fg :extend t)
+    (dolist (f '(ediff-even-diff-A ediff-even-diff-B ediff-even-diff-C
+                                   ediff-odd-diff-A ediff-odd-diff-B ediff-odd-diff-C
+                                   ediff-current-diff-Ancestor ediff-even-diff-Ancestor
+                                   ediff-odd-diff-Ancestor ediff-fine-diff-Ancestor))
+      (set-face-attribute f nil :inherit 'default :foreground 'unspecified :background 'unspecified :extend t))))
 
 (use-package ediff
   :ensure nil
@@ -3434,18 +3645,20 @@ Commit types:
   (setq ediff-highlight-all-diffs t)
 
 
-  (my/ediff-face-specs)
-  (add-hook 'ediff-load-hook #'my/ediff-face-specs)
+  ;; (my/ediff-face-specs)
+  (add-hook 'ediff-load-hook #'my/ediff-faces-setup)
   (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
 
   (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
+  (add-hook 'ediff-load-hook #'zoom-mode)
   (add-hook 'ediff-cleanup-hook
             (lambda ()
               (dolist (buf (list ediff-buffer-A ediff-buffer-B
                                  (when (boundp 'ediff-buffer-C) ediff-buffer-C)))
                 (when (buffer-live-p buf)
                   (with-current-buffer buf
-                    (display-line-numbers-mode -1))))))
+                    (display-line-numbers-mode -1))))
+              (zoom-mode)))
   )
 
 (use-package git-timemachine
@@ -3470,6 +3683,8 @@ Commit types:
   :defer t
   :ensure nil
   :bind (("C-c o r" . browse-at-remote)))
+
+(use-package consult-gh :defer t)
 
 (use-package org-crypt
   :defer t
@@ -3730,15 +3945,15 @@ Automatically creates parent directories if needed."
   (setq org-directory "~/Yandex.Disk.localized/Dropbox/org"))
 
 (use-package org-mem
-  :defer
   :config
   ;; At least one of these two is needed
   (setq org-mem-do-sync-with-org-id t)
   (setq org-mem-watch-dirs
-        (list "~/Yandex.Disk.localized/Dropbox/org-roam/")) ;; Configure me
+        (list "/users/darkawower/Yandex.Disk.localized/Dropbox/org-roam")) ;; Configure me
   (org-mem-updater-mode))
 
 (use-package org-node
+  :after org-mem
   :bind
   (("C-c n r f" . org-node-find)
    ("C-c n r i" . org-node-insert-link))
@@ -3746,6 +3961,7 @@ Automatically creates parent directories if needed."
   (org-node-cache-mode)
   (org-node-roam-accelerator-mode)
   (setq org-node-alter-candidates t)
+  ;; (setq org-node-fakeroam-data-dir "~/Yandex.Disk.localized/Dropbox/org-roam/")
   (setq org-node-creation-fn #'org-node-new-via-roam-capture)
   (setq org-node-file-slug-fn #'org-node-slugify-like-roam-default)
   (setq org-node-file-timestamp-format "%Y%m%d%H%M%S-")
@@ -3865,8 +4081,8 @@ Automatically creates parent directories if needed."
   :custom
   (jinx-languages "en_US ru_RU")
   (jinx-camel-modes '(prog-mode org-mode))
-  :bind (("C-c f w" . jinx-correct)
-         ("C-c l c" . jinx-languages)
+  :bind (("C-c s c" . jinx-correct)
+         ("C-c s l" . jinx-languages)
          ("C-c s ]" . jinx-next)
          ("C-c s [" . jinx-previous))
   :config

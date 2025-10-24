@@ -4995,61 +4995,56 @@ Improved styles for git changes
   (set-face-attribute 'diff-added nil :extend t :background "light green")
   (set-face-attribute 'diff-removed nil :extend t :background "tomato")
   (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
-  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed)
-  )
+  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed))
 #+END_SRC
 
 ** Ediff
-*** Ediff colors for light and dark mode
+*** Functions
+Face setup
 #+BEGIN_SRC emacs-lisp :results silent
-(defun my/ediff-face-specs ()
-  (let* ((bg-A (or (face-background 'diff-removed nil t) "#ffecec"))
-         (bg-B (or (face-background 'diff-added   nil t) "#ecffec"))
-         (bg-C (or (face-background 'diff-changed nil t)
-                   (face-background 'diff-refine-changed nil t)
-                   "#fff3e0"))
-         (bg-RA (or (face-background 'diff-refine-removed nil t) "#ffb3b3"))
-         (bg-RB (or (face-background 'diff-refine-added  nil t) "#b3ffb3"))
-         (bg-RC (or (face-background 'diff-refine-changed nil t) "#ffe6a3")))
-    (custom-theme-set-faces
-     'user
-     `(ediff-current-diff-A
-       ((((background dark))  :background "#4c2f2f" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-current-diff-B
-       ((((background dark))  :background "#2f4c2f" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-     `(ediff-current-diff-C
-       ((((background dark))  :background "#2f2f4c" :extend t)
-        (((background light)) :background ,bg-C       :extend t)))
-
-     `(ediff-even-diff-A
-       ((((background dark))  :background "#3a2626" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-even-diff-B
-       ((((background dark))  :background "#263a26" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-
-     `(ediff-odd-diff-A
-       ((((background dark))  :background "#402a2a" :extend t)
-        (((background light)) :background ,bg-A       :extend t)))
-     `(ediff-odd-diff-B
-       ((((background dark))  :background "#2a402a" :extend t)
-        (((background light)) :background ,bg-B       :extend t)))
-     `(ediff-odd-diff-C
-       ((((background dark))  :background "#403a2a" :extend t)
-        (((background light)) :background ,bg-C       :extend t)))
-
-     `(ediff-fine-diff-A
-       ((((background dark))  :background "#803838" :weight bold :extend t)
-        (((background light)) :background ,bg-RA      :weight bold :extend t)))
-     `(ediff-fine-diff-B
-       ((((background dark))  :background "#387038" :weight bold :extend t)
-        (((background light)) :background ,bg-RB      :weight bold :extend t)))
-     `(ediff-fine-diff-C
-       ((((background dark))  :background "#7a6b38" :weight bold :extend t)
-        (((background light)) :background ,bg-RC      :weight bold :extend t))))))
+(defun my/ediff-faces-setup ()
+  "Make Ediff faces copy exact colors from Diff faces."
+  (let* ((add-bg (face-attribute 'diff-added :background nil 'default))
+         (add-fg (face-attribute 'diff-added :foreground nil 'default))
+         (rem-bg (face-attribute 'diff-removed :background nil 'default))
+         (rem-fg (face-attribute 'diff-removed :foreground nil 'default))
+         (chg-bg (if (facep 'diff-changed)
+                     (face-attribute 'diff-changed :background nil 'default)
+                   add-bg))
+         (chg-fg (if (facep 'diff-changed)
+                     (face-attribute 'diff-changed :foreground nil 'default)
+                   add-fg))
+         (radd-bg (if (facep 'diff-refine-added)
+                      (face-attribute 'diff-refine-added :background nil 'default)
+                    add-bg))
+         (radd-fg (if (facep 'diff-refine-added)
+                      (face-attribute 'diff-refine-added :foreground nil 'default)
+                    add-fg))
+         (rrem-bg (if (facep 'diff-refine-removed)
+                      (face-attribute 'diff-refine-removed :background nil 'default)
+                    rem-bg))
+         (rrem-fg (if (facep 'diff-refine-removed)
+                      (face-attribute 'diff-refine-removed :foreground nil 'default)
+                    rem-fg))
+         (rchg-bg (if (facep 'diff-refine-changed)
+                      (face-attribute 'diff-refine-changed :background nil 'default)
+                    radd-bg))
+         (rchg-fg (if (facep 'diff-refine-changed)
+                      (face-attribute 'diff-refine-changed :foreground nil 'default)
+                    radd-fg)))
+    (set-face-attribute 'ediff-current-diff-A nil :inherit nil :background rem-bg :foreground rem-fg :extend t)
+    (set-face-attribute 'ediff-current-diff-B nil :inherit nil :background add-bg :foreground add-fg :extend t)
+    (set-face-attribute 'ediff-current-diff-C nil :inherit nil :background chg-bg :foreground chg-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-A    nil :inherit nil :background rrem-bg :foreground rrem-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-B    nil :inherit nil :background radd-bg :foreground radd-fg :extend t)
+    (set-face-attribute 'ediff-fine-diff-C    nil :inherit nil :background rchg-bg :foreground rchg-fg :extend t)
+    (dolist (f '(ediff-even-diff-A ediff-even-diff-B ediff-even-diff-C
+                                   ediff-odd-diff-A ediff-odd-diff-B ediff-odd-diff-C
+                                   ediff-current-diff-Ancestor ediff-even-diff-Ancestor
+                                   ediff-odd-diff-Ancestor ediff-fine-diff-Ancestor))
+      (set-face-attribute f nil :inherit 'default :foreground 'unspecified :background 'unspecified :extend t))))
 #+END_SRC
+
 *** Edif package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package ediff
@@ -5063,8 +5058,8 @@ Improved styles for git changes
   (setq ediff-highlight-all-diffs t)
 
 
-  (my/ediff-face-specs)
-  (add-hook 'ediff-load-hook #'my/ediff-face-specs)
+  ;; (my/ediff-face-specs)
+  (add-hook 'ediff-load-hook #'my/ediff-faces-setup)
   (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
 
   (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
