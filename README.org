@@ -688,6 +688,7 @@ Another all formtter. Based on prettier and black
   ;;  (tsx-ts-mode . combobulate-mode))
   :config
   (setq combobulate-key-prefix "C-c c o")
+  (define-key combobulate-query-mode-map (kbd "q") nil)
 
   ;; Amend this to the directory where you keep Combobulate's source
   ;; code.
@@ -703,7 +704,8 @@ Another all formtter. Based on prettier and black
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
   ;; (markdown-ts-mode . #'my/markdown-outline-setup)
   :mode (("\\.js\\'" . js-ts-mode)
-         ("\\.mjs\\'" . js-ts-mode))
+         ("\\.mjs\\'" . js-ts-mode)
+         ("\\.sh" . bash-ts-mode))
   :custom
   (go-ts-mode-indent-offset 2)
   :config
