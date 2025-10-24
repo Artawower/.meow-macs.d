@@ -3616,13 +3616,57 @@ Jq mode
   (claude-code-prompt-extensions-setup))
 #+END_SRC
 
-** COMMENT Eca. Multiple AI tools
+** Eca. Multiple AI tools
+*** Functions
+Open last eca view diff
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/open-last-view-diff ()
+  "Open latest view diff from eacs"
+  (interactive)
+  (let* ((win   (selected-window))
+         (pt    (point))
+         (start (window-start win)))
+    (unwind-protect
+        (progn
+          (save-restriction
+            (widen))
+          (goto-char (point-max))
+          (unless (re-search-backward "view_diff" nil t)
+            (user-error "В буфере не найдено 'view diff'"))
+          (goto-char (match-beginning 0))
+          (eca-chat--key-pressed-return))
+      (when (window-live-p win)
+        (set-window-start win start t)
+        (set-window-point win pt)))))
+
+#+END_SRC
+*** Package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package eca
   :defer t
-  :bind (:map eca-chat-mode-map
-              ("C-j" . eca-chat-go-to-next-user-message)
-              ("C-k" . eca-chat-go-to-prev-user-message)))
+  :ensure (:type git :host github :repo "editor-code-assistant/eca-emacs" :files (:defaults "*.el"))
+  :custom
+  (eca-chat-use-side-window nil)
+  :bind (("C-c e e" . eca)
+         ("C-c e m" . eca-transient-menu)
+         :map eca-chat-mode-map
+         ("<tab>" . eca-chat-toggle-expandable-block)
+         ("C-c C-v" . my/open-last-view-diff)
+         ("s-<return>" . eca-chat--key-pressed-return)
+         ("<return>" . eca-chat--key-pressed-newline)
+         ("RET" . eca-chat--key-pressed-newline)
+         ("C-k" . eca-chat--key-pressed-previous-prompt-history)
+         ("C-j" . eca-chat--key-pressed-next-prompt-history)
+         ("C-S-j" . eca-chat-go-to-next-expandable-block)
+         ("C-S-k" . eca-chat-go-to-prev-expandable-block)
+         ("C-p" . eca-chat-go-to-prev-user-message)
+         ("C-n" . eca-chat-go-to-next-user-message))
+  :config
+  ;; Add ECA buffers to display-buffer-alist using my/smart-display-buffer-function
+  (add-to-list
+   'display-buffer-alist
+   '("<eca-chat.*"
+     (my/smart-display-buffer-function))))
 #+END_SRC
 
 ** Copilot
