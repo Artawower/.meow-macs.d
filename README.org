@@ -2226,13 +2226,13 @@ Custom server:
 
 ;; -------- USER OPTIONS --------
 (defvar my/vue-ts-plugin-location nil
-  "Абсолютный путь к каталогу @vue/typescript-plugin (где package.json).
-Если nil — искать автоматически (проект -> глобаль -> внутри @vue/language-server).")
+  "Absolute path to @vue/typescript-plugin directory (where package.json is).
+If nil — search automatically (project -> global -> inside @vue/language-server).")
 
 (defvar my/vue-root-markers
   '("pnpm-workspace.yaml" "yarn.lock" "bun.lockb" "package.json"
     "tsconfig.json" "jsconfig.json" ".git")
-  "Файлы/папки для определения корня проекта.")
+  "Files/folders to determine project root.")
 
 (setq lsp-auto-guess-root t
       lsp-enable-file-watchers t
@@ -2297,10 +2297,10 @@ Custom server:
 
 ;; -------- language-ids & tsserver defaults --------
 (with-eval-after-load 'lsp-mode
-  ;; *.vue должны иметь id "vue"
+  ;; *.vue should have id "vue"
   (dolist (pair '((vue-ts-mode . "vue") (vue-mode . "vue") (web-mode . "vue")))
     (add-to-list 'lsp-language-id-configuration pair))
-  ;; подстрахуем маппинг TS/JS
+  ;; ensure TS/JS mapping
   (dolist (pair '((typescript-mode     . "typescript")
                   (typescript-ts-mode  . "typescript")
                   (tsx-ts-mode         . "typescriptreact")
@@ -3219,7 +3219,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 Open fn
 #+BEGIN_SRC emacs-lisp :results silent
 (defun @open-ipython-repl-here ()
-  "Открывает IPython REPL в директории текущего буфера."
+  "Open IPython REPL in current buffer's directory."
   (interactive)
   (let ((default-directory (or (and (buffer-file-name)
                                     (file-name-directory (buffer-file-name)))
@@ -3275,12 +3275,11 @@ Open fn
   :init
   (define-derived-mode vue-mode web-mode "Vue"
     "Major mode for Vue.js single-file components."
-    ;; ДОБАВЬТЕ ЭТИ СТРОКИ:
     (setq web-mode-content-types-alist
           (cons '("vue" . "\\.vue\\'") web-mode-content-types-alist))
     (setq web-mode-engines-alist
           (cons '("vue" . "\\.vue\\'") web-mode-engines-alist))
-    ;; ВАЖНО: Принудительно установить content-type
+    ;; Force set content-type
     (web-mode-set-content-type "vue"))
   ;; (define-derived-mode vue-mode web-mode "Vue")
   (add-to-list 'auto-mode-alist '("\\.vue\\'" . vue-mode))
@@ -3632,7 +3631,7 @@ Open last eca view diff
             (widen))
           (goto-char (point-max))
           (unless (re-search-backward "view_diff" nil t)
-            (user-error "В буфере не найдено 'view diff'"))
+            (user-error "No 'view diff' found in buffer"))
           (goto-char (match-beginning 0))
           (eca-chat--key-pressed-return))
       (when (window-live-p win)
@@ -4041,12 +4040,12 @@ Disable scrolls
 (add-hook 'emacs-startup-hook #'my/setup-modeline)
 
 (defun my/setup-modeline-once ()
-  "Настройка modeline один раз при первом фокусе"
+  "Setup modeline once on first focus"
   (my/setup-modeline)
   (remove-hook 'focus-in-hook #'my/setup-modeline-once))
 
 (if (daemonp)
-    ;; В daemon mode ждём первого фокуса на фрейм
+    ;; In daemon mode wait for first frame focus
     (add-hook 'focus-in-hook #'my/setup-modeline-once)
   (add-hook 'window-setup-hook #'my/setup-modeline))
 
