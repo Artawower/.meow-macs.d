@@ -3891,6 +3891,12 @@ Context: https://www.reddit.com/r/emacs/comments/1bg7tgn/introducing_chromeemacs
 #+end_src
 
 * UI/UX
+** No distraction package
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package no-distraction
+  :hook ((typescript-ts-mode html-ts-mode) . no-distraction-mode)
+  :ensure (no-distraction :host github :repo "artawower/no-distraction.el"))
+#+END_SRC
 ** No resize when completion
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package stillness-mode
@@ -3943,7 +3949,7 @@ Disable scrolls
 #+BEGIN_SRC emacs-lisp 
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 #+END_SRC
-** Fonts
+** Fonts and faces
 #+BEGIN_SRC emacs-lisp
 (defun my/apply-fonts-to-frame (&optional frame)
   "Apply font settings to FRAME (or selected frame if called interactively)."
@@ -4012,6 +4018,38 @@ Disable scrolls
   (my/apply-fonts-to-frame (selected-frame)))
 
 (setq-default line-spacing 1)
+#+END_SRC
+** Modeline and headerline
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/setup-modeline ()
+  (interactive)
+  (let* ((bg (or (face-attribute 'org-block :background nil 'default)
+                 (face-attribute 'mode-line :background nil 'default)))
+         (bg-inactive (face-attribute 'mode-line-inactive :background nil 'default)))
+    (set-face-attribute 'mode-line nil
+                        :background bg
+                        :box `(:line-width 8 :color ,bg))
+    (when (facep 'mode-line-active)
+      (set-face-attribute 'mode-line-active nil
+                          :background bg
+                          :box `(:line-width 8 :color ,bg)))
+    (set-face-attribute 'mode-line-inactive nil
+                        :box `(:line-width 8 :color ,bg-inactive))
+    (set-face-attribute 'header-line nil :inherit 'mode-line)
+    (set-face-attribute 'header-line-inactive nil :inherit 'mode-line-inactive)))
+
+(add-hook 'emacs-startup-hook #'my/setup-modeline)
+
+(defun my/setup-modeline-once ()
+  "Настройка modeline один раз при первом фокусе"
+  (my/setup-modeline)
+  (remove-hook 'focus-in-hook #'my/setup-modeline-once))
+
+(if (daemonp)
+    ;; В daemon mode ждём первого фокуса на фрейм
+    (add-hook 'focus-in-hook #'my/setup-modeline-once)
+  (add-hook 'window-setup-hook #'my/setup-modeline))
+
 #+END_SRC
 ** COMMENT Ligatures
 #+BEGIN_SRC emacs-lisp :results silent
