@@ -1058,6 +1058,7 @@ Dirvish.
 (use-package dirvish
   :init
   (dirvish-override-dired-mode)
+  :bind (("C-c o p" . dirvish-side))
   :custom
   (dirvish-quick-access-entries ; It's a custom option, `setq' won't work
    '(("h" "~/"                          "Home")
