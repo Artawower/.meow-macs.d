@@ -4210,34 +4210,37 @@ Very pretty titlebar for Mac os
   :defer t
   :hook (after-init . doom-modeline-mode)
   :config
-(defun doom-modeline-segment--major-mode () (ignore))
-(setq mode-line-modes nil)
+  (defun doom-modeline-segment--major-mode () (ignore))
+  (setq mode-line-modes nil)
   (setq doom-modeline-buffer-encoding nil)
   (setq doom-modeline-major-mode-icon nil)
   (setq doom-modeline-buffer-file-name-style 'file-name)
   (setq doom-modeline-height 36))
-  (setq doom-modeline-check-simple-format "")
+(setq doom-modeline-check-simple-format "")
 #+END_SRC
 *** Catppuccin theme
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/diff-faces-setup ()
-    (if (eq (frame-parameter nil 'background-mode) 'dark)
-        (progn
-          (set-face-attribute 'diff-added nil :extend t :background "#365945" :foreground "#d7ffd9")
-          (set-face-attribute 'diff-removed nil :extend t :background "#593636" :foreground "#ffd7d7")
-          (set-face-attribute 'diff-refine-added nil :extend t :background "#4e7a5d" :inherit 'diff-added)
-          (set-face-attribute 'diff-refine-removed nil :extend t :background "#7a4e4e" :inherit 'diff-removed))
+  (if (eq (frame-parameter nil 'background-mode) 'dark)
       (progn
-        (set-face-attribute 'diff-added nil :extend t :background "#c7f1cc" :foreground "#002800")
-        (set-face-attribute 'diff-removed nil :extend t :background "#f1c7c7" :foreground "#280000")
-        (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
-        (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
+        (set-face-attribute 'diff-added nil :extend t :background "#365945" :foreground "#d7ffd9")
+        (set-face-attribute 'diff-removed nil :extend t :background "#593636" :foreground "#ffd7d7")
+        (set-face-attribute 'diff-refine-added nil :extend t :background "#4e7a5d" :inherit 'diff-added)
+        (set-face-attribute 'diff-refine-removed nil :extend t :background "#7a4e4e" :inherit 'diff-removed))
+    (progn
+      (set-face-attribute 'diff-added nil :extend t :background "#c7f1cc" :foreground "#002800")
+      (set-face-attribute 'diff-removed nil :extend t :background "#f1c7c7" :foreground "#280000")
+      (set-face-attribute 'diff-refine-added nil :extend t :background "#aee8b6" :inherit 'diff-added)
+      (set-face-attribute 'diff-refine-removed nil :extend t :background "#e8b6b6" :inherit 'diff-removed))))
+
 
 (defun @set-catppucin-theme ()
   (interactive)
-  (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'frappe 'latte))
+  (setq catppuccin-flavor (if (eq auto-dark--last-dark-mode-state 'dark) 'macchiato 'latte))
   (catppuccin-reload)
-  (my/diff-faces-setup))
+  (my/diff-faces-setup)
+ ;; (my/ediff-faces-setup)
+  )
 
 (use-package catppuccin-theme
   :config
@@ -4298,8 +4301,8 @@ Very pretty titlebar for Mac os
   (custom-set-variables
    '(zoom-size '(0.618 . 0.618))
    '(zoom-mode t)
-   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff"))
-   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode))
+   '(zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff" "<eca-chat"))
+   '(zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode eca-mode eca-chat-mode))
    '(zoom-ignore-predicates '((lambda () (window-parameter nil 'window-side)))))
 
   (defun my/fix-claude-size ()
@@ -4378,7 +4381,7 @@ Very pretty titlebar for Mac os
   :config
   ;; Does not work with custom-faces.
   (custom-set-faces
-   '(tab-bar-echo-area-tab ((t (:inherit tab-bar-tab)))))
+   `(tab-bar-echo-area-tab ((t (:inherit tab-bar-tab :box (:line-width 6 :color ,(face-attribute 'tab-bar-tab :background)))))))
   
   (custom-set-faces
    '(tab-bar-echo-area-tab-inactive ((t (:inherit tab-bar-tab-inactive)))))
@@ -4571,6 +4574,7 @@ Topsy functions
 
 ;; Persist history over Emacs restarts. Vertico sorts by history position.
 (use-package savehist
+  :demand t
   :ensure nil
   :config
   (savehist-mode))
