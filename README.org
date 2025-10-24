@@ -1318,6 +1318,32 @@ bindings
   :ensure nil
   :bind ("C-c i b" . ibuffer))
 #+END_SRC
+
+** Wrapper functions
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/safe-tabspaces-kill-buffers-close-workspace ()
+  "Safely kill buffers and close workspace.
+Prevents closing the last frame in daemon mode on macOS."
+  (interactive)
+  (let ((tab-count (length (tab-bar-tabs)))
+        (frame-count (length (frame-list))))
+    (cond
+     ;; If there's only one tab and one visible frame in daemon mode,
+     ;; just kill buffers without closing the workspace
+     ((and (daemonp)
+           (= tab-count 1)
+           (= frame-count 1))
+      (message "Cannot close the last workspace in daemon mode. Killing buffers only.")
+      (tabspaces-clear-buffers))
+     ;; If there's only one tab but multiple frames, it's safe to close
+     ((= tab-count 1)
+      (message "Closing last tab in this frame...")
+      (tabspaces-kill-buffers-close-workspace))
+     ;; Otherwise, proceed normally
+     (t
+      (tabspaces-kill-buffers-close-workspace)))))
+#+END_SRC
+
 ** Core package. Tabspaces
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package tabspaces
@@ -1339,7 +1365,7 @@ bindings
          ("C-c TAB b" . tabspaces-switch-to-buffer)
          ("C-c TAB B" . switch-to-buffer)
          ("s-w" . delete-window)
-         ("C-c TAB d" . tabspaces-kill-buffers-close-workspace)
+         ("C-c TAB d" . my/safe-tabspaces-kill-buffers-close-workspace)
          ("C-c TAB S" . tabspaces-save-current-project-session)
          ("C-c TAB s" . tabspaces-save-session)
          ("C-c TAB r" . tab-rename)
