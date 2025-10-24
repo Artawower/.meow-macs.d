@@ -24,7 +24,7 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 (setq cnfg/config-dir "~/apps/flat-emacs/")
 (setq cnfg/config-path (concat cnfg/config-dir "README.org"))
 (setq cnfg/backup-dir "/Users/darkawower/tmp/emacs-backups")
-(setq cnfg/private-config-path "~/apps/pure-emacs/private.el")
+(setq cnfg/private-config-path "~/apps/flat-emacs/private.el")
 (setq @doom-theme-directory "~/.doom.d/themes")
 #+END_SRC
 ** Visual variables
@@ -238,7 +238,7 @@ unreadable. Returns the names of envvars that were changed."
 #+END_SRC
 ** Load private configs
 #+BEGIN_SRC emacs-lisp :results silent
-(ignore-errors
+ (ignore-errors
   (when cnfg/private-config-path
     (load cnfg/private-config-path))
   )
