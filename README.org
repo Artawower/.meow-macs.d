@@ -454,6 +454,14 @@ The format is:
         (magit-show-commit hash)
       (message "No commit found for current line."))))
 #+END_SRC
+** After load theme hook
+#+BEGIN_SRC emacs-lisp :results silent
+ (defvar after-load-theme-hook nil
+    "Hook run after a color theme is loaded using `load-theme'.")
+  (defadvice load-theme (after run-after-load-theme-hook activate)
+    "Run `after-load-theme-hook'."
+    (run-hooks 'after-load-theme-hook))
+#+END_SRC
 * Editing
 ** Autorevert mode
 #+BEGIN_SRC emacs-lisp :results silent
@@ -3630,7 +3638,7 @@ Open last eca view diff
           (save-restriction
             (widen))
           (goto-char (point-max))
-          (unless (re-search-backward "view_diff" nil t)
+          (unless (re-search-backward "view diff" nil t)
             (user-error "No 'view diff' found in buffer"))
           (goto-char (match-beginning 0))
           (eca-chat--key-pressed-return))
@@ -4038,6 +4046,7 @@ Disable scrolls
     (set-face-attribute 'header-line-inactive nil :inherit 'mode-line-inactive)))
 
 (add-hook 'emacs-startup-hook #'my/setup-modeline)
+(add-hook 'after-load-theme-hook #'my/setup-modeline)
 
 (defun my/setup-modeline-once ()
   "Setup modeline once on first focus"
@@ -4379,11 +4388,24 @@ Very pretty titlebar for Mac os
   :bind (("C-c TAB TAB" . tab-bar-echo-area-display-tab-names))
   :config
   ;; Does not work with custom-faces.
-  (custom-set-faces
-   `(tab-bar-echo-area-tab ((t (:inherit tab-bar-tab :box (:line-width 6 :color ,(face-attribute 'tab-bar-tab :background)))))))
-  
-  (custom-set-faces
-   '(tab-bar-echo-area-tab-inactive ((t (:inherit tab-bar-tab-inactive)))))
+
+
+  (defun my/setup-tab-bar-faces ()
+    (let ((bg       (or (face-background 'mode-line nil t) "gray50"))
+          (bg-inact (or (face-background 'tab-bar-tab-inactive nil t)
+                        (face-background 'mode-line-inactive nil t)
+                        "gray40")))
+      (custom-set-faces
+       `(tab-bar-echo-area-tab
+         ((t (:inherit mode-line-active
+                       :box (:line-width 6 :color ,bg)))))
+       `(tab-bar-echo-area-tab-inactive
+         ((t (:inherit tab-bar-tab-inactive
+                       :box (:line-width 6 :color ,bg-inact))))))))
+
+  (my/setup-tab-bar-faces)
+
+  (add-hook #'after-load-theme-hook 'my/setup-tab-bar-faces)
 
   (setq tab-bar-echo-area-display-tab-names-format-string " %s ")
   (tab-bar-echo-area-mode 1))
