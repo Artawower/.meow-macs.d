@@ -797,8 +797,6 @@ Another all formtter. Based on prettier and black
 (use-package treesit-fold
   :ensure (treesit-fold :type git :host github :repo "abougouffa/treesit-fold")
   :hook ((web-mode
-          ng2-html-mode
-          ng2-ts-mode
           typescript-mode
           js-mode
           js-ts-mode
@@ -3143,7 +3141,7 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (setq typescript-indent-level 2))
 #+END_SRC
 
-** Angular
+** COMMENT Angular
 #+BEGIN_SRC emacs-lisp 
 (use-package ng2-mode
   :after (typescript-mode lsp-mode)

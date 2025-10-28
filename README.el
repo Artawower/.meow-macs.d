@@ -21,6 +21,7 @@
 
 ;; [[file:README.org::*Paths][Paths:3]]
 (setq my/org-roam-dir (expand-file-name "~/Yandex.Disk.localized/Dropbox/org-roam"))
+(setq my/org-roam-charts-dir (expand-file-name "~/Yandex.Disk.localized/Dropbox/org-roam/charts"))
 (setq my/config-path (my/get-config-related-path "README.org"))
 (setq my/backup-dir (expand-file-name "~/tmp/emacs-backups"))
 (setq my/private-config-path (my/get-config-related-path "private.el"))
@@ -31,8 +32,9 @@
 ;; [[file:README.org::*UI variables][UI variables:1]]
 (setq my/font-height 14)
 (setq my/font-default "Monaspace Neon Frozen")
+;; (setq my/font-default "JetBrainsMono Nerd Font")
 (setq my/font-funny   "Monaspace Radon Frozen")
-(setq my/ui-box-padding 8)
+(setq my/ui-box-padding 6)
 (setq my/org-tag-color "#ff5555")
 ;; UI variables:1 ends here
 
@@ -152,6 +154,84 @@ This is a variadic `cl-pushnew'."
     `(dolist (,var (list ,@values) (with-no-warnings ,place))
        (cl-pushnew ,var ,place :test #'equal))))
 ;; Push multiple values:1 ends here
+
+;; [[file:README.org::*Run once on daemon/frame init][Run once on daemon/frame init:1]]
+(defun my/run-once-on-init (fn &optional depth name)
+  "Run FN once when Emacs is ready, accounting for daemon mode.
+In daemon mode runs on first frame creation, otherwise after init.
+Automatically removes itself after execution. DEPTH controls hook priority.
+NAME is optional function name for the wrapper."
+  (let* ((fn-name (or name 
+                      (intern (format "my/run-once-init-%d" 
+                                      (abs (random))))))
+         (wrapper-fn 
+          (lambda ()
+            (funcall fn)
+            (remove-hook 'server-after-make-frame-hook fn-name)
+            (remove-hook 'after-init-hook fn-name))))
+    (fset fn-name wrapper-fn)
+    (let ((hook (if (daemonp)
+                    'server-after-make-frame-hook
+                  'after-init-hook))
+          (hook-depth (or depth -95)))
+      (add-hook hook fn-name hook-depth))))
+;; Run once on daemon/frame init:1 ends here
+
+;; [[file:README.org::*Smart display buffer on the right][Smart display buffer on the right:1]]
+(defun my/display-buffer-right-smart (buffer alist)
+  "Smart display function that keeps BUFFER on the right side.
+Key features:
+- Buffer always ends up in the right window
+- Maintains maximum 2 windows layout
+- Context-aware: respects current window position
+- If in right window with 2 windows: moves current buffer to left, BUFFER takes right
+- If in left window with 2 windows: BUFFER opens in right
+- If only 1 window: splits horizontally, BUFFER opens in right
+
+This function is designed for buffers that should have a consistent
+right-side position (e.g., assistants, help, documentation)."
+  (let ((buffer-window (get-buffer-window buffer)))
+    (cond
+     ;; If buffer is already visible, just switch to it
+     (buffer-window
+      (select-window buffer-window)
+      buffer-window)
+     
+     ;; If we have exactly 2 windows
+     ((= (length (window-list)) 2)
+      (let* ((left-window (window-at 0 0))
+             (right-window (next-window left-window 'no-minibuf))
+             (current-window (selected-window))
+             (current-is-right (eq current-window right-window)))
+        
+        (cond
+         ;; If we're in the right window, move its content to left
+         (current-is-right
+          (let ((current-buffer (window-buffer current-window)))
+            ;; Switch left window to show current buffer
+            (set-window-buffer left-window current-buffer)
+            ;; Display BUFFER in right window
+            (set-window-buffer right-window buffer)
+            (select-window right-window)
+            right-window))
+         
+         ;; If we're in the left window, just display BUFFER in right
+         (t
+          (set-window-buffer right-window buffer)
+          (select-window right-window)
+          right-window))))
+     
+     ;; If only one window exists, split horizontally (create window on the right)
+     (t
+      (let* ((width (or (alist-get 'window-width alist) 0.5))
+             (size (if (floatp width)
+                       (round (* (frame-width) width))
+                     width))
+             (new-window (split-window-right (- size))))
+        (set-window-buffer new-window buffer)
+        (select-window new-window)
+        new-window)))))
+;; Smart display buffer on the right:1 ends here
 
 ;; [[file:README.org::*Env][Env:1]]
 ;;; Code to replace exec-path-from-shell
@@ -288,6 +368,7 @@ unreadable. Returns the names of envvars that were changed."
 ;; [[file:README.org::*Mode line and header line faces][Mode line and header line faces:1]]
 (defun my/setup-modeline ()
   (interactive)
+  (message "SETUP MODE LINE!")
   (let* ((bg (or (face-attribute 'org-block :background nil 'default)
                  (face-attribute 'mode-line :background nil 'default)))
          (bg-inactive (face-attribute 'mode-line-inactive :background nil 'default)))
@@ -304,25 +385,15 @@ unreadable. Returns the names of envvars that were changed."
     (set-face-attribute 'header-line-inactive nil :inherit 'mode-line-inactive)))
 ;; Mode line and header line faces:1 ends here
 
-;; [[file:README.org::*Mode line and header line faces][Mode line and header line faces:2]]
-(defun my/setup-modeline-once ()
-  "Setup modeline once on first focus"
-  (my/setup-modeline)
-  (remove-hook 'focus-in-hook #'my/setup-modeline-once))
-;; Mode line and header line faces:2 ends here
-
 ;; [[file:README.org::*Core package][Core package:1]]
 (use-package font-core
   :ensure nil
+  :hook
+  (after-load-theme . my/setup-modeline)
+  (server-after-make-frame-hook . my/setup-modeline)
   :config
   (add-hook 'emacs-startup-hook #'my/setup-modeline)
-  (add-hook 'after-load-theme-hook #'my/setup-modeline)
-
-  (if (daemonp)
-      ;; In daemon mode wait for first frame focus
-      (add-hook 'focus-in-hook #'my/setup-modeline-once)
-    (add-hook 'window-setup-hook #'my/setup-modeline))
-
+  (my/run-once-on-init #'my/setup-modeline 100)
   (add-hook 'after-make-frame-functions #'my/apply-fonts-to-frame)
   (my/apply-fonts-to-frame (selected-frame)))
 ;; Core package:1 ends here
@@ -343,48 +414,54 @@ unreadable. Returns the names of envvars that were changed."
               (run-hooks 'after-load-theme-hook)))
 ;; Hook for theme loading:1 ends here
 
-;; [[file:README.org::*Doom themes][Doom themes:1]]
-(use-package doom-themes
-  :ensure t
+;; [[file:README.org::*Catppuccin theme][Catppuccin theme:1]]
+(use-package catppuccin-theme
   :config
-  (setq doom-themes-enable-bold t  
-        doom-themes-enable-italic t)
-  (load-theme 'doom-tokyo-night t)
-  (doom-themes-visual-bell-config)
-  (setq custom-theme-directory my/doom-theme-directory)
-  (doom-themes-org-config))
-;; Doom themes:1 ends here
+  (setq catppuccin-flavor 'latte)
+  ;; (load-theme 'catppuccin t)
+  (my/set-catppuccin-theme)
+  ;; https://github.com/catppuccin/emacs/issues/55
+  (add-hook 'yaml-mode-hook
+            (lambda ()
+              (face-remap-add-relative 'font-lock-variable-name-face
+                                       (list :foreground (catppuccin-get-color 'blue))))))
+;; Catppuccin theme:1 ends here
 
 ;; [[file:README.org::*Dynamic catppuccin flavor][Dynamic catppuccin flavor:1]]
 (defun my/set-catppuccin-theme ()
   "Set Catppuccin theme based on dark mode state."
   (interactive)
+  (message "SETUP CATPPUCCIN THEME!")
   (when (boundp 'auto-dark--last-dark-mode-state)
     (setq catppuccin-flavor
           (if (eq auto-dark--last-dark-mode-state 'dark)
-              'macchiato
+              'frappe
             'latte))
-    (when (featurep 'catppuccin-reload)
+    (when (functionp 'catppuccin-reload)
       (catppuccin-reload))
     (run-hooks 'after-load-theme-hook)))
 ;; Dynamic catppuccin flavor:1 ends here
 
 ;; [[file:README.org::*Auto dark mode][Auto dark mode:1]]
 (use-package auto-dark
-  :after doom-themes
+  :defer t
+  :init
+  (auto-dark-mode)
+  (my/run-once-on-init #'auto-dark-mode -95)
   :hook
-  (emacs-startup . auto-dark-mode)
   (auto-dark-dark-mode . my/set-catppuccin-theme)
   (auto-dark-light-mode . my/set-catppuccin-theme)
   :custom
-  (auto-dark-dark-theme 'doom-outrun-electric)
-  ;; (auto-dark-light-theme 'doom-one-light)
-  ;; (auto-dark-dark-theme 'catppuccin)
-  ;; (auto-dark-light-theme 'catppuccin)
-  (auto-dark-themes '((doom-tokyo-night)))
+  (auto-dark-dark-theme 'catppuccin)
+  (auto-dark-light-theme 'catppuccin)
+  (auto-dark-themes '((catppuccin) (catppuccin)))
+
+
   (auto-dark-polling-interval-seconds 5)
-  (auto-dark-allow-osascript nil)
-  (auto-dark-allow-powershell nil))
+  (auto-dark-allow-powershell nil)
+  :config 
+(my/set-catppuccin-theme)
+  (setq auto-dark-allow-osascript t))
 ;; Auto dark mode:1 ends here
 
 ;; [[file:README.org::*Fringes][Fringes:1]]
@@ -399,6 +476,7 @@ unreadable. Returns the names of envvars that were changed."
 
 ;; [[file:README.org::*Auto zoom windows][Auto zoom windows:1]]
 (use-package zoom
+  :defer t
   :bind (("C-c z m" . zoom-mode))
   :custom
   (zoom-size '(0.618 . 0.618))
@@ -431,11 +509,9 @@ unreadable. Returns the names of envvars that were changed."
                         "gray40")))
       (custom-set-faces
        `(tab-bar-echo-area-tab
-         ((t (:inherit mode-line-active
-                       :box (:line-width 6 :color ,bg)))))
+         ((t (:inherit mode-line-active))))
        `(tab-bar-echo-area-tab-inactive
-         ((t (:inherit tab-bar-tab-inactive
-                       :box (:line-width 6 :color ,bg-inact))))))))
+         ((t (:inherit tab-bar-tab-inactive)))))))
 ;; Function to setup tabar faces:1 ends here
 
 ;; [[file:README.org::*Core package][Core package:1]]
@@ -443,11 +519,11 @@ unreadable. Returns the names of envvars that were changed."
   :hook 
   (emacs-startup . tab-bar-echo-area-mode)
   (after-load-theme-hook . my/setup-tab-bar-faces)
+  
   :bind (("C-c TAB TAB" . tab-bar-echo-area-display-tab-names))
-  :custom
-  (tab-bar-echo-area-display-tab-names-format-string " %s ")
   :config
-  (my/setup-tab-bar-faces))
+  (my/run-once-on-init #'my/setup-tab-bar-faces 30)
+  (setq tab-bar-echo-area-display-tab-names-format-string "%s"))
 ;; Core package:1 ends here
 
 ;; [[file:README.org::*Tab bar manager][Tab bar manager:1]]
@@ -481,6 +557,7 @@ unreadable. Returns the names of envvars that were changed."
 ;; [[file:README.org::*Hide modeline mode][Hide modeline mode:1]]
 (use-package hide-mode-line
   :hook
+  (conf-mode . hide-mode-line-mode)
   (fundamental-mode . hide-mode-line-mode)
   (compilation-mode . hide-mode-line-mode)
   (magit-mode . hide-mode-line-mode)
@@ -556,11 +633,14 @@ unreadable. Returns the names of envvars that were changed."
  inhibit-splash-screen t
  inhibit-startup-screen t
  inhibit-startup-message t
- inhibit-startup-buffer-menu t)
+ inhibit-startup-buffer-menu t
+ initial-buffer-choice nil
+ initial-scratch-message nil)
 ;; Disable default splash screen:1 ends here
 
 ;; [[file:README.org::*Full size from startup][Full size from startup:1]]
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
+(add-to-list 'default-frame-alist '(undecorated . t))
 ;; Full size from startup:1 ends here
 
 ;; [[file:README.org::*Reset themes before apply][Reset themes before apply:1]]
@@ -597,39 +677,11 @@ unreadable. Returns the names of envvars that were changed."
   (setq paren-face-regexp (rx (any ?\( ?\) ?\[ ?\] ?\{ ?\}))))
 ;; Paren face:1 ends here
 
-;; [[file:README.org::*Buffer positionin][Buffer positionin:1]]
-(defun my/smart-display-buffer-function (buffer alist)
-  "Smart display function that:
-   - Reuses existing buffer window if buffer is already visible
-   - Uses only two windows maximum
-   - If in left window, opens buffer in right window
-   - If in right window, opens buffer in left window
-   - If only one window exists, splits it horizontally"
-  (let ((buffer-window (get-buffer-window buffer)))
-    (cond
-     ;; If buffer is already visible, just switch to it
-     (buffer-window
-      (select-window buffer-window)
-      buffer-window)
-     
-     ;; If we have exactly 2 windows
-     ((= (length (window-list)) 2)
-      (let* ((current-window (selected-window))
-             (other-window (next-window current-window 'no-minibuf))
-             (target-window (if (eq current-window (window-at 0 0))
-                                other-window  ; Current is left window, use right window
-                              other-window))) ; Current is right window, use left window
-        (set-window-buffer target-window buffer)
-        (select-window target-window)
-        target-window))
-     
-     ;; If only one window exists, split it horizontally
-     (t
-      (let ((new-window (split-window-horizontally)))
-        (set-window-buffer new-window buffer)
-        (select-window new-window)
-        new-window)))))
-;; Buffer positionin:1 ends here
+;; [[file:README.org::*Buffer positioning][Buffer positioning:1]]
+;; Backward compatibility alias
+(defalias 'my/smart-display-buffer-function #'my/display-buffer-right-smart
+  "Alias for backward compatibility. Use `my/display-buffer-right-smart' instead.")
+;; Buffer positioning:1 ends here
 
 ;; [[file:README.org::*Highlight keywords][Highlight keywords:1]]
 (use-package hl-todo
@@ -1068,7 +1120,7 @@ unreadable. Returns the names of envvars that were changed."
 (global-set-key (kbd "s-u") 'revert-buffer)
 (global-set-key (kbd "s-a") 'mark-whole-buffer)
 (global-set-key (kbd "s-z") 'undo)
-(global-set-key "\C-u" 'backward-kill-line)
+(global-set-key "\C-u" 'my/backward-kill-line)
 ;; Standard editing:1 ends here
 
 ;; [[file:README.org::*Window management][Window management:1]]
@@ -1193,7 +1245,8 @@ unreadable. Returns the names of envvars that were changed."
   "Function for preserve better jump befor buffer changed only for prog mode"
   (when (or (derived-mode-p 'prog-mode)
             (eq major-mode 'html-ts-mode)
-            (eq major-mode 'html-mode))
+            (eq major-mode 'html-mode)
+            (eq major-mode 'org-mode))
     (call-interactively #'better-jumper-set-jump)))
 ;; Functions:2 ends here
 
@@ -1216,6 +1269,7 @@ unreadable. Returns the names of envvars that were changed."
   (advice-add 'find-file :before #'my/better-jump-save-prog-mode-pos)
   (advice-add 'project-find-file :before #'my/better-jump-save-prog-mode-pos)
   (advice-add 'consult-buffer :before #'my/better-jump-save-prog-mode-pos)
+  (advice-add 'husky-navigation-bounce-paren :before #'my/better-jump-save-prog-mode-pos)
   (advice-add 'lsp-find-references :before #'my/better-jump-save-prog-mode-pos)
   (advice-add 'flycheck-next-error :before #'my/better-jump-save-prog-mode-pos)
   (advice-add 'flycheck-previous-error :before #'my/better-jump-save-prog-mode-pos)
@@ -1315,7 +1369,7 @@ The format is:
 ;; [[file:README.org::*Autorevert mode][Autorevert mode:1]]
 (use-package autorevert
     :ensure nil
-    :hook ((after-init . global-auto-revert-mode))
+    :hook ((emacs-startup . global-auto-revert-mode))
     :custom
     (auto-revert-verbose nil)
     (auto-revert-use-notify nil))
@@ -1355,7 +1409,8 @@ The format is:
 ;; [[file:README.org::*Undo sessions (history saving)][Undo sessions (history saving):1]]
 (use-package undo-fu-session
   :after undo-fu
-  :hook (after-init . undo-fu-session-mode))
+  :config
+  (global-undo-fu-session-mode))
 ;; Undo sessions (history saving):1 ends here
 
 ;; [[file:README.org::*Autopairs][Autopairs:1]]
@@ -1464,22 +1519,49 @@ The format is:
   ("\\.js\\'" . js-ts-mode)
   ("\\.mjs\\'" . typescript-ts-mode)
   ("\\.ts\\'" . typescript-ts-mode)
+  ("\\.json\\'" . json-ts-mode)
+  ("\\.html\\'" . html-ts-mode)
   :custom
   (go-ts-mode-indent-offset 2)
   :config
   (setq treesit-language-source-alist
-        '((go "https://github.com/tree-sitter/tree-sitter-go")
-          (gomod "https://github.com/camdencheek/tree-sitter-go-mod")
-          (python "https://github.com/tree-sitter/tree-sitter-python")
-          (scss "https://github.com/serenadeai/tree-sitter-scss")
-          (vue "https://github.com/ikatyang/tree-sitter-vue")
+        '((bash "https://github.com/tree-sitter/tree-sitter-bash")
+          (cmake "https://github.com/uyha/tree-sitter-cmake")
+          (c "https://github.com/tree-sitter/tree-sitter-c")
+          (cpp "https://github.com/tree-sitter/tree-sitter-cpp")
           (css "https://github.com/tree-sitter/tree-sitter-css")
-          (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")))
+          (elisp "https://github.com/Wilfred/tree-sitter-elisp")
+          (go "https://github.com/tree-sitter/tree-sitter-go")
+          (gomod "https://github.com/camdencheek/tree-sitter-go-mod")
+          (html "https://github.com/tree-sitter/tree-sitter-html")
+          (javascript "https://github.com/tree-sitter/tree-sitter-javascript" "master" "src")
+          (json "https://github.com/tree-sitter/tree-sitter-json")
+          (make "https://github.com/alemuller/tree-sitter-make")
+          (markdown-inline "https://github.com/ikatyang/tree-sitter-markdown")
+          (markdown "https://github.com/ikatyang/tree-sitter-markdown")
+          (python "https://github.com/tree-sitter/tree-sitter-python")
+          (rust "https://github.com/tree-sitter/tree-sitter-rust")
+          (scss "https://github.com/tree-sitter-grammars/tree-sitter-scss")
+          (toml "https://github.com/tree-sitter/tree-sitter-toml")
+          (tsx "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")
+          (typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src")
+          (yaml "https://github.com/ikatyang/tree-sitter-yaml")))
+
   (setq treesit-extra-load-path '("~/.emacs.d/tree-sitter"))
-  (setq treesit-font-lock-level 3)
-  (add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
-  (add-to-list 'auto-mode-alist '("\\.markdown\\'" . markdown-mode))
+  (setq treesit-font-lock-level 3))
 ;; Core package:1 ends here
+
+;; [[file:README.org::*SCSS mode][SCSS mode:1]]
+(use-package scss-mode
+  :ensure nil
+  :custom
+  (scss-compile-at-save nil)
+  (css-indent-offset 2)
+  :hook
+  (scss-mode . (lambda ()
+                 (setq-local tab-width 2)
+                 (setq-local indent-tabs-mode nil))))
+;; SCSS mode:1 ends here
 
 ;; [[file:README.org::*Navigation][Navigation:1]]
 (use-package combobulate
@@ -1581,6 +1663,7 @@ The format is:
   :defer t
   :ensure nil
   :bind (:map dired-mode-map
+              ("z z" . recenter)
               ("-" . dired-up-directory)
               ("\\c" . dired-create-empty-file))
   :config
@@ -1636,7 +1719,6 @@ The format is:
                           ("Archives"      (extensions "gz" "rar" "zip"))))
 
   :config
-  (set-face-attribute 'dirvish-hl-line nil :foreground nil :background "#3E4451")
   (setq dirvish-attributes
         '(file-time collapse subtree-state))
   (setq delete-by-moving-to-trash t)
@@ -1820,7 +1902,7 @@ The format is:
 
 ;; [[file:README.org::*Core package][Core package:1]]
 (use-package git-gutter
-  :hook (after-init . git-gutter-mode)
+  :hook (emacs-startup . global-git-gutter-mode)
   :bind (("C-M-[" . git-gutter:previous-hunk)
          ("C-M-]" . git-gutter:next-hunk)
          ("C-M-r" . git-gutter:revert-hunk))
@@ -1940,15 +2022,15 @@ The format is:
   (add-hook 'ediff-load-hook #'my/ediff-faces-setup)
   (add-hook 'ediff-prepare-buffer-hook (lambda () (toggle-truncate-lines -1)))
   (add-hook 'ediff-prepare-buffer-hook #'display-line-numbers-mode)
-  (add-hook 'ediff-load-hook #'zoom-mode)
+  ;; (add-hook 'ediff-load-hook #'zoom-mode)
   (add-hook 'ediff-cleanup-hook
             (lambda ()
               (dolist (buf (list ediff-buffer-A ediff-buffer-B
                                  (when (boundp 'ediff-buffer-C) ediff-buffer-C)))
                 (when (buffer-live-p buf)
                   (with-current-buffer buf
-                    (display-line-numbers-mode -1))))
-              (zoom-mode))))
+                    (display-line-numbers-mode -1)))))))
+              ;; (zoom-mode))))
 ;; Core package:1 ends here
 
 ;; [[file:README.org::*Timemachine][Timemachine:1]]
@@ -2076,8 +2158,9 @@ Prevents closing the last frame in daemon mode on macOS."
          ("C-c ]" . my/tabspaces-switch-to-next-buffer)
          ("C-c [" . my/tabspaces-switch-to-prev-buffer))
   :custom
-  (tab-bar-new-tab-choice "*scratch*")
   (tabspaces-mode 1)
+  (tab-bar-new-tab-choice "*scratch*")
+  (tabspaces-remove-to-default t)
   (tabspaces-use-filtered-buffers-as-default t)
   (tabspaces-default-tab "README.org")
   (tabspaces-remove-to-default t)
@@ -2086,8 +2169,7 @@ Prevents closing the last frame in daemon mode on macOS."
   (tabspaces-todo-file-name "project-todo.org")
   ;; sessions
   (tabspaces-session nil)
-  (tabspaces-session-auto-restore nil)
-  (tab-bar-new-tab-choice nil))
+  (tabspaces-session-auto-restore nil))
 ;; Core package. Tabspaces:1 ends here
 
 ;; [[file:README.org::*Tab bar][Tab bar:1]]
@@ -2299,6 +2381,15 @@ Prevents closing the last frame in daemon mode on macOS."
     (consult-line)))
 ;; Search in line or region:1 ends here
 
+;; [[file:README.org::*Consult ripgrep selected][Consult ripgrep selected:1]]
+(defun my/consult-ripgrep-selected-p ()
+  "Run `consult-ripgrep' on selected region, or with empty string"
+  (interactive)
+  (if (use-region-p)
+      (consult-ripgrep nil (buffer-substring (region-beginning) (region-end)))
+    (consult-ripgrep)))
+;; Consult ripgrep selected:1 ends here
+
 ;; [[file:README.org::*Core package][Core package:1]]
 (use-package consult
   :bind (("s-f" . my/consult-line-or-region)
@@ -2308,6 +2399,7 @@ Prevents closing the last frame in daemon mode on macOS."
          ("C-c f P" . my/open-emacs-config) 
          ("C-c f p" . consult-ripgrep)
          ("C-c *" . (lambda () (interactive) (consult-ripgrep nil (thing-at-point 'symbol))))
+         ("C-c /" . my/consult-ripgrep-selected-p)
          ("C-c s i" . consult-imenu)
          ("C-c RET" . consult-bookmark)
          ("C-c c m" . consult-mark)
@@ -2425,7 +2517,27 @@ Prevents closing the last frame in daemon mode on macOS."
 ;; [[file:README.org::*Core package][Core package:1]]
 (use-package lsp-mode
   :hook
-  (prog-mode . lsp-deferred)
+  ((clojure-mode
+    scss-mode
+    go-mode
+    css-mode
+    js-mode
+    typescript-mode
+    vue-mode
+    vue-ts-mode
+    web-mode
+    html-mode
+    ng2-ts-mode
+    python-mode
+    dart-mode
+    typescript-tsx-mode
+
+    html-ts-mode
+    typescript-ts-mode
+    go-ts-mode
+    js-ts-mode
+    bash-ts-mode
+    tsx-ts-mode) . lsp-deferred)
   :bind
   (("C-c f n" . flycheck-next-error)
    ("C-c l a" . lsp-execute-code-action)
@@ -2951,12 +3063,14 @@ Each diagnostic is written on a separate line."
   (if (one-window-p)
       (split-window-horizontally))
   (display-buffer-use-some-window buffer alist))
-  
 
 (add-to-list 'display-buffer-alist
              '(("\\*Messages\\*"
-                (display-buffer-reuse-window display-buffer-in-side-window my/display-buffer-other-vertical display-buffer-use-some-window)
-                (side . right))))
+                (display-buffer-in-side-window display-buffer-reuse-window)
+                (side . right)
+                (slot . 0)
+                (window-width . 0.4)
+                (window-parameters . ((no-delete-other-windows . t))))))
 ;; Buffer position:2 ends here
 
 ;; [[file:README.org::*Setup compilation errors][Setup compilation errors:1]]
@@ -3038,9 +3152,19 @@ Each diagnostic is written on a separate line."
   (my/setup-compilation-errors))
 ;; Core package:1 ends here
 
+;; [[file:README.org::*Fix compilation ansi colors][Fix compilation ansi colors:1]]
+(use-package ansi-color
+  :ensure nil
+  :config
+  (defun colorize-compilation-buffer ()
+    (ansi-color-apply-on-region compilation-filter-start (point-max)))
+  (add-hook 'compilation-filter-hook 'colorize-compilation-buffer))
+;; Fix compilation ansi colors:1 ends here
+
 ;; [[file:README.org::*Codemetrics][Codemetrics:1]]
 (use-package cognitive-complexity
-  :hook (prog-mode . cognitive-complexity-mode)
+  :defer t
+  ;; :hook (prog-mode . cognitive-complexity-mode)
   :ensure (:host github :repo "abougouffa/cognitive-complexity")
   :config
   (cognitive-complexity-mode 1))
@@ -3166,30 +3290,19 @@ Each diagnostic is written on a separate line."
 ;; Repl:1 ends here
 
 ;; [[file:README.org::*Typescript package][Typescript package:1]]
-(use-package typescript-mode
+(use-package typescript-ts-mode
+  :ensure nil
   :defer t  
-  :mode ("\\.mts\\'" . typescript-ts-mode)
-  :hook (typescript-mode . (lambda () (setq-local fill-column 120)))
+  :mode 
+  ("\\.mts\\'" . typescript-ts-mode)
+  ("\\.ts\\'" . typescript-ts-mode)
+  :hook (typescript-ts-mode . (lambda () (setq-local fill-column 120)))
   :custom
   (lsp-clients-typescript-server-args '("--stdio"))
   (typescript-indent-level 2)
   :config
   (setenv "TSSERVER_LOG_FILE" "/tmp/tsserver.log"))
 ;; Typescript package:1 ends here
-
-;; [[file:README.org::*Angular][Angular:1]]
-(use-package ng2-mode
-  :after (typescript-mode lsp-mode)
-  :defer t)
-;; Angular:1 ends here
-
-;; [[file:README.org::*Main mode][Main mode:1]]
-(use-package js2-mode
-  :defer t
-  :hook (js2-mode . js2-highlight-unused-variables-mode)
-  :custom
-  (js-indent-level 2))
-;; Main mode:1 ends here
 
 ;; [[file:README.org::*PKG. NPM Script runner][PKG. NPM Script runner:1]]
 (use-package pkg-run
@@ -3382,7 +3495,7 @@ Each diagnostic is written on a separate line."
 (use-package fish-mode :defer t)
 ;; Fish:1 ends here
 
-;; [[file:README.org::*Functions][Functions:1]]
+;; [[file:README.org::*Open last eca view diff][Open last eca view diff:1]]
 (defun my/open-last-view-diff ()
   "Open latest view diff from eacs"
   (interactive)
@@ -3401,7 +3514,7 @@ Each diagnostic is written on a separate line."
       (when (window-live-p win)
         (set-window-start win start t)
         (set-window-point win pt)))))
-;; Functions:1 ends here
+;; Open last eca view diff:1 ends here
 
 ;; [[file:README.org::*Package][Package:1]]
 (use-package eca
@@ -3411,6 +3524,7 @@ Each diagnostic is written on a separate line."
   (eca-chat-use-side-window nil)
   :bind (("C-c e e" . eca)
          ("C-c e m" . eca-transient-menu)
+         ("s-g" . eca-transient-menu)
          :map eca-chat-mode-map
          ("<tab>" . eca-chat-toggle-expandable-block)
          ("C-c C-v" . my/open-last-view-diff)
@@ -3421,14 +3535,48 @@ Each diagnostic is written on a separate line."
          ("C-j" . eca-chat--key-pressed-next-prompt-history)
          ("C-S-j" . eca-chat-go-to-next-expandable-block)
          ("C-S-k" . eca-chat-go-to-prev-expandable-block))
-         ;; ("C-p" . eca-chat-go-to-prev-user-message)
-         ;; ("C-n" . eca-chat-go-to-next-user-message))
   :config
   (add-to-list
    'display-buffer-alist
    '("<eca-chat.*"
-     (my/smart-display-buffer-function))))
+     (my/display-buffer-right-smart)
+     (window-width . 0.4))))
+;; (my/display-buffer-right-smart))))
 ;; Package:1 ends here
+
+;; [[file:README.org::*Copilot][Copilot:1]]
+(use-package copilot
+  :defer 5
+  :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
+  :hook
+  (prog-mode . copilot-mode)
+  (text-mode . copilot-mode)
+  :bind
+  (("s-]" . copilot-next-completion)
+   ("s-[" . copilot-previous-completion)
+   ("s-l" . copilot-accept-completion)
+   ("s-k" . copilot-accept-completion)
+   ("s-j" . copilot-complete)
+   ("s-;" . copilot-accept-completion-by-word)
+   ("s-/" . copilot-accept-completion-by-line))
+  :custom
+  (copilot-idle-delay 0.3)
+  (copilot--previous-point nil)
+  (copilot--previous-window-width nil)
+  :config
+  (add-hook 'meow-insert-enter-hook (lambda ()
+                                      (setq blamer--block-render-p t)
+                                      (blamer--clear-overlay)))
+  (add-hook 'meow-insert-exit-hook (lambda ()
+                                     (setq blamer--block-render-p nil)
+                                     (copilot-clear-overlay)))
+
+  (defun my/copilot-show-overlay-depends-mode (COMPLETION UUID START END)
+    ;; If meow normal mode prevent copilot from showing overlay
+    (unless (bound-and-true-p meow-normal-mode)
+      (copilot--display-overlay-completion COMPLETION UUID START END)))
+  (advice-add 'copilot-show-overlay :override #'my/copilot-show-overlay-depends-mode))
+;; Copilot:1 ends here
 
 ;; [[file:README.org::*Org GPG encryption][Org GPG encryption:1]]
 (use-package org-crypt
@@ -3819,6 +3967,17 @@ Automatically creates parent directories if needed."
      org-babel-load-languages)))
 ;; Org raindrop:3 ends here
 
+;; [[file:README.org::*Org excalidraw][Org excalidraw:1]]
+(use-package org-excalidraw
+  :defer t
+  :ensure (:type git :host github :repo "wdavew/org-excalidraw")
+  :custom
+  (org-excalidraw-directory my/org-roam-charts-dir)
+  :config
+  (push '("\\.excalidraw.svg\\'" . "echo '%s' | sed 's/.svg//' | xargs open") org-file-apps)
+  (advice-add #'org-display-inline-images :after #'org-display-user-inline-images))
+;; Org excalidraw:1 ends here
+
 ;; [[file:README.org::*Google translate][Google translate:1]]
 (use-package google-translate
   :defer 10
@@ -4005,6 +4164,9 @@ Automatically creates parent directories if needed."
          ("C-c S-SPC" . husky-buffers-side-project-find-file)
          ("C-c b B" . husky-buffers-side-consult-projectile-switch-to-buffer)
          ("C-c >" . husky-buffers-side-find-file)
+         :map magit-merge-preview-mode-map
+         ("M-n" . husky-lsp-repeat-consult-search-forward)
+         ("M-p" . husky-lsp-repeat-consult-search-backward)
          :map meow-normal-state-keymap
          ("gd" . husky-lsp-find-definition)
          ("%" . husky-navigation-bounce-paren)
@@ -4025,7 +4187,7 @@ Automatically creates parent directories if needed."
          ("\\ m" . husky-window-manager-toggle-maximize-buffer)
          :map magit-status-mode-map
          ("M-n" . husky-lsp-repeat-consult-search-forward)
-         ("M-p" . husky-lsp-repeat-consult-search-backward))))
+         ("M-p" . husky-lsp-repeat-consult-search-backward)))
 ;; Husky:1 ends here
 
 ;; [[file:README.org::*End config][End config:1]]

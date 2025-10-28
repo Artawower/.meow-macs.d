@@ -5,6 +5,6 @@
 
 ;;; Code:
 (require 'org)
-(org-babel-load-file "~/apps/flat-emacs/README_NEW.org")
+(org-babel-load-file "~/apps/flat-emacs/README.org")
 
 ;;; init.el ends here
