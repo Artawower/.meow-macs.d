@@ -1265,7 +1265,7 @@ Move to husky
 #+BEGIN_SRC emacs-lisp 
 (use-package meow-vterm
   :ensure (meow-vterm :type git :host github :repo "accelbread/meow-vterm")
-  :after vterm
+  ;; :hook (vterm-mode . meow-vterm-enable)
   :config
   (setq vterm-keymap-exceptions '("C-c"))
   (meow-vterm-enable))
