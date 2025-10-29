@@ -2166,10 +2166,22 @@ Another all formtter. Based on prettier and black
 #+END_SRC
 
 ** Blamer
+Disable function
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/disable-blamer-mode ()
+  "Disable blamer mode in current buffer."
+  (interactive)
+  (blamer-mode -1))
+
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp 
 (use-package blamer
   :defer t 
-  :hook ((prog-mode . blamer-mode))
+  :hook 
+  (prog-mode . blamer-mode)
+  (meow-insert-mode . my/disable-blamer-mode)
+  (meow-normal-mode . blamer-mode)
   ;; From MELPA, uncomment below for development version:
   ;; :ensure (:type git :host github :repo "artawower/blamer.el" :branch "fix/emacs-buffers-spawns")
   :bind (("C-c b i" . blamer-show-commit-info)
