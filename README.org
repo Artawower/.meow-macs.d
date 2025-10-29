@@ -61,9 +61,9 @@ Function for getting config related paths
 ** UI variables
 #+BEGIN_SRC emacs-lisp 
 (setq my/font-height 14)
-(setq my/font-default "Monaspace Neon Frozen")
+(setq my/font-default "Monaspace Neon NF")
 ;; (setq my/font-default "JetBrainsMono Nerd Font")
-(setq my/font-funny   "Monaspace Radon Frozen")
+(setq my/font-funny   "Monaspace Radon NF")
 (setq my/ui-box-padding 6)
 (setq my/org-tag-color "#ff5555")
 #+END_SRC
