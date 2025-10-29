@@ -592,7 +592,7 @@ Temporary disabled due to performance issues on macos
   (spacious-padding-mode . my/setup-modeline)
   :custom
   (spacious-padding-widths '(
-     :internal-border-width 16
+     :internal-border-width 18
      :header-line-width 8
      :mode-line-width 8
      :tab-width 8
@@ -973,7 +973,20 @@ Disable scrolls
   :config
   (add-to-list 'topsy-mode-functions '(scss-mode . my/scss-breadcrumbs))
   (add-to-list 'topsy-mode-functions '(html-ts-mode . my/treesit-html-breadcrumbs))
-  (add-to-list 'topsy-mode-functions '(json-ts-mode . my/treesit-json-breadcrumbs)))
+  (add-to-list 'topsy-mode-functions '(json-ts-mode . my/treesit-json-breadcrumbs))
+
+  ;; Custom headr with file name
+  (setq topsy-header-line-format
+        '(:eval
+          (let ((filename (when buffer-file-name
+                            (file-name-nondirectory buffer-file-name)))
+                (breadcrumbs (funcall topsy-fn)))
+            (list (propertize " " 'display '((space :align-to 0)))
+                  (if (and filename breadcrumbs (not (string-empty-p breadcrumbs)))
+                      (format "%s > %s" 
+                              (propertize filename 'face 'bold)
+                              breadcrumbs)
+                    (or filename breadcrumbs "")))))))
 #+END_SRC
 * Navigation
 ** Imenu
@@ -2042,7 +2055,7 @@ Another all formtter. Based on prettier and black
                '((lambda (buffer-or-name _)
                    (let ((buffer (get-buffer buffer-or-name)))
                      (with-current-buffer buffer
-                       (and (not (string-match-p "^\\*vterm" (buffer-name buffer)))
+                       (and (string-match-p "^\\*vterm" (buffer-name buffer))
                             (or (eq major-mode 'vterm-mode)
                                 (string-prefix-p vterm-buffer-name (buffer-name buffer)))))))
                  (display-buffer-reuse-window display-buffer-at-bottom)
