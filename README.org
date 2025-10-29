@@ -453,7 +453,6 @@ unreadable. Returns the names of envvars that were changed."
 #+BEGIN_SRC emacs-lisp 
 (defun my/setup-modeline ()
   (interactive)
-  (message "SETUP MODE LINE!")
   (let* ((bg (or (face-attribute 'org-block :background nil 'default)
                  (face-attribute 'mode-line :background nil 'default)))
          (bg-inactive (face-attribute 'mode-line-inactive :background nil 'default)))
@@ -589,7 +588,9 @@ Temporary disabled due to performance issues on macos
 ** Fringes
 #+BEGIN_SRC emacs-lisp
 (use-package spacious-padding
-  :hook (emacs-startup . spacious-padding-mode)
+  :hook 
+  (emacs-startup . spacious-padding-mode)
+  (spacious-padding-mode . my/setup-modeline)
   :custom
   (spacious-padding-widths
    '(:internal-border-width 20 :header-line-width 0 :mode-line-width 0
