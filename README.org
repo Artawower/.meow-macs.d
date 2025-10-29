@@ -2731,7 +2731,7 @@ Function for search in buffer depends or visual or normal line
 *** COMMENT Consult gh
 #+BEGIN_SRC emacs-lisp 
 (use-package consult-gh
-  :after consult
+  :defer t
   :config
   (require 'consult-gh-transient)
   (consult-gh-forge-mode +1))
