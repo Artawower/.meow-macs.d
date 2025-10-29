@@ -598,7 +598,7 @@ Temporary disabled due to performance issues on macos
      :tab-width 8
      :right-divider-width 20
      :scroll-bar-width 1
-     :fringe-width 0)))
+     :fringe-width 4)))
 #+END_SRC
 
 ** Auto zoom windows
