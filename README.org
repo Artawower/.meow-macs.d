@@ -465,7 +465,7 @@ unreadable. Returns the names of envvars that were changed."
     (set-face-attribute 'mode-line-inactive nil
                         :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))
     (set-face-attribute 'header-line nil :background bg :box `(:line-width ,my/ui-box-padding :color ,bg))
-    (set-face-attribute 'header-line-inactive nil :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))
+    (set-face-attribute 'header-line-inactive nil :background bg-inactive :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))
 #+END_SRC
 
 *** Core package
@@ -979,7 +979,7 @@ Disable scrolls
   (setq topsy-header-line-format
         '(:eval
           (let ((filename (when buffer-file-name
-                            (file-name-nondirectory buffer-file-name)))
+                            (concat " " (file-name-nondirectory buffer-file-name))))
                 (breadcrumbs (funcall topsy-fn)))
             (list (propertize " " 'display '((space :align-to 0)))
                   (if (and filename breadcrumbs (not (string-empty-p breadcrumbs)))
@@ -4493,13 +4493,24 @@ Ob raindrop (dynamic block)
   :ensure nil
   :custom
   (remote-file-name-inhibit-cache nil)
-  (tramp-verbose 1)
+  (tramp-verbose 6)
+  (tramp-use-ssh-controlmaster-options nil)
+  (tramp-default-method "ssh")
+  (tramp-completion-reread-directory-timeout nil)
+  (vc-ignore-dir-regexp
+   (format "\\(%s\\)\\|\\(%s\\)"
+           vc-ignore-dir-regexp
+           tramp-file-name-regexp))
   :config
-  (add-to-list 'tramp-connection-properties
-               (list (regexp-quote "/sshx:user@host:")
-                     "remote-shell" "/usr/bin/bash"))
-  (add-to-list 'tramp-connection-properties
-               (list ".*" "locale" "LC_ALL=C")))
+  (add-to-list 'tramp-remote-path 'tramp-own-remote-path)
+  
+  (connection-local-set-profile-variables
+   'tramp-connection-local-default-profile
+   '((tramp-direct-async-process . t)))
+  
+  (connection-local-set-profiles
+   '(:application tramp)
+   'tramp-connection-local-default-profile))
 #+END_SRC
 ** Pdf tools
 #+BEGIN_SRC emacs-lisp 
