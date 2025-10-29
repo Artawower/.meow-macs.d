@@ -461,12 +461,11 @@ unreadable. Returns the names of envvars that were changed."
                         :box `(:line-width ,my/ui-box-padding :color ,bg))
     (when (facep 'mode-line-active)
       (set-face-attribute 'mode-line-active nil
-                          :background bg
-                          :box `(:line-width ,my/ui-box-padding :color ,bg)))
+                          :background bg :box `(:line-width ,my/ui-box-padding :color ,bg)))
     (set-face-attribute 'mode-line-inactive nil
                         :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))
-    (set-face-attribute 'header-line nil :inherit 'mode-line)
-    (set-face-attribute 'header-line-inactive nil :inherit 'mode-line-inactive)))
+    (set-face-attribute 'header-line nil :background bg :box `(:line-width ,my/ui-box-padding :color ,bg))
+    (set-face-attribute 'header-line-inactive nil :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))
 #+END_SRC
 
 *** Core package
@@ -585,17 +584,21 @@ Temporary disabled due to performance issues on macos
 (my/set-catppuccin-theme)
   (setq auto-dark-allow-osascript t))
 #+END_SRC
-** Fringes
+** Fringes via spacious padding
 #+BEGIN_SRC emacs-lisp
 (use-package spacious-padding
   :hook 
   (emacs-startup . spacious-padding-mode)
   (spacious-padding-mode . my/setup-modeline)
   :custom
-  (spacious-padding-widths
-   '(:internal-border-width 20 :header-line-width 0 :mode-line-width 0
-                            :tab-width 0 :right-divider-width 1
-                            :scroll-bar-width 1 :fringe-width 8)))
+  (spacious-padding-widths '(
+     :internal-border-width 16
+     :header-line-width 8
+     :mode-line-width 8
+     :tab-width 8
+     :right-divider-width 20
+     :scroll-bar-width 1
+     :fringe-width 0)))
 #+END_SRC
 
 ** Auto zoom windows
@@ -635,9 +638,9 @@ Temporary disabled due to performance issues on macos
                         "gray40")))
       (custom-set-faces
        `(tab-bar-echo-area-tab
-         ((t (:inherit mode-line-active))))
+         ((t (:inherit mode-line-active :box nil))))
        `(tab-bar-echo-area-tab-inactive
-         ((t (:inherit tab-bar-tab-inactive)))))))
+         ((t (:inherit tab-bar-tab-inactive :box nil)))))))
 #+END_SRC
 *** Core package
 #+BEGIN_SRC emacs-lisp 
