@@ -229,10 +229,14 @@ Key features:
 - If in right window with 2 windows: moves current buffer to left, BUFFER takes right
 - If in left window with 2 windows: BUFFER opens in right
 - If only 1 window: splits horizontally, BUFFER opens in right
+- Replaces buffers with similar pattern (e.g., <eca 1.*> -> <eca 2.*>)
 
 This function is designed for buffers that should have a consistent
 right-side position (e.g., assistants, help, documentation)."
-  (let ((buffer-window (get-buffer-window buffer)))
+  (let* ((buffer-window (get-buffer-window buffer))
+         (buffer-name (buffer-name buffer))
+         (pattern-match (when (string-match "^<\\([^>0-9]+\\)" buffer-name)
+                          (match-string 1 buffer-name))))
     (cond
      ;; If buffer is already visible, just switch to it
      (buffer-window
@@ -244,15 +248,23 @@ right-side position (e.g., assistants, help, documentation)."
       (let* ((left-window (window-at 0 0))
              (right-window (next-window left-window 'no-minibuf))
              (current-window (selected-window))
-             (current-is-right (eq current-window right-window)))
+             (current-is-right (eq current-window right-window))
+             (right-buffer (window-buffer right-window))
+             (right-buffer-name (buffer-name right-buffer))
+             (should-replace (and pattern-match
+                                  (string-match (concat "^<" (regexp-quote pattern-match)) right-buffer-name))))
         
         (cond
+         ;; If right window has similar pattern buffer, replace it
+         (should-replace
+          (set-window-buffer right-window buffer)
+          (select-window right-window)
+          right-window)
+         
          ;; If we're in the right window, move its content to left
          (current-is-right
           (let ((current-buffer (window-buffer current-window)))
-            ;; Switch left window to show current buffer
             (set-window-buffer left-window current-buffer)
-            ;; Display BUFFER in right window
             (set-window-buffer right-window buffer)
             (select-window right-window)
             right-window))
