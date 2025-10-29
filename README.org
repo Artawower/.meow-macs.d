@@ -699,7 +699,10 @@ Temporary disabled due to performance issues on macos
 
 ** Icons
 #+BEGIN_SRC emacs-lisp
-(use-package nerd-icons :defer t)
+(use-package nerd-icons 
+  :defer t
+  :config
+  (set-fontset-font t 'unicode (font-spec :family "Symbols Nerd Font Mono") nil 'append))
 #+END_SRC
 
 ** Better emacs docs. Helpful
