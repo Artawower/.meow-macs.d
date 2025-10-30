@@ -3986,6 +3986,7 @@ Requires Emacs 30+
   :defer t
   :ensure (:type git :host github :repo "editor-code-assistant/eca-emacs" :files (:defaults "*.el"))
   :custom
+  (eca-chat-diff-tool 'ediff)
   (eca-chat-use-side-window nil)
   (eca-chat-mcp-tool-call-success-symbol 
    (propertize "󰄭" 'face 'font-lock-string-face 'display '(height 1.3)))
