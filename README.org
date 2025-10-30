@@ -2069,6 +2069,7 @@ Another all formtter. Based on prettier and black
 #+END_SRC
 
 ** Detached. Background commands
+*** Core package
 #+BEGIN_SRC emacs-lisp 
 (use-package detached
   :defer t
@@ -2076,12 +2077,32 @@ Another all formtter. Based on prettier and black
   (detached-init)
   :bind (([remap compile] . detached-compile)
          ([remap recompile] . detached-compile-recompile)
-         ([remap detached-open-session] . detached-consult-session))
+         ([remap project-compile] . detached-compile)
+         ([remap project-recompile] . detached-compile-recompile)
+         ([remap detached-open-session] . detached-consult-session)
+         ("C-c D v" . detached-view-session)
+         ("C-c D k" . detached-kill-session)
+         ("C-c D a" . detached-rerun-session)
+         ("C-c D R" . my/detached-restart-session)
+         ("C-c D r" . detached-compile-recompile)
+         ("C-c D c" . detached-compile))
   :custom
   (detached-show-output-on-attach t)
   (detached-terminal-data-command system-type))
 #+END_SRC
 
+*** Force restart session
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/detached-restart-session ()
+  (interactive)
+  (let ((session (detached-session-in-context)))
+    (when (and session (detached-session-active-p session))
+      (detached-kill-session session)
+      (sleep-for 0.2)
+      (when (detached-session-active-p session)
+        (detached-session-kill session)))
+    (detached-rerun-session session)))
+#+END_SRC
 * Git
 ** Magit
 *** Core package
@@ -2648,13 +2669,13 @@ Prevents closing the last frame in daemon mode on macOS."
    ("C-h B" . embark-bindings)
    :map minibuffer-local-map
    ("C-SPC" . my/vertico-embark-preview)
-   ("C-u" . backward-kill-line)
+   ("C-u" . my/backward-kill-line)
    :map read--expression-map
    ("C-SPC" . my/vertico-embark-preview)
-   ("C-u" . backward-kill-line)
+   ("C-u" . my/backward-kill-line)
    :map vertico-map
    ("C-SPC" . my/vertico-embark-preview)
-   ("C-u" . backward-kill-line))
+   ("C-u" . my/backward-kill-line))
   
   :config
   (add-to-list 'display-buffer-alist '("^\\*Embark Export\\*$" (display-buffer-in-side-window) (window-height . 0.4)))
@@ -3392,6 +3413,16 @@ Each diagnostic is written on a separate line."
         (list (match-string 1))))))
 #+END_SRC
 
+**** Show compilation buffer
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/show-compilation-buffer ()
+  "Display *compilation* buffer."
+  (interactive)
+  (if-let ((buf (get-buffer "*compilation*")))
+      (pop-to-buffer buf)
+    (message "No compilation buffer exists")))
+#+END_SRC
+
 *** Buffer position
 Compilation always at right
 #+BEGIN_SRC emacs-lisp 
@@ -3523,6 +3554,7 @@ By default ~compile-goto-error~ open new window. It's redundant.
    ("C-c a r" . recompile)
    ("C-c C-c C-r" . recompile)
    ("C-c C-c r" . recompile)
+   ("C-c C-v" . my/show-compilation-buffer)
    :map compilation-mode-map
    ("C-j" . compilation-next-error)
    ("C-k" . compilation-previous-error)
