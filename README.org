@@ -453,9 +453,9 @@ unreadable. Returns the names of envvars that were changed."
 #+BEGIN_SRC emacs-lisp 
 (defun my/setup-modeline ()
   (interactive)
-  (let* ((bg (or (face-attribute 'org-block :background nil 'default)
-                 (face-attribute 'mode-line :background nil 'default)))
-         (bg-inactive (face-attribute 'mode-line-inactive :background nil 'default)))
+  (let* ((bg-inactive (or (face-attribute 'org-block :background nil 'default)
+                          (face-attribute 'mode-line :background nil 'default)))
+         (bg (face-attribute 'mode-line-inactive :background nil 'default)))
     (set-face-attribute 'mode-line nil
                         :background bg
                         :box `(:line-width ,my/ui-box-padding :color ,bg))
@@ -475,6 +475,8 @@ unreadable. Returns the names of envvars that were changed."
   :hook
   (after-load-theme . my/setup-modeline)
   (server-after-make-frame-hook . my/setup-modeline)
+  (git-commit-setup . my/setup-modeline)
+  (magit-mode . my/setup-modeline)
   :config
   (add-hook 'emacs-startup-hook #'my/setup-modeline)
   (my/run-once-on-init #'my/setup-modeline 100)
