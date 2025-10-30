@@ -430,20 +430,20 @@ unreadable. Returns the names of envvars that were changed."
       (when (display-graphic-p frame)
         (set-frame-font (format "%s-%d" my/font-default my/font-height) nil t)
         (set-face-attribute 'default frame :family my/font-default :height (* 10 my/font-height))
-        (set-face-attribute 'fixed-pitch frame :family my/font-default :height (* 10 my/font-height))
-        (set-face-attribute 'variable-pitch frame :family my/font-default :height (* 10 (1+ my/font-height)))
-        (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height (* 10 my/font-height))
-        (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height (* 10 my/font-height))
-        (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height (* 10 my/font-height))
+        (set-face-attribute 'fixed-pitch frame :family my/font-default :height 1.0)
+        (set-face-attribute 'variable-pitch frame :family my/font-default :height 1.07)
+        (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 1.0)
+        (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 1.0)
+        (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 1.0)
 
         (when (fboundp 'catppuccin-get-color)
           (set-face-attribute 'font-lock-variable-name-face frame
                               :foreground (catppuccin-get-color 'flamingo)
-                              :height (* 10 my/font-height)
+                              :height 1.0
                               :bold nil
                               :family my/font-default))
 
-        (setq-local line-spacing 0.2)
+        (setq line-spacing 0.3)
         (when (fboundp 'set-fontset-font)
           (set-fontset-font t 'symbol (font-spec :family "Apple Color Emoji") nil 'prepend))))))
 
