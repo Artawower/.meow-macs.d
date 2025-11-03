@@ -2788,7 +2788,7 @@ Function for search in buffer depends or visual or normal line
 
   :config
   (consult-customize
-   consult-git-grep consult-grep consult-projectile-recentf consult-ripgrep
+   consult-git-grep consult-grep consult-ripgrep
    consult-bookmark consult-recent-file consult-xref consult--source-bookmark consult--source-file-register
    consult--source-recent-file consult--source-project-recent-file
    :preview-key (list :debounce 0.2 "C-SPC"))
@@ -3693,16 +3693,14 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   ;; This hook will copy venv from pyvenv to lsp pyright
   (add-hook 'pyvenv-post-activate-hooks (lambda ()
                                            (setq lsp-pyright-venv-directory pyvenv-virtual-env)
-                                           (lsp-restart-workspace)))
-
-  (setq pipenv-projectile-after-switch-function #'pipenv-projectile-after-switch-extended))
+                                           (lsp-restart-workspace))))
 #+END_SRC
 
 *** Pyvenv
 #+BEGIN_SRC emacs-lisp 
 (use-package pyvenv :defer t)
 #+END_SRC
-*** TODO Auto virtualenv
+*** TODO COMMENT Auto virtualenv
 #+BEGIN_SRC emacs-lisp 
 (use-package auto-virtualenv
   :after pyvenv
