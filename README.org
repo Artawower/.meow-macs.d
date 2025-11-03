@@ -1530,12 +1530,14 @@ Bookmark for navigation inside file
 ** Functions
 *** Delete backward
 #+BEGIN_SRC emacs-lisp
-(defun my/backward-kill-line (arg)
-  "Kill ARG lines backward."
+(defun my/backward-kill-line (&optional arg)
   (interactive "p")
-  (let ((kill-ring kill-ring))
-    (kill-line (- 1 arg))))
-
+  (let ((beg (line-beginning-position))
+        (end (point)))
+    (kill-region beg end)
+    (when kill-ring
+      (setq kill-ring (cdr kill-ring)))
+    (setq kill-ring-yank-pointer kill-ring)))
 #+END_SRC
 
 
