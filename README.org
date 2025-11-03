@@ -4560,14 +4560,13 @@ Ob raindrop (dynamic block)
               ("C-'" . google-translate-next-translation-direction)
               :map meow-normal-state-keymap
               ("\\ t" . google-translate-smooth-translate))
-  :custom
-  (google-translate-backend-method 'curl)
-  (google-translate-pop-up-buffer-set-focus t)
-  (google-translate-translation-directions-alist
-   '(("en" . "ru") ("ru" . "en") ))
-
   :config
   (require 'google-translate-smooth-ui)
+  (setq google-translate-backend-method 'curl)
+  (setq google-translate-pop-up-buffer-set-focus t)
+  (setq google-translate-translation-directions-alist
+   '(("en" . "ru") ("ru" . "en") ))
+
   (defun google-translate--search-tkk () "Search TKK." (list 430675 2721866130)))
 #+END_SRC
 
