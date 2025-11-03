@@ -2116,6 +2116,8 @@ Another all formtter. Based on prettier and black
   (magit-get-current-branch)
   :bind
   (("C-M-g" . magit-status)
+   ("C-M-d" . magit-ediff-compare)
+   ("C-M-S-a" . my/magit-stage-current-file)
    ("C-c g g" . magit-status)
    :map magit-mode-map
    ("C-1" . magit-section-show-level-1)
