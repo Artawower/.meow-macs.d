@@ -1493,7 +1493,8 @@ Bookmark for navigation inside file
   (bm-in-lifo-order t)
   :bind (("M-s-n" . bm-next)
          ("M-s-p" . bm-previous)
-         ("s-b" . bm-toggle)))
+         ("s-b" . bm-toggle)
+         ("C-c b l" . bm-show)))
 #+END_SRC
 
 ** Scroll golden ratio
