@@ -4255,11 +4255,14 @@ Automatically creates parent directories if needed."
         ("C-h p" . org-babel-previous-src-block)
         :map meow-normal-state-keymap
         ("\\o" . org-mode)
+        ("\\a" . org-agenda)
         :map org-read-date-minibuffer-local-map
         ("C-s" . org-goto-calendar)
         :map calendar-mode-map
         ("<return>" . org-calendar-select))
   :custom
+  (org-directory my/org-roam-dir)
+  (org-log-done 'time)
   (org-babel-python-command "python3")
   (org-confirm-babel-evaluate nil)
   (org-src-preserve-indentation t)
@@ -4335,6 +4338,47 @@ Automatically creates parent directories if needed."
 
 #+END_SRC
 
+** Org agenda package
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-agenda
+  :ensure nil
+  :defer t
+  :config
+  (setq org-agenda-files (list (concat my/org-roam-dir "/agenda/"))))
+
+#+END_SRC
+** Org superagenda 
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-super-agenda
+  :after org
+  :hook (org-agenda-mode . org-super-agenda-mode)
+  :config
+  (setq org-super-agenda-groups
+        '((:name " Next work" :and (:tag "work" :tag "next" :not (:todo "DONE")))
+          (:name " Next pet" :and (:category "pet" :tag "next" :not (:todo "DONE")))
+          (:name " Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")))
+          (:name " Habit" :and (:category "habit" :not (:todo "DONE")))
+          (:name " Done" :todo "DONE")
+          (:discard (:tag "someday")))))
+#+END_SRC
+** Org agenda habits
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-habit
+  :ensure nil
+  :defer t
+  :custom
+  (org-habit-graph-column 50)     
+  (org-habit-preceding-days 14)   
+  (org-habit-following-days 3)    
+  (org-habit-show-all-today t)
+  :config
+  (add-to-list 'org-modules 'org-habit))
+#+END_SRC
+** Habit stats
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package org-habit-stats 
+  :defer t)
+#+END_SRC
 ** Org menu
 #+BEGIN_SRC emacs-lisp 
 (use-package org-menu
