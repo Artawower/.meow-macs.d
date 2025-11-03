@@ -2126,6 +2126,7 @@ Another all formtter. Based on prettier and black
   :bind
   (("C-M-g" . magit-status)
    ("C-M-d" . magit-ediff-compare)
+   ("C-M-S-c" . magit-commit)
    ("C-M-S-a" . my/magit-stage-current-file)
    ("C-c g g" . magit-status)
    :map magit-mode-map
@@ -2179,6 +2180,16 @@ Another all formtter. Based on prettier and black
 #+END_SRC
 
 *** Helper functions
+**** Stage current file
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/magit-stage-current-file ()
+  "Stage current file in Magit."
+  (interactive)
+  (magit-file-stage)
+  (when (featurep 'git-gutter)
+    (git-gutter)))
+
+#+END_SRC
 **** Open git diff for current blame line
 #+BEGIN_SRC emacs-lisp 
 (defun my/magit-show-commit-at-point ()
@@ -2209,7 +2220,8 @@ Another all formtter. Based on prettier and black
   :hook (emacs-startup . global-git-gutter-mode)
   :bind (("C-M-[" . git-gutter:previous-hunk)
          ("C-M-]" . git-gutter:next-hunk)
-         ("C-M-r" . git-gutter:revert-hunk))
+         ("C-M-r" . git-gutter:revert-hunk)
+         ("C-M-s" . git-gutter:stage-hunk))
   :custom
   (git-gutter:update-interval 2))
 #+END_SRC
