@@ -3395,6 +3395,17 @@ Each diagnostic is written on a separate line."
 
 ** Compilation
 *** Functions
+**** Compilation per project
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/compilation-buffer-name-by-project (_mode)
+  (let* ((pr (project-current nil))
+         (name (if pr
+                   (file-name-nondirectory
+                    (directory-file-name (project-root pr)))
+                 (abbreviate-file-name default-directory))))
+    (format "*compilation:%s*" name)))
+
+#+END_SRC
 **** Run vitest
 #+BEGIN_SRC emacs-lisp 
 (defun my/run-vitest-from-current-buffer ()
@@ -3566,7 +3577,7 @@ By default ~compile-goto-error~ open new window. It's redundant.
   :custom
   (compile-command "bun run build")
   :config
-  
+  (setq compilation-buffer-name-function #'my/compilation-buffer-name-by-project)
   <<display-compilation-buffer>>
   (my/setup-compilation-errors))
 #+END_SRC
