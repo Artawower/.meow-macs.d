@@ -1239,6 +1239,7 @@ Move to husky
 #+BEGIN_SRC emacs-lisp 
 (defun my/meow-setup-state-per-modes ()
   (add-to-list 'meow-mode-state-list '(elpaca-info-mode . normal))
+  (add-to-list 'meow-mode-state-list '(flymake-diagnostics-buffer-mode . normal))
   (add-to-list 'meow-mode-state-list '(flycheck-error-list-mode . normal))
   (add-to-list 'meow-mode-state-list '(magit-process-mode . normal))
   (add-to-list 'meow-mode-state-list '(compilation-mode . normal))
