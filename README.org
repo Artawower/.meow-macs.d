@@ -3456,9 +3456,15 @@ Each diagnostic is written on a separate line."
 (defun my/show-compilation-buffer ()
   "Display *compilation* buffer."
   (interactive)
-  (if-let ((buf (get-buffer "*compilation*")))
-      (pop-to-buffer buf)
-    (message "No compilation buffer exists")))
+  (let* ((pr (project-current nil))
+         (name (if pr
+                   (file-name-nondirectory
+                    (directory-file-name (project-root pr)))
+                 (abbreviate-file-name default-directory)))
+         (bufname (format "*compilation:%s*" name)))
+    (if-let ((buf (get-buffer bufname)))
+        (pop-to-buffer buf)
+      (message "No compilation buffer for this project"))))
 #+END_SRC
 
 *** Buffer position
@@ -3471,24 +3477,20 @@ Compilation always at right
                         (> (nth 0 (window-edges a))
                            (nth 0 (window-edges b))))))))
 
-(defun my/display-compilation-buffer (buffer alist)
-  "Custom display function for compilation buffer.
-   If there are two windows, reuse the rightmost one.
-   If there's only one window, split and use the right window."
-  (let ((windows (window-list)))
-    (cond
-     ;; If we have exactly two windows
-     ((= (length windows) 2)
-      (set-window-buffer (my/get-rightmost-window) buffer)
-      (my/get-rightmost-window))
-     ;; If we have one window
-     (t
-      (let ((new-window (split-window-right)))
-        (set-window-buffer new-window buffer)
-        new-window)))))
+(defun my/show-compilation-buffer ()
+  (interactive)
+  (let* ((pr (project-current nil))
+         (name (if pr
+                   (file-name-nondirectory
+                    (directory-file-name (project-root pr)))
+                 (abbreviate-file-name default-directory)))
+         (bufname (format "*compilation:%s*" name)))
+    (if-let ((buf (get-buffer bufname)))
+        (pop-to-buffer buf)
+      (message "No compilation buffer for this project"))))
 
 (add-to-list 'display-buffer-alist
-             `("^\\*compilation\\*$"
+             `("^\\*compilation.*\\*$"
                (display-buffer-reuse-window my/display-compilation-buffer)
                (reusable-frames . visible)))
 
