@@ -4355,10 +4355,17 @@ Automatically creates parent directories if needed."
 (use-package org-agenda
   :ensure nil
   :defer t
+  :custom
+  (org-log-done 'note)
+  (org-agenda-span 'day)
+  (org-agenda-show-log t)
+  (org-agenda-start-with-log-mode t)
+  (org-agenda-log-mode-items '(closed state))
   :config
   (setq org-agenda-files (list (concat my/org-roam-dir "/agenda/"))))
 
 #+END_SRC
+
 ** Org superagenda 
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-super-agenda
@@ -4366,13 +4373,15 @@ Automatically creates parent directories if needed."
   :hook (org-agenda-mode . org-super-agenda-mode)
   :config
   (setq org-super-agenda-groups
-        '((:name " Next work" :and (:tag "work" :tag "next" :not (:todo "DONE")))
-          (:name " Next pet" :and (:category "pet" :tag "next" :not (:todo "DONE")))
-          (:name " Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")))
-          (:name " Habit" :and (:category "habit" :not (:todo "DONE")))
-          (:name " Done" :todo "DONE")
+        '((:name "  Done today" :log t :log "closed" :todo "DONE" :order 6 :face 'shadow)
+          (:name "  Next work" :and (:category "work" :tag "next" :not (:todo "DONE")) :order 1)
+          (:name "  Next pet" :and (:category "pet" :tag "next" :not (:todo "DONE")) :order 2)
+          (:name "  Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")) :order 3)
+          (:name "  Habit" :and (:habit t :not (:todo "DONE")) :order 4)
+          (:name "  Other" :anything t :order 7)
           (:discard (:tag "someday")))))
 #+END_SRC
+
 ** Org agenda habits
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-habit
@@ -4405,16 +4414,16 @@ Automatically creates parent directories if needed."
 (use-package org-fancy-priorities
   :hook (org-mode . org-fancy-priorities-mode)
   :custom
-  (org-fancy-priorities-list '((?A . "🔥")
-                                    (?B . "⬆")
-                                    (?C . "❗")
-                                    (?D . "⬇")
-                                    (?E . "❓")
-                                    (?1 . "🔥")
-                                    (?2 . "⚡")
-                                    (?3 . "⮮")
-                                    (?4 . "☕")
-                                    (?I . "Important"))))
+  (org-fancy-priorities-list '((?A . "󰈸")
+                               (?B . "")
+                               (?C . "󱈸")
+                               (?D . "")
+                               (?E . "")
+                               (?1 . "󰈸")
+                               (?2 . "")
+                               (?3 . "⮮")
+                               (?4 . "󰅶")
+                               (?I . ""))))
 #+END_SRC
 
 ** Pretty org stars
