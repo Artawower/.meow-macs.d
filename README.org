@@ -51,6 +51,8 @@ Function for getting config related paths
 
 #+BEGIN_SRC emacs-lisp 
 (setq my/org-roam-dir (expand-file-name "~/Yandex.Disk.localized/Dropbox/org-roam"))
+(setq my/agenda-dir (concat my/org-roam-dir "/agenda/"))
+
 (setq my/org-roam-charts-dir (expand-file-name "~/Yandex.Disk.localized/Dropbox/org-roam/charts"))
 (setq my/config-path (my/get-config-related-path "README.org"))
 (setq my/backup-dir (expand-file-name "~/tmp/emacs-backups"))
@@ -1223,6 +1225,7 @@ Move to husky
 #+BEGIN_SRC emacs-lisp
 (defun my/meow-setup-custom-modes ()
   (setq meow-paren-keymap (make-keymap))
+  (my/meow-setup-agenda-mode)
   (meow-define-state paren
     "meow state for interacting with smartparens"
     :lighter " [P]"
@@ -1242,6 +1245,48 @@ Move to husky
     '("v" . sp-backward-barf-sexp)
     '("c" . sp-backward-slurp-sexp)
     '("u" . meow-undo)))
+#+END_SRC
+
+*** Meow. Mode for agenda
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/meow-setup-agenda-mode ()
+  (setq meow-agenda-motion-keymap (make-keymap))
+
+  (meow-define-state agenda-motion
+    "Org-Agenda motion"
+    :lighter "[A]"
+    :keymap meow-agenda-motion-keymap)
+
+  (meow-define-keys 'agenda-motion
+    '("<escape>" . org-agenda-quit)
+    '("q" . org-agenda-quit)
+    '("j" . org-agenda-next-line)
+    '("k" . org-agenda-previous-line)
+    '("h" . org-agenda-earlier)
+    '("l" . org-agenda-later)
+    '("J" . org-agenda-next-item)
+    '("K" . org-agenda-previous-item)
+    '("g" . org-agenda-redo)
+    '("." . org-agenda-goto-today)
+    '("t" . org-agenda-todo)
+    '("s" . org-agenda-schedule)
+    '("d" . org-agenda-deadline)
+    '(":" . org-agenda-set-tags)
+    '("e" . org-agenda-set-effort)
+    '("/" . org-agenda-filter)
+    '("\\" . org-agenda-filter-by-tag)
+    '("v" . org-agenda-view-mode-dispatch)
+    '("G" . org-agenda-toggle-time-grid)
+    '("L" . org-agenda-log-mode)
+    '("i" . org-agenda-clock-in)
+    '("o" . org-agenda-clock-out)
+    '("c" . org-agenda-capture)
+    '("TAB" . org-agenda-goto)
+    '("RET" . org-agenda-switch-to)
+    '(" " . meow-keypad))
+
+
+  (add-to-list 'meow-mode-state-list '(org-agenda-mode . agenda-motion)))
 #+END_SRC
 
 *** Meow, pair modes
@@ -4355,6 +4400,7 @@ Automatically creates parent directories if needed."
 (use-package org-agenda
   :ensure nil
   :defer t
+  :bind (("C-c a o" . my/open-agenda-file))
   :custom
   (org-log-done 'note)
   (org-agenda-span 'day)
@@ -4362,8 +4408,27 @@ Automatically creates parent directories if needed."
   (org-agenda-start-with-log-mode t)
   (org-agenda-log-mode-items '(closed state))
   :config
-  (setq org-agenda-files (list (concat my/org-roam-dir "/agenda/"))))
+  (setq org-capture-templates
+      `(("t" "Task → Inbox" entry
+         (file ,(expand-file-name "inbox.org" my/agenda-dir))
+         "* TODO %? :inbox:\nSCHEDULED: %^{When}t\n%U\n"
+         :empty-lines 1 :prepend t)
+        ("w" "Work → Next actions" entry
+         (file+headline ,(expand-file-name "work.org" my/agenda-dir) "Next actions")
+         "* TODO %? :work:\n%U\n"
+         :empty-lines 1 :prepend t)))
 
+  (setq org-agenda-files (list my/agenda-dir)))
+
+#+END_SRC
+
+** Visit org agenda files
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/open-agenda-file ()
+  "Open folder with emacs config"
+  (interactive)
+  (let ((default-directory my/agenda-dir))
+    (call-interactively 'find-file)))
 #+END_SRC
 
 ** Org superagenda 
@@ -4372,12 +4437,14 @@ Automatically creates parent directories if needed."
   :after org
   :hook (org-agenda-mode . org-super-agenda-mode)
   :config
+  (setq org-super-agenda-header-map (make-sparse-keymap))
   (setq org-super-agenda-groups
         '((:name "  Done today" :log t :log "closed" :todo "DONE" :order 6 :face 'shadow)
           (:name "  Next work" :and (:category "work" :tag "next" :not (:todo "DONE")) :order 1)
-          (:name "  Next pet" :and (:category "pet" :tag "next" :not (:todo "DONE")) :order 2)
+          (:name "  Next pet" :and (:category ("pet" "env") :tag "next" :not (:todo "DONE")) :order 2)
           (:name "  Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")) :order 3)
           (:name "  Habit" :and (:habit t :not (:todo "DONE")) :order 4)
+          (:name "󱗖  Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
           (:name "  Other" :anything t :order 7)
           (:discard (:tag "someday")))))
 #+END_SRC
