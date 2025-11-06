@@ -4331,6 +4331,7 @@ Automatically creates parent directories if needed."
   :ensure nil
   :hook
   (org-mode . org-indent-mode)
+  (org-mode . my/org-auto-save)
   (org-mode . (lambda () (corfu-mode -1)))
   (org-mode . (lambda () (setq truncate-lines nil)))
   (org-mode . my/init-org-ligatures)
@@ -4368,6 +4369,7 @@ Automatically creates parent directories if needed."
   (org-log-done 'time)
   (org-babel-python-command "python3")
   (org-confirm-babel-evaluate nil)
+  (org-clock-report-include-clocking-task t)
   (org-src-preserve-indentation t)
   (org-latex-create-formula-image-program 'dvisvgm)
   (org-format-latex-options (plist-put org-format-latex-options :scale 2.0))
@@ -4441,12 +4443,20 @@ Automatically creates parent directories if needed."
 
 #+END_SRC
 
-** Org agenda package
+** Autosave org files
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/org-auto-save ()
+  "Automatically save the current Org buffer if it is modified."
+  (auto-save-mode 1)
+  (setq auto-save-visited-file-name t))
+#+END_SRC
+** Org agenda core package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-agenda
   :ensure nil
   :defer t
-  :bind (("C-c a o" . my/open-agenda-file))
+  :bind (("C-c a o" . my/open-agenda-file)
+         ("C-c a a" . org-agenda-list))
   :custom
   (org-log-done 'note)
   (org-agenda-span 'day)
@@ -4455,17 +4465,35 @@ Automatically creates parent directories if needed."
   (org-agenda-log-mode-items '(closed state))
   :config
   (setq org-capture-templates
-      `(("t" "Task → Inbox" entry
-         (file ,(expand-file-name "inbox.org" my/agenda-dir))
-         "* TODO %? :inbox:\nSCHEDULED: %^{When}t\n%U\n"
-         :empty-lines 1 :prepend t)
-        ("w" "Work → Next actions" entry
-         (file+headline ,(expand-file-name "work.org" my/agenda-dir) "Next actions")
-         "* TODO %? :work:\n%U\n"
-         :empty-lines 1 :prepend t)))
+        `(("t" "Task → Inbox" entry
+           (file ,(expand-file-name "inbox.org" my/agenda-dir))
+           "* TODO %? :inbox:\nSCHEDULED: %^{When}t\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("w" "Work → Next actions" entry
+           (file+headline ,(expand-file-name "work.org" my/agenda-dir) "Next actions")
+           "* TODO %? :work:\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("l" "Live → Next actions" entry
+           (file+headline ,(expand-file-name "live.org" my/agenda-dir) "Next actions")
+           "* TODO %? :live:\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("e" "Task → environment" entry
+           (file ,(expand-file-name "environment.org" my/agenda-dir) "Next actions")
+           "* TODO %? :env:\nSCHEDULED: %^{When}t\n%U\n"
+           :empty-lines 1 :prepend t)))
 
+  (my/patch-org-agenda-capture-template)
   (setq org-agenda-files (list my/agenda-dir)))
 
+#+END_SRC
+
+** Fix agenda templates
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/patch-org-agenda-capture-template ()
+  (advice-add 'org-capture-place-template :around
+              (lambda (orig &rest args)
+                (let ((inhibit-modification-hooks t))
+                  (apply orig args)))))
 #+END_SRC
 
 ** Visit org agenda files
@@ -4490,7 +4518,7 @@ Automatically creates parent directories if needed."
           (:name "  Next pet" :and (:category ("pet" "env") :tag "next" :not (:todo "DONE")) :order 2)
           (:name "  Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")) :order 3)
           (:name "  Habit" :and (:habit t :not (:todo "DONE")) :order 4)
-          (:name "󱗖  Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
+          (:name "󱗖 Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
           (:name "  Other" :anything t :order 7)
           (:discard (:tag "someday")))))
 #+END_SRC
