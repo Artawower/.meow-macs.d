@@ -1560,6 +1560,7 @@ Bookmark for navigation inside file
   :bind (("M-s-n" . bm-next)
          ("M-s-p" . bm-previous)
          ("s-b" . bm-toggle)
+         ("C-c b L" . bm-show-all)
          ("C-c b l" . bm-show)))
 #+END_SRC
 
