@@ -289,6 +289,17 @@ right-side position (e.g., assistants, help, documentation)."
         new-window)))))
 #+END_SRC
 
+** Porject relative path
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/project-relative-path (&optional file)
+  (let* ((f (or file buffer-file-name))
+         (pr (and f (project-current nil)))
+         (root (and pr (project-root pr))))
+    (cond
+     ((and f root) (file-relative-name f root))
+     (f (abbreviate-file-name f))
+     (t (buffer-name)))))
+#+END_SRC
 ** Casual package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package casual
