@@ -1277,6 +1277,7 @@ Move to husky
     '("l" . org-agenda-later)
     '("J" . org-agenda-next-item)
     '("K" . org-agenda-previous-item)
+    '("f" . avy-goto-word-1)
     '("g" . org-agenda-redo)
     '("." . org-agenda-goto-today)
     '("t" . org-agenda-todo)
