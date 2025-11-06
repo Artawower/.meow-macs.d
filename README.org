@@ -2187,9 +2187,10 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
   (magit-get-current-branch)
   :bind
   (("C-M-g" . magit-status)
-   ("C-M-d" . magit-ediff-compare)
+   ("C-M-S-d" . magit-ediff-compare)
    ("C-M-S-c" . magit-commit)
    ("C-M-S-a" . my/magit-stage-current-file)
+   ("C-M-d" . my/magit-ediff-current-file-against-head)
    ("C-c g g" . magit-status)
    :map magit-mode-map
    ("C-1" . magit-section-show-level-1)
@@ -2266,6 +2267,29 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
     (if (string-match-p "^[0-9a-f]\\{7,40\\}$" hash)
         (magit-show-commit hash)
       (message "No commit found for current line."))))
+#+END_SRC
+**** Show di
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/magit-ediff-current-file-against-head ()
+  (interactive)
+  (let* ((abs (or (and (fboundp 'magit-file-at-point) (magit-file-at-point))
+                  (buffer-file-name)))
+         (top (and abs (magit-toplevel)))
+         (rel (and top (magit-file-relative-name abs))))
+    (unless rel (user-error "Файл не в git-проекте"))
+    (let* ((bufA (generate-new-buffer (format "*HEAD:%s*" rel)))
+           (bufB (find-file-noselect abs))
+           (mode (buffer-local-value 'major-mode bufB))
+           (ok (with-current-buffer bufA
+                 (let ((default-directory top))
+                   (erase-buffer)
+                   (eq 0 (call-process "git" nil t nil "show" (concat "HEAD:" rel)))))))
+      (unless ok (kill-buffer bufA) (user-error "git show HEAD:%s failed" rel))
+      (with-current-buffer bufA (funcall mode))
+      (let ((ctl (ediff-buffers bufA bufB)))
+        (when (buffer-live-p ctl)
+          (with-current-buffer ctl
+            (add-hook 'ediff-quit-hook (lambda () (when (buffer-live-p bufA) (kill-buffer bufA))) nil t)))))))
 #+END_SRC
 *** Magit todos
 #+BEGIN_SRC emacs-lisp 
