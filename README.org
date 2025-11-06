@@ -3385,8 +3385,7 @@ Installation instructions:
 **** Flymake, copy errors
 #+BEGIN_SRC emacs-lisp 
 (defun my/flymake--format-diagnostic (diag)
-  "Return a formatted string for DIAG.
-Format: LINE:COL [TYPE] MESSAGE."
+  "Format a Flymake DIAG as \"LINE:COL [TYPE] MESSAGE\"."
   (let* ((beg  (flymake-diagnostic-beg diag))
          (line (line-number-at-pos beg))
          (col  (save-excursion (goto-char beg) (1+ (current-column))))
@@ -3395,28 +3394,28 @@ Format: LINE:COL [TYPE] MESSAGE."
     (format "%d:%d [%s] %s" line col typ msg)))
 
 (defun my/flymake-kill-error ()
-  "Copy the Flymake diagnostic under point to the kill ring.
-If multiple diagnostics are present at point, copy the first one."
+  "Copy the Flymake diagnostic at point to the kill ring, prefixed by project-relative file path."
   (interactive)
-  (let* ((diags (flymake-diagnostics (point) (point))))
+  (let* ((diags (flymake-diagnostics (point) (min (1+ (point)) (point-max)))))
     (if (null diags)
         (user-error "No Flymake diagnostic at point")
       (let* ((diag (car diags))
-             (text (my/flymake--format-diagnostic diag)))
-        (kill-new text)
-        (message "Copied: %s" text)))))
+             (text (my/flymake--format-diagnostic diag))
+             (header (my/project-relative-path)))
+        (kill-new (format "%s\n%s" header text))
+        (message "Copied: %s — %s" header text)))))
 
 (defun my/flymake-kill-errors ()
-  "Copy all Flymake diagnostics in the current buffer to the kill ring.
-Each diagnostic is written on a separate line."
+  "Copy all Flymake diagnostics in the buffer to the kill ring, prefixed by project-relative file path."
   (interactive)
   (let* ((diags (flymake-diagnostics)))
     (if (null diags)
         (user-error "No Flymake diagnostics in this buffer")
       (let* ((lines (mapcar #'my/flymake--format-diagnostic diags))
-             (blob  (string-join lines "\n")))
+             (header (my/project-relative-path))
+             (blob  (concat header "\n" (string-join lines "\n"))))
         (kill-new blob)
-        (message "Copied %d Flymake diagnostics" (length diags))))))
+        (message "Copied %d Flymake diagnostics from %s" (length diags) header)))))
 #+END_SRC
 
 *** Flymake, lsp mode patch
