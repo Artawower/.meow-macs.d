@@ -1951,6 +1951,12 @@ Another all formtter. Based on prettier and black
   (add-to-list 'apheleia-mode-alist '(vue-ts-mode . prettier))
   (add-to-list 'apheleia-mode-alist '(html-mode . prettier)))
 #+END_SRC
+** Case converter
+Allow to transform PASCAL_CASE -> camelCase -> snake_case
+#+BEGIN_SRC emacs-lisp 
+(use-package string-inflection
+  :bind ("s-c" . string-inflection-all-cycle))
+#+END_SRC
 * File management
 ** Functions
 *** Open configuration file
