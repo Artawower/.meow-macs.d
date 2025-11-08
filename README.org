@@ -824,7 +824,7 @@ Disable scrolls
 ** No distraction package
 #+BEGIN_SRC emacs-lisp 
 (use-package no-distraction
-  :hook ((typescript-ts-mode html-ts-mode) . no-distraction-mode)
+  :hook ((typescript-ts-mode html-ts-mode go-ts-mode vue-ts-mode) . no-distraction-mode)
   :ensure (no-distraction :host github :repo "artawower/no-distraction.el"))
 #+END_SRC
 ** No resize when completion
@@ -1811,10 +1811,13 @@ The format is:
   :ensure nil
   :hook
   (go-ts-mode . (lambda () (setq-local tab-width 2)))
+  (go-mode . go-ts-mode)
   :mode 
   ("\\.js\\'" . js-ts-mode)
+  ("\\.yaml\\'" . yaml-ts-mode)
   ("\\.mjs\\'" . typescript-ts-mode)
   ("\\.ts\\'" . typescript-ts-mode)
+  ("\\.go\\'" . go-ts-mode)
   ("\\.json\\'" . json-ts-mode)
   ("\\.html\\'" . html-ts-mode)
   :custom
@@ -1893,7 +1896,6 @@ The format is:
           html-mode
           json-mode
           json-ts-mode
-          go-mode
           bash-mode
           css-mode
           scss-mode
@@ -3000,7 +3002,7 @@ Function for search in buffer depends or visual or normal line
   :hook
   ((clojure-mode
     scss-mode
-    go-mode
+    go-ts-mode
     css-mode
     js-mode
     typescript-mode
@@ -3317,7 +3319,7 @@ If nil — search automatically (project -> global -> inside @vue/language-serve
 #+BEGIN_SRC emacs-lisp
 (use-package yaml-pro
   :defer t
-  :hook (yaml-mode . yaml-pro-mode))
+  :hook (yaml-ts-mode . yaml-pro-mode))
 #+END_SRC
 
 *** LSP UI
