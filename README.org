@@ -4045,13 +4045,14 @@ Requires Emacs 30+
 #+END_SRC
 
 ** Markdown
-*** Outline
-#+BEGIN_SRC emacs-lisp 
-(defun my/markdown-outline-setup ()
-  (setq-local outline-regexp "^\\(#{1,6}\\)\\s-+")
-  (setq-local outline-level (lambda () (looking-at outline-regexp) (length (match-string 1))))
-  (outline-minor-mode 1))
-(add-hook 'markdown-ts-mode-hook #'my/markdown-outline-setup)
+*** Core package
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package markdown-mode
+  :mode (("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode)))
+  ;; :hook
+  ;; (markdown-mode . #'outline-minor-mode)
+;; )
 #+END_SRC
 *** Realtime preview
 #+BEGIN_SRC emacs-lisp
@@ -4212,14 +4213,6 @@ Requires Emacs 30+
 #+END_SRC
 
 ** Org babels
-*** async code
-#+BEGIN_SRC emacs-lisp
-(use-package ob-async
-  :defer t
-  :custom
-  (ob-async-no-async-languages-alist '("ipython")))
-#+END_SRC
-
 *** HTTP requests
 Dependency
 
