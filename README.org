@@ -4418,6 +4418,23 @@ Automatically creates parent directories if needed."
   (org-hide-emphasis-markers t)
   (org-use-property-inheritance t)
   :config
+  (setq org-capture-templates
+        `(("t" "Task → Inbox" entry
+           (file ,(expand-file-name "inbox.org" my/agenda-dir))
+           "* TODO %? :inbox:\nSCHEDULED: %^{When}t\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("w" "Work → Next actions" entry
+           (file+headline ,(expand-file-name "work.org" my/agenda-dir) "Next actions")
+           "* TODO %? :work:\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("l" "Live → Next actions" entry
+           (file+headline ,(expand-file-name "live.org" my/agenda-dir) "Next actions")
+           "* TODO %? :live:\n%U\n"
+           :empty-lines 1 :prepend t)
+          ("e" "Task → environment" entry
+           (file ,(expand-file-name "environment.org" my/agenda-dir) "Next actions")
+           "* TODO %? :env:\nSCHEDULED: %^{When}t\n%U\n"
+           :empty-lines 1 :prepend t)))
   (my/setup-org-mode-faces)
   (add-hook 'org-mode-hook
             (lambda () (imenu-add-to-menubar "Imenu")))
@@ -4463,23 +4480,7 @@ Automatically creates parent directories if needed."
   (org-agenda-start-with-log-mode t)
   (org-agenda-log-mode-items '(closed state))
   :config
-  (setq org-capture-templates
-        `(("t" "Task → Inbox" entry
-           (file ,(expand-file-name "inbox.org" my/agenda-dir))
-           "* TODO %? :inbox:\nSCHEDULED: %^{When}t\n%U\n"
-           :empty-lines 1 :prepend t)
-          ("w" "Work → Next actions" entry
-           (file+headline ,(expand-file-name "work.org" my/agenda-dir) "Next actions")
-           "* TODO %? :work:\n%U\n"
-           :empty-lines 1 :prepend t)
-          ("l" "Live → Next actions" entry
-           (file+headline ,(expand-file-name "live.org" my/agenda-dir) "Next actions")
-           "* TODO %? :live:\n%U\n"
-           :empty-lines 1 :prepend t)
-          ("e" "Task → environment" entry
-           (file ,(expand-file-name "environment.org" my/agenda-dir) "Next actions")
-           "* TODO %? :env:\nSCHEDULED: %^{When}t\n%U\n"
-           :empty-lines 1 :prepend t)))
+  
 
   (my/patch-org-agenda-capture-template)
   (setq org-agenda-files (list my/agenda-dir)))
@@ -4514,7 +4515,7 @@ Automatically creates parent directories if needed."
   (setq org-super-agenda-groups
         '((:name "  Done today" :log t :log "closed" :todo "DONE" :order 6 :face 'shadow)
           (:name "  Next work" :and (:category "work" :tag "next" :not (:todo "DONE")) :order 1)
-          (:name "  Next pet" :and (:category ("pet" "env") :tag "next" :not (:todo "DONE")) :order 2)
+          (:name "  Next pet" :and (:category ("pet" "env" "ticktick" "inbox") :tag ("next" "env" "orgnote") :not (:todo "DONE")) :order 2)
           (:name "  Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")) :order 3)
           (:name "  Habit" :and (:habit t :not (:todo "DONE")) :order 4)
           (:name "󱗖 Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
@@ -4539,6 +4540,16 @@ Automatically creates parent directories if needed."
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-habit-stats 
   :defer t)
+#+END_SRC
+** Ticktick integration
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package ticktick
+  :ensure (:host github :repo "Artawower/ticktick.el")
+  :commands (ticktick-sync)
+  :defer t
+  :config
+  (setq ticktick-sync-file (concat my/org-roam-dir "/agenda/ticktick.org"))
+  (setq ticktick-dir (concat my/org-roam-dir "/agenda/")))
 #+END_SRC
 ** Org menu
 #+BEGIN_SRC emacs-lisp 
