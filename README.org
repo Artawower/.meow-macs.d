@@ -220,6 +220,69 @@ NAME is optional function name for the wrapper."
       (add-hook hook fn-name hook-depth))))
 #+END_SRC
 
+** Display buffer in center childframe
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/display-buffer-centered-childframe (buf alist)
+  (let* ((parent (selected-frame))
+         (pw (frame-pixel-width parent))
+         (ph (frame-pixel-height parent))
+         (char-width (frame-char-width parent))
+         (char-height (frame-char-height parent))
+         (margin 50)
+         (cw (/ (- pw (* 2 margin)) char-width))
+         (ch (/ (- ph (* 2 margin)) char-height))
+         (params `((parent-frame . ,parent)
+                   (left . ,margin)
+                   (top . ,margin)
+                   (width . ,cw)
+                   (height . ,ch)
+                   (minibuffer . nil)
+                   (undecorated . t)
+                   (skip-taskbar . t)
+                   (no-accept-focus . nil)
+                   (auto-raise . t)
+                   (internal-border-width . 1)
+                   (z-group . above))))
+    (let ((win (display-buffer-in-child-frame buf `((child-frame-parameters . ,params)))))
+      (when (window-live-p win)
+        (select-frame-set-input-focus (window-frame win))
+        (select-window win))
+      win)))
+
+#+END_SRC
+
+** Display buffer temporary full size
+#+BEGIN_SRC emacs-lisp :results silent
+(defvar my/saved-window-configuration nil)
+(defvar my/fullsize-original-buffer nil)
+
+(defun my/restore-window-config ()
+  (when my/saved-window-configuration
+    (set-window-configuration my/saved-window-configuration)
+    (setq my/saved-window-configuration nil
+          my/fullsize-original-buffer nil)))
+
+(defun my/on-buffer-killed ()
+  (my/restore-window-config))
+
+(defun my/on-buffer-changed (window)
+  (when (and my/fullsize-original-buffer
+             (not (eq (window-buffer window) my/fullsize-original-buffer)))
+    (my/restore-window-config)))
+
+(defun my/display-buffer-full-size (buffer alist)
+  (setq my/saved-window-configuration (current-window-configuration)
+        my/fullsize-original-buffer buffer)
+  (delete-other-windows)
+  (let ((win (display-buffer-same-window buffer nil)))
+    (with-current-buffer buffer
+      (add-hook 'kill-buffer-hook #'my/on-buffer-killed nil t)
+      (add-hook 'window-buffer-change-functions #'my/on-buffer-changed nil t)
+      (local-set-key (kbd "<escape>") #'my/restore-window-config)
+      (local-set-key (kbd "q") #'my/restore-window-config))
+    win))
+
+#+END_SRC
 ** Smart display buffer on the right
 #+BEGIN_SRC emacs-lisp 
 (defun my/display-buffer-right-smart (buffer alist)
@@ -4481,6 +4544,8 @@ Automatically creates parent directories if needed."
   (org-agenda-log-mode-items '(closed state))
   :config
   
+  (add-to-list 'display-buffer-alist
+             '("\\*Org Agenda\\*" my/display-buffer-full-size))
 
   (my/patch-org-agenda-capture-template)
   (setq org-agenda-files (list my/agenda-dir)))
