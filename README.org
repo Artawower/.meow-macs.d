@@ -31,6 +31,7 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 #+BEGIN_SRC emacs-lisp 
 (setenv "LSP_USE_PLISTS" "true")
 (setenv "TERM" "xterm-256color")
+(setenv "SHELL" "/opt/homebrew/bin/xonsh")
 #+END_SRC
 ** Variables
 #+BEGIN_SRC emacs-lisp 
@@ -74,9 +75,11 @@ Function for getting config related paths
 (setq my/org-tag-color "#ff5555")
 
 (defface my/funny-font-face
-  `((t :family ,my/font-funny :height 1.0 :italic t))
+  `((t :inherit 'shadow :family ,my/font-funny :height 1.0 :italic t))
   "Face for funny font."
   :group 'my-faces)
+
+;; (set-face-attribute 'my/funny-font-face nil :inherit 'shadow :family my/font-funny :height 1.0 :italic t)
 #+END_SRC
 
 * Bootstrap
@@ -521,6 +524,33 @@ unreadable. Returns the names of envvars that were changed."
  #+END_SRC
 * UI
 ** Faces
+*** Color getters functions
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/get-variable-name-color ()
+  "Get color for variable name face from catppuccin theme."
+  (if (fboundp 'catppuccin-get-color)
+      (catppuccin-get-color 'flamingo)
+    (face-attribute 'mode-line :background nil 'font-lock-variable-name-face)))
+#+END_SRC
+
+Modeline background colors
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/get-modeline-background-color ()
+  "Get modeline background color from catppuccin theme."
+  (if (fboundp 'catppuccin-get-color)
+      (catppuccin-get-color 'surface0)
+    (face-attribute 'mode-line :background nil 'mode-line)))
+#+END_SRC
+
+Modeline inactive color
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/get-modeline-inactive-color ()
+  "Get modeline inactive background color from catppuccin theme."
+  (if (fboundp 'catppuccin-get-color)
+      (catppuccin-get-color 'crust)
+    (face-attribute 'mode-line-inactive :background nil 'mode-line-inactive)))
+#+END_SRC
+
 *** Function to apply frame fonts
 #+BEGIN_SRC emacs-lisp
 (defun my/apply-fonts-to-frame (&optional frame)
@@ -533,16 +563,15 @@ unreadable. Returns the names of envvars that were changed."
         (set-face-attribute 'default frame :family my/font-default :height (* 10 my/font-height))
         (set-face-attribute 'fixed-pitch frame :family my/font-default :height 1.0)
         (set-face-attribute 'variable-pitch frame :family my/font-default :height 1.07)
-        (set-face-attribute 'font-lock-string-face  frame :inherit my/funny-font-face)
-        (set-face-attribute 'font-lock-comment-face frame :inherit my/funny-font-face)
-        (set-face-attribute 'font-lock-keyword-face frame :inherit my/funny-font-face)
+        (set-face-attribute 'font-lock-string-face  frame :inherit 'my/funny-font-face)
+        (set-face-attribute 'font-lock-comment-face frame :inherit 'my/funny-font-face)
+        (set-face-attribute 'font-lock-keyword-face frame :inherit 'my/funny-font-face)
 
-        (when (fboundp 'catppuccin-get-color)
-          (set-face-attribute 'font-lock-variable-name-face frame
-                              :foreground (catppuccin-get-color 'flamingo)
-                              :height 1.0
-                              :bold nil
-                              :family my/font-default))
+        (set-face-attribute 'font-lock-variable-name-face frame
+                            :foreground (my/get-variable-name-color)
+                            :height 1.0
+                            :bold nil
+                            :family my/font-default)
 
         (setq line-spacing 0.3)
         (when (fboundp 'set-fontset-font)
@@ -555,29 +584,28 @@ unreadable. Returns the names of envvars that were changed."
 (defun my/setup-modeline (&optional frame)
   "Configure the modeline and header-line for FRAME (or the current one)."
   (interactive)
+
   (let* ((fr (or frame (selected-frame)))
-         (bg-inactive (or (and (facep 'org-block)
-                               (face-attribute 'org-block :background fr 'default))
-                          (face-attribute 'mode-line :background fr 'default)))
-         (bg (face-attribute 'mode-line-inactive :background fr 'default)))
-    (with-selected-frame fr
-      (set-face-attribute 'mode-line fr
+         (bg-inactive (my/get-modeline-inactive-color))
+         (bg (my/get-modeline-background-color)))
+    (set-face-attribute 'mode-line fr
+                        :background bg
+                        :box (list :line-width my/ui-box-padding :color bg))
+    (when (facep 'mode-line-active)
+      (set-face-attribute 'mode-line-active fr
                           :background bg
-                          :box `(:line-width ,my/ui-box-padding :color ,bg))
-      (when (facep 'mode-line-active)
-        (set-face-attribute 'mode-line-active fr
-                            :background bg
-                            :box `(:line-width ,my/ui-box-padding :color ,bg)))
-      (set-face-attribute 'mode-line-inactive fr
-                          :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))
-      (when (facep 'header-line)
-        (set-face-attribute 'header-line fr
-                            :background bg
-                            :box `(:line-width ,my/ui-box-padding :color ,bg)))
-      (when (facep 'header-line-inactive)
-        (set-face-attribute 'header-line-inactive fr
-                            :background bg-inactive
-                            :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))))
+                          :box (list :line-width my/ui-box-padding :color bg)))
+    (set-face-attribute 'mode-line-inactive fr
+                        :background bg-inactive
+                        :box (list :line-width my/ui-box-padding :color bg-inactive))
+    (when (facep 'header-line)
+      (set-face-attribute 'header-line fr
+                          :background bg
+                          :box (list :line-width my/ui-box-padding :color bg)))
+    (when (facep 'header-line-inactive)
+      (set-face-attribute 'header-line-inactive fr
+                          :background bg-inactive
+                          :box (list :line-width my/ui-box-padding :color bg-inactive)))))
 #+END_SRC
 
 *** Divider face setup
@@ -604,23 +632,16 @@ unreadable. Returns the names of envvars that were changed."
 (use-package font-core
   :ensure nil
   :hook
-  ;; modeline
-  (after-load-theme . my/setup-modeline)
-  (server-after-make-frame-hook . my/setup-modeline)
-  (after-make-frame-functions . my/setup-modeline)
-  (git-commit-setup . my/setup-modeline)
-  (magit-mode . my/setup-modeline)
-  ;; divider
   (after-load-theme . my/setup-divider)
-  (server-after-make-frame-hook . my/setup-divider)
+  (after-load-theme . my/setup-modeline)
   (after-make-frame-functions . my/setup-divider)
-  ;; fonts
   (after-make-frame-functions . my/apply-fonts-to-frame)
   :config
-  ;; apply immediately for the currently selected frame
-  (my/setup-modeline (selected-frame))
-  (my/setup-divider (selected-frame))
-  (my/apply-fonts-to-frame (selected-frame)))
+  ;; When not daemon just run fns
+  (unless (daemonp)
+    (my/apply-fonts-to-frame)
+    (my/setup-divider)
+    (my/setup-modeline)))
 #+END_SRC
 
 *** COMMENT Ligatures
@@ -730,16 +751,14 @@ Temporary disabled due to performance issues on macos
 (use-package spacious-padding
   :hook 
   (emacs-startup . spacious-padding-mode)
-  (spacious-padding-mode . my/setup-modeline)
-  :custom
-  (spacious-padding-widths '(
-     :internal-border-width 18
-     :header-line-width 8
-     :mode-line-width 8
-     :tab-width 8
-     :right-divider-width 20
-     :scroll-bar-width 1
-     :fringe-width 4)))
+  :custom  
+  (spacious-padding-widths '( :internal-border-width 16
+                              :header-line-width 8
+                              :mode-line-width 8
+                              :tab-width 4
+                              :scroll-bar-width 0))
+  :config
+  (my/setup-modeline))
 #+END_SRC
 
 ** Auto zoom windows
@@ -773,15 +792,13 @@ Temporary disabled due to performance issues on macos
 *** Function to setup tabar faces
 #+BEGIN_SRC emacs-lisp 
 (defun my/setup-tab-bar-faces ()
-    (let ((bg       (or (face-background 'mode-line nil t) "gray50"))
-          (bg-inact (or (face-background 'tab-bar-tab-inactive nil t)
-                        (face-background 'mode-line-inactive nil t)
-                        "gray40")))
-      (custom-set-faces
-       `(tab-bar-echo-area-tab
-         ((t (:inherit mode-line-active :box nil))))
-       `(tab-bar-echo-area-tab-inactive
-         ((t (:inherit tab-bar-tab-inactive :box nil)))))))
+  (let ((bg       (my/get-modeline-background-color))
+        (bg-inact (my/get-modeline-inactive-color)))
+    (custom-set-faces
+     `(tab-bar-echo-area-tab
+       ((t (:inherit mode-line-active :box nil))))
+     `(tab-bar-echo-area-tab-inactive
+       ((t (:inherit tab-bar-tab-inactive :box nil)))))))
 #+END_SRC
 *** Core package
 #+BEGIN_SRC emacs-lisp 
@@ -832,6 +849,7 @@ Temporary disabled due to performance issues on macos
 #+BEGIN_SRC emacs-lisp 
 (use-package hide-mode-line
   :hook
+  (hide-mode-line-mode . my/setup-modeline)
   (conf-mode . hide-mode-line-mode)
   (fundamental-mode . hide-mode-line-mode)
   (compilation-mode . hide-mode-line-mode)
@@ -1673,8 +1691,8 @@ Bookmark for navigation inside file
 #+BEGIN_SRC emacs-lisp 
 (use-package bm
   :defer t
-  :custom-face
-  (bm-face ((t (:inherit font-lock-builtin-face :background unspecified))))
+  ;; :custom-face
+  ;; (bm-face ((t (:inherit font-lock-builtin-face :background unspecified))))
   :custom
   (bm-in-lifo-order t)
   :bind (("M-s-n" . bm-next)
@@ -2243,6 +2261,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
          ("C-c m c" . vterm-copy-mode))
   :custom
   (vterm-max-scrollback 5000)
+  (vterm-shell "/opt/homebrew/bin/xonsh")
   :config
   (setq vterm-clear-scrollback t)
   (advice-add 'vterm-clear-scrollback :before #'my/clear-term-history))
@@ -3580,10 +3599,21 @@ Installation instructions:
               :override #'my/lsp-diagnostics--flymake-update-diagnostics)
 #+END_SRC
 *** Core Package
+Patch
+#+BEGIN_SRC emacs-lisp :results silent
+(setq flymake-allowed-file-name-masks nil)
+(setq flymake-err-line-patterns nil)
+#+END_SRC
+
+
 #+BEGIN_SRC emacs-lisp  :noweb yes
 (use-package flymake
-  :ensure nil
-  :after (lsp-mode)
+  ;; :ensure t
+  ;; :after (lsp-mode)
+  :ensure (flymake
+           :repo "https://github.com/emacs-mirror/emacs.git" ;; или git://git.savannah.gnu.org/emacs.git
+           :branch "master"
+           :files ("lisp/progmodes/flymake.el"))
   :bind
   (("C-j" . flymake-goto-next-error)
    ("C-k" . flymake-goto-prev-error)
@@ -4209,6 +4239,11 @@ Requires Emacs 30+
 ** Fish
 #+BEGIN_SRC emacs-lisp 
 (use-package fish-mode :defer t)
+#+END_SRC
+
+** Xonsh
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package xonsh-mode :defer t)
 #+END_SRC
 
 * AI
