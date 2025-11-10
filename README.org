@@ -30,6 +30,7 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 ** Env variables
 #+BEGIN_SRC emacs-lisp 
 (setenv "LSP_USE_PLISTS" "true")
+(setenv "TERM" "xterm-256color")
 #+END_SRC
 ** Variables
 #+BEGIN_SRC emacs-lisp 
@@ -66,8 +67,16 @@ Function for getting config related paths
 (setq my/font-default "Monaspace Neon NF")
 ;; (setq my/font-default "JetBrainsMono Nerd Font")
 (setq my/font-funny   "Monaspace Radon NF")
+(setq my/font-height 16)
+(setq my/font-default "Myna Nerd Font")
+(setq my/font-funny   "Myna Nerd Font")
 (setq my/ui-box-padding 6)
 (setq my/org-tag-color "#ff5555")
+
+(defface my/funny-font-face
+  `((t :family ,my/font-funny :height 1.0 :italic t))
+  "Face for funny font."
+  :group 'my-faces)
 #+END_SRC
 
 * Bootstrap
@@ -154,6 +163,8 @@ https://github.com/D4lj337/Emacs-performance
 (elpaca `(,@elpaca-order))
 ;; NOTE: Lock file for reproducible package versions
 ;; (setq elpaca-lock-file "/Users/darkawower/apps/flat-emacs/elpaca.lock")
+
+(setq package-install-upgrade-built-in t)
 #+END_SRC
 
 ** Use package
@@ -186,6 +197,11 @@ https://github.com/D4lj337/Emacs-performance
 ;; (package-initialize)
 #+END_SRC
 
+* Dependencies
+Transient
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package transient :ensure t :defer t)
+#+END_SRC
 * Helpers
 ** Push multiple values
 #+BEGIN_SRC emacs-lisp 
@@ -517,9 +533,9 @@ unreadable. Returns the names of envvars that were changed."
         (set-face-attribute 'default frame :family my/font-default :height (* 10 my/font-height))
         (set-face-attribute 'fixed-pitch frame :family my/font-default :height 1.0)
         (set-face-attribute 'variable-pitch frame :family my/font-default :height 1.07)
-        (set-face-attribute 'font-lock-string-face  frame :family my/font-funny :height 1.0)
-        (set-face-attribute 'font-lock-comment-face frame :family my/font-funny :height 1.0)
-        (set-face-attribute 'font-lock-keyword-face frame :family my/font-funny :height 1.0)
+        (set-face-attribute 'font-lock-string-face  frame :inherit my/funny-font-face)
+        (set-face-attribute 'font-lock-comment-face frame :inherit my/funny-font-face)
+        (set-face-attribute 'font-lock-keyword-face frame :inherit my/funny-font-face)
 
         (when (fboundp 'catppuccin-get-color)
           (set-face-attribute 'font-lock-variable-name-face frame
@@ -536,21 +552,51 @@ unreadable. Returns the names of envvars that were changed."
 
 *** Mode line and header line faces
 #+BEGIN_SRC emacs-lisp 
-(defun my/setup-modeline ()
+(defun my/setup-modeline (&optional frame)
+  "Configure the modeline and header-line for FRAME (or the current one)."
   (interactive)
-  (let* ((bg-inactive (or (face-attribute 'org-block :background nil 'default)
-                          (face-attribute 'mode-line :background nil 'default)))
-         (bg (face-attribute 'mode-line-inactive :background nil 'default)))
-    (set-face-attribute 'mode-line nil
-                        :background bg
-                        :box `(:line-width ,my/ui-box-padding :color ,bg))
-    (when (facep 'mode-line-active)
-      (set-face-attribute 'mode-line-active nil
-                          :background bg :box `(:line-width ,my/ui-box-padding :color ,bg)))
-    (set-face-attribute 'mode-line-inactive nil
-                        :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))
-    (set-face-attribute 'header-line nil :background bg :box `(:line-width ,my/ui-box-padding :color ,bg))
-    (set-face-attribute 'header-line-inactive nil :background bg-inactive :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))
+  (let* ((fr (or frame (selected-frame)))
+         (bg-inactive (or (and (facep 'org-block)
+                               (face-attribute 'org-block :background fr 'default))
+                          (face-attribute 'mode-line :background fr 'default)))
+         (bg (face-attribute 'mode-line-inactive :background fr 'default)))
+    (with-selected-frame fr
+      (set-face-attribute 'mode-line fr
+                          :background bg
+                          :box `(:line-width ,my/ui-box-padding :color ,bg))
+      (when (facep 'mode-line-active)
+        (set-face-attribute 'mode-line-active fr
+                            :background bg
+                            :box `(:line-width ,my/ui-box-padding :color ,bg)))
+      (set-face-attribute 'mode-line-inactive fr
+                          :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))
+      (when (facep 'header-line)
+        (set-face-attribute 'header-line fr
+                            :background bg
+                            :box `(:line-width ,my/ui-box-padding :color ,bg)))
+      (when (facep 'header-line-inactive)
+        (set-face-attribute 'header-line-inactive fr
+                            :background bg-inactive
+                            :box `(:line-width ,my/ui-box-padding :color ,bg-inactive))))))
+#+END_SRC
+
+*** Divider face setup
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/setup-divider (&optional frame)
+  "Set up window-divider colors for FRAME (or the current one)."
+  (let* ((fr (or frame (selected-frame)))
+         (edge (face-attribute 'mode-line-inactive :background fr 'default)))
+    (with-selected-frame fr
+      (when (fboundp 'window-divider-mode)
+        (window-divider-mode 1)
+        (customize-set-variable 'window-divider-default-right-width 1)
+        (customize-set-variable 'window-divider-default-bottom-width 1))
+      (when (facep 'window-divider)
+        (set-face-attribute 'window-divider fr :foreground edge))
+      (when (facep 'window-divider-first-pixel)
+        (set-face-attribute 'window-divider-first-pixel fr :foreground edge))
+      (when (facep 'window-divider-last-pixel)
+        (set-face-attribute 'window-divider-last-pixel fr :foreground edge)))))
 #+END_SRC
 
 *** Core package
@@ -558,16 +604,23 @@ unreadable. Returns the names of envvars that were changed."
 (use-package font-core
   :ensure nil
   :hook
+  ;; modeline
   (after-load-theme . my/setup-modeline)
   (server-after-make-frame-hook . my/setup-modeline)
+  (after-make-frame-functions . my/setup-modeline)
   (git-commit-setup . my/setup-modeline)
   (magit-mode . my/setup-modeline)
+  ;; divider
+  (after-load-theme . my/setup-divider)
+  (server-after-make-frame-hook . my/setup-divider)
+  (after-make-frame-functions . my/setup-divider)
+  ;; fonts
+  (after-make-frame-functions . my/apply-fonts-to-frame)
   :config
-  (add-hook 'emacs-startup-hook #'my/setup-modeline)
-  (my/run-once-on-init #'my/setup-modeline 100)
-  (add-hook 'after-make-frame-functions #'my/apply-fonts-to-frame)
+  ;; apply immediately for the currently selected frame
+  (my/setup-modeline (selected-frame))
+  (my/setup-divider (selected-frame))
   (my/apply-fonts-to-frame (selected-frame)))
-
 #+END_SRC
 
 *** COMMENT Ligatures
@@ -645,8 +698,8 @@ Temporary disabled due to performance issues on macos
               'frappe
             'latte))
     (when (functionp 'catppuccin-reload)
-      (catppuccin-reload))
-    (run-hooks 'after-load-theme-hook)))
+      (catppuccin-reload)))
+  (run-hooks 'after-load-theme-hook))
 #+END_SRC
 
 *** Auto dark mode
@@ -660,6 +713,7 @@ Temporary disabled due to performance issues on macos
   (auto-dark-dark-mode . my/set-catppuccin-theme)
   (auto-dark-light-mode . my/set-catppuccin-theme)
   :custom
+  (auto-dark-allow-osascript t)
   (auto-dark-dark-theme 'catppuccin)
   (auto-dark-light-theme 'catppuccin)
   (auto-dark-themes '((catppuccin) (catppuccin)))
@@ -1075,6 +1129,11 @@ Disable scrolls
                               breadcrumbs)
                     (or filename breadcrumbs "")))))))
 #+END_SRC
+** COMMENT Buffer Borders
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package buffer-box
+  :ensure (:host github :repo "rougier/buffer-box"))
+#+END_SRC
 * Navigation
 ** Imenu
 #+BEGIN_SRC emacs-lisp 
@@ -1388,8 +1447,6 @@ Move to husky
   (meow-use-clipboard t)
   :config
   (meow-setup)
-  (set-face-attribute 'meow-position-highlight-number-1 nil :foreground "#61AFEF" :background "#3E4451" :bold t :underline nil)
-  (set-face-attribute 'meow-position-highlight-number-2 nil :foreground "#4E90CF" :bold t :underline nil)
   (define-key mode-specific-map (kbd "j") nil)
   (my/meow-thing-register)
   (my/meow-setup-custom-modes)
@@ -1918,7 +1975,7 @@ The format is:
 *** SCSS mode
 #+BEGIN_SRC emacs-lisp
 (use-package scss-mode
-  :ensure nil
+  :after flymake
   :custom
   (scss-compile-at-save nil)
   (css-indent-offset 2)
@@ -4314,8 +4371,9 @@ Dependency
 #+BEGIN_SRC emacs-lisp 
 (defun my/setup-org-mode-faces ()
   "Setup faces for org mode"
-  (custom-set-faces
-   '(org-document-title ((t (:inherit outline-1 :height 2.5))))))
+  ;; (custom-set-faces
+  ;;  '(org-document-title ((t (:inherit outline-1 :height 2.5)))))
+)
 #+END_SRC
 
 ** Copy src block
@@ -4393,7 +4451,6 @@ Automatically creates parent directories if needed."
   :ensure nil
   :hook
   (org-mode . org-indent-mode)
-  (org-mode . my/org-auto-save)
   (org-mode . (lambda () (corfu-mode -1)))
   (org-mode . (lambda () (setq truncate-lines nil)))
   (org-mode . my/init-org-ligatures)
@@ -4522,13 +4579,6 @@ Automatically creates parent directories if needed."
 
 #+END_SRC
 
-** Autosave org files
-#+BEGIN_SRC emacs-lisp :results silent
-(defun my/org-auto-save ()
-  "Automatically save the current Org buffer if it is modified."
-  (auto-save-mode 1)
-  (setq auto-save-visited-file-name t))
-#+END_SRC
 ** Org agenda core package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package org-agenda
@@ -4543,9 +4593,25 @@ Automatically creates parent directories if needed."
   (org-agenda-start-with-log-mode t)
   (org-agenda-log-mode-items '(closed state))
   :config
-  
   (add-to-list 'display-buffer-alist
              '("\\*Org Agenda\\*" my/display-buffer-full-size))
+
+  (defun my/save-org-file-buffers (&rest _args)
+    (save-window-excursion
+      (save-some-buffers t (lambda () 
+                             (and (derived-mode-p 'org-mode)
+                                  (buffer-file-name)))))
+    (when (featurep 'org-id) (org-id-locations-save)))
+
+  (advice-add 'org-agenda-todo :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-priority :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-set-tags :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-deadline :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-schedule :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-date-prompt :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-clock-in :after 'my/save-org-file-buffers)
+  (advice-add 'org-agenda-clock-out :after 'my/save-org-file-buffers)
+  (advice-add 'org-store-log-note :after 'my/save-org-file-buffers)
 
   (my/patch-org-agenda-capture-template)
   (setq org-agenda-files (list my/agenda-dir)))
@@ -4580,10 +4646,10 @@ Automatically creates parent directories if needed."
   (setq org-super-agenda-groups
         '((:name "  Done today" :log t :log "closed" :todo "DONE" :order 6 :face 'shadow)
           (:name "  Next work" :and (:category "work" :tag "next" :not (:todo "DONE")) :order 1)
-          (:name "  Next pet" :and (:category ("pet" "env" "ticktick" "inbox") :tag ("next" "env" "orgnote") :not (:todo "DONE")) :order 2)
+          (:name "  Next pet" :and (:category ("pet" "env" "ticktick" "inbox" "gearpick") :tag ("next" "env" "orgnote" "gearpick") :not (:todo "DONE")) :order 2)
           (:name "  Live" :and (:tag "live" :not (:todo "DONE") :not (:category "habit")) :order 3)
           (:name "  Habit" :and (:habit t :not (:todo "DONE")) :order 4)
-          (:name "󱗖 Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
+          (:name "󱗖 Inbox" :category "Inbox" :and (:tag "inbox" :not (:todo "DONE")) :order 5)
           (:name "  Other" :anything t :order 7)
           (:discard (:tag "someday")))))
 #+END_SRC
@@ -4609,12 +4675,13 @@ Automatically creates parent directories if needed."
 ** Ticktick integration
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package ticktick
-  :ensure (:host github :repo "Artawower/ticktick.el")
+  :ensure (:host github :repo "Artawower/ticktick.el" :branch "async")
   :commands (ticktick-sync)
   :defer t
-  :config
-  (setq ticktick-sync-file (concat my/org-roam-dir "/agenda/ticktick.org"))
-  (setq ticktick-dir (concat my/org-roam-dir "/agenda/")))
+  :custom
+  (ticktick-autosync t)
+  (ticktick-sync-file (concat my/org-roam-dir "/agenda/ticktick.org"))
+  (ticktick-dir (concat my/org-roam-dir "/agenda/")))
 #+END_SRC
 ** Org menu
 #+BEGIN_SRC emacs-lisp 
