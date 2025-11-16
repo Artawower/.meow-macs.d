@@ -65,10 +65,10 @@ Function for getting config related paths
 #+END_SRC
 ** UI variables
 #+BEGIN_SRC emacs-lisp 
-(setq my/font-height 14)
-(setq my/font-default "Monaspace Neon NF")
+;; (setq my/font-height 14)
+;; (setq my/font-default "Monaspace Neon NF")
 ;; (setq my/font-default "JetBrainsMono Nerd Font")
-(setq my/font-funny   "Monaspace Radon NF")
+;; (setq my/font-funny   "Monaspace Radon NF")
 (setq my/font-height 16)
 (setq my/font-default "Myna Nerd Font")
 (setq my/font-funny   "Myna Nerd Font")
