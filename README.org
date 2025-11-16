@@ -31,7 +31,8 @@ osascript -e 'tell application "Finder" to make alias file to posix file "/opt/h
 #+BEGIN_SRC emacs-lisp 
 (setenv "LSP_USE_PLISTS" "true")
 (setenv "TERM" "xterm-256color")
-(setenv "SHELL" "/opt/homebrew/bin/xonsh")
+(setenv "SHELL" "/run/current-system/sw/bin/zsh")
+(setenv "SHELL" (executable-find "dash"))
 #+END_SRC
 ** Variables
 #+BEGIN_SRC emacs-lisp 
@@ -123,6 +124,12 @@ https://github.com/D4lj337/Emacs-performance
  backup-directory-alist '((".*" . "~/.local/share/Trash/files")))
 #+END_SRC
 
+*** Set shell
+#+BEGIN_SRC emacs-lisp :results silent
+(setq shell-file-name (executable-find "dash"))
+(setq sh-shell (executable-find "dash"))
+(setq sh-shell-file (executable-find "dash"))
+#+END_SRC
 * Package manager.
 ** Elpaca. Package manager. 
 #+BEGIN_SRC emacs-lisp 
@@ -2261,7 +2268,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
          ("C-c m c" . vterm-copy-mode))
   :custom
   (vterm-max-scrollback 5000)
-  (vterm-shell "/opt/homebrew/bin/xonsh")
+  (vterm-shell "/Users/darkawower/.nix-profile/bin/xonsh")
   :config
   (setq vterm-clear-scrollback t)
   (advice-add 'vterm-clear-scrollback :before #'my/clear-term-history))
