@@ -4155,6 +4155,35 @@ Requires Emacs 30+
 #+END_SRC
 
 ** HTML
+*** Delete pair tag
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/delete-pair-tag ()
+  "Delete current tag under cursor and its pair"
+  (interactive)
+  (save-excursion
+    (when (re-search-backward "<" nil t)
+      (when (looking-at "</")
+        (let ((count 1) tag-name)
+          (forward-char 2)
+          (re-search-forward "\\([a-zA-Z][a-zA-Z0-9-]*\\)")
+          (setq tag-name (match-string 1))
+          (re-search-backward "<")
+          (while (and (> count 0) (re-search-backward (format "</?%s[> ]" tag-name) nil t))
+            (setq count (if (looking-at "</") (1+ count) (1- count))))))
+      (when (looking-at "<[^/]")
+        (let ((tag-open-start (point)) tag-open-end tag-name count)
+          (forward-char)
+          (re-search-forward "\\([a-zA-Z][a-zA-Z0-9-]*\\)")
+          (setq tag-name (match-string 1))
+          (re-search-forward ">")
+          (setq tag-open-end (point) count 1)
+          (while (and (> count 0) (re-search-forward (format "</?%s[> ]" tag-name) nil t))
+            (setq count (if (string= (substring (match-string 0) 0 2) "</") (1- count) (1+ count))))
+          (when (= count 0)
+            (re-search-backward "<")
+            (delete-region (point) (progn (re-search-forward ">") (point)))
+            (delete-region tag-open-start tag-open-end)))))))
+#+END_SRC
 *** Emmet. Quick tag expanding
 #+BEGIN_SRC emacs-lisp 
 (use-package emmet-mode
