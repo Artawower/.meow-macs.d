@@ -1390,6 +1390,7 @@ Move to husky
 
   (meow-define-keys 'normal
     '("\\q" . kill-current-buffer)
+    '("N" . my/copy-with-ai-context)
     '("z z" . recenter)
     '("C-<tab>" . indent-rigidly-right)
     '("<backtab>" . indent-rigidly-left)
@@ -1816,9 +1817,7 @@ Bookmark for navigation inside file
 
 The format is:
 <project-related-path>, line numbers <from>:<to>
-```<lang>
-<code>
-```"
+<code>"
   (interactive "r")
   (unless (use-region-p)
     (user-error "No active region"))
@@ -1834,18 +1833,14 @@ The format is:
          ;; Determine language from file extension or major mode
          (ext  (and buffer-file-name (downcase (or (file-name-extension buffer-file-name) ""))))
          (mode (downcase (replace-regexp-in-string "-mode\\'" "" (symbol-name major-mode))))
-         (lang (cond
-                ((and ext (not (string-empty-p ext))) ext)
-                ((and mode (not (string-empty-p mode))) mode)
-                (t "text")))
          ;; Get project-related path using file-info--get-project-related-path if available
          (path (if (fboundp 'file-info--get-project-related-path)
                    (or (file-info--get-project-related-path)
                        (or buffer-file-name (buffer-name)))
                  (or buffer-file-name (buffer-name))))
          ;; Format the final string
-         (payload (format "%s, line numbers %d:%d\n```%s\n%s\n```"
-                          path from to lang code)))
+         (payload (format "%s, line numbers %d:%d\n\n%s\n"
+                          path from to code)))
     ;; Copy to kill-ring (and clipboard if enabled)
     (kill-new payload)
     (message "Copied %d chars: %s, lines %d:%d"
@@ -3062,6 +3057,7 @@ Function for search in buffer depends or visual or normal line
          ("C-c f p" . consult-ripgrep)
          ("C-c *" . (lambda () (interactive) (consult-ripgrep nil (thing-at-point 'symbol))))
          ("C-c /" . my/consult-ripgrep-selected-p)
+         ("C-c f o" . my/consult-ripgrep-selected-p)
          ("C-c s i" . consult-imenu)
          ("C-c RET" . consult-bookmark)
          ("C-c c m" . consult-mark)
