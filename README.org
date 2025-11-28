@@ -898,6 +898,7 @@ TODO: move to package
     python-mode
     html-mode
     scss-mode
+    vue-ts-mode
     ng2-html-mode
     emacs-lisp-mode
     json-mode) . outline-indent-minor-mode)
@@ -1017,7 +1018,7 @@ Disable scrolls
               (mapc #'disable-theme custom-enabled-themes)))
 #+END_SRC
 
-** No distraction package
+** COMMENT No distraction package
 #+BEGIN_SRC emacs-lisp 
 (use-package no-distraction
   :hook ((typescript-ts-mode html-ts-mode go-ts-mode vue-ts-mode) . no-distraction-mode)
@@ -1358,7 +1359,7 @@ Move to husky
    '("R" . meow-swap-grab)
    '("s" . meow-kill)
    '("t" . meow-till)
-   '("T" . my/meow-backward-till)
+   '("{" . my/meow-backward-till)
    '("u" . meow-undo)
    '("U" . meow-undo-in-selection)
    '("v" . meow-visit)
@@ -1390,6 +1391,7 @@ Move to husky
 
   (meow-define-keys 'normal
     '("\\q" . kill-current-buffer)
+    '("T" . meow-till-expand)
     '("N" . my/copy-with-ai-context)
     '("z z" . recenter)
     '("C-<tab>" . indent-rigidly-right)
@@ -1549,7 +1551,8 @@ Move to husky
 #+BEGIN_SRC emacs-lisp 
 (use-package meow-vterm
   :ensure (meow-vterm :type git :host github :repo "accelbread/meow-vterm")
-  ;; :hook (vterm-mode . meow-vterm-enable)
+  :after vterm
+  :hook (vterm-mode . meow-vterm-enable)
   :config
   (setq vterm-keymap-exceptions '("C-c"))
   (meow-vterm-enable))
@@ -2424,6 +2427,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
   :custom-face
   (git-commit-overlong-summary ((t :inherit error :weight bold)))
   :custom
+  (magit-diff-visit-prefer-worktree t)
   (magit-ediff-dwim-show-on-hunks t)
   (magit-diff-refine-hunk t)
   (magit-process-timestamp-format "%H:%M")
@@ -3232,7 +3236,6 @@ Function for search in buffer depends or visual or normal line
    ("C-c l w" . lsp-workspace-restart)
    ("C-c r l" . lsp)
    ("C-c l r" . lsp-rename)
-   ("C-c e c" . flycheck-copy-errors-as-kill)
    :map meow-normal-state-keymap
    ("gt" . lsp-goto-type-definition)
    ("gi" . lsp-goto-implementation)
@@ -3354,7 +3357,7 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
 (advice-add 'lsp-resolve-final-command :around #'lsp-booster--advice-final-command)
 #+END_SRC
 
-*** Custom vujs server
+*** COMMENT Custom vujs server
 #+BEGIN_SRC emacs-lisp 
 ;;;; Vue Take Over Mode via tsserver + @vue/typescript-plugin
 ;;;; Paste into init.el / config.el  -*- lexical-binding: t; -*-
@@ -3582,7 +3585,164 @@ Installation instructions:
 (lsp-unzip "~/tmp/foo.zip" lsp-eslint-unzipped-path)
 #+END_SRC
 
-** Flymake
+*** COMMENT Biome lsp
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package lsp-biome
+  :ensure (:host github :repo "cxa/lsp-biome")
+  :preface
+  (defun my/lsp-biome-active-hook ()
+    (setq-local apheleia-formatter '(biome)))
+  :config
+  (add-hook 'lsp-biome-active-hook #'my/lsp-biome-active-hook))
+#+END_SRC
+** Flycheck
+*** Core package
+#+BEGIN_SRC emacs-lisp
+(use-package flycheck
+  :bind (("C-j" . flycheck-next-error)
+         ("C-k" . flycheck-previous-error)
+         ("C-c f ]" . flycheck-next-error)
+         ("C-c f [" . flycheck-previous-error)
+         ("C-c l e" . flycheck-list-errors)
+         ("C-c e c" . flycheck-copy-errors-as-kill)
+         ("C-c e C" . my/flycheck-copy-errors-buffer)
+         ("C-c f e" . flycheck-list-errors))
+  :init
+  (global-flycheck-mode)
+  :custom
+  (flycheck-display-errors-delay 0)
+  (flycheck-mode-line nil)
+  (flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
+  (flycheck-checker-error-threshold 120)
+  (flycheck-highlighting-mode 'columns)
+  (flycheck-idle-change-delay 1.0)
+  :config
+  (global-flycheck-mode)
+  (add-to-list 'flycheck-disabled-checkers 'javascript-eslint)
+  ;; use eslint with web-mode for jsx files
+  ;; (flycheck-add-mode 'javascript-eslint 'web-mode)
+  ;; Workaround for eslint loading slow
+  ;; https://github.com/flycheck/flycheck/issues/1129#issuecomment-319600923
+  (advice-add 'flycheck-eslint-config-exists-p :override (lambda() t)))
+
+;; (with-eval-after-load 'flycheck
+;;   (flycheck-define-checker stylelint
+;;     "A SCSS/CSS linter using stylelint."
+;;     :command ("stylelint" "--formatter" "compact" "--stdin-filename" source-original)
+;;     :standard-input t
+;;     :error-patterns
+;;     ((error line-start (file-name) ": line " line ", col " column ", " (message) line-end))
+;;     :modes (scss-mode css-mode less-css-mode))
+
+;;   (add-to-list 'flycheck-checkers 'stylelint)
+;;   (flycheck-add-next-checker 'lsp 'stylelint))
+
+;; (add-hook 'scss-mode-hook
+;;           (lambda ()
+;;             (flycheck-select-checker 'stylelint)
+;;             (flycheck-mode)))
+
+;; (with-eval-after-load 'flycheck
+;;   (flycheck-add-next-checker 'lsp 'stylelint)))
+#+END_SRC
+**** Flycheck functions
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/flycheck-copy-errors-buffer ()
+    "Open flycheck errors buffer, copy all contents, and close window."
+    (interactive)
+    (let ((original-window (selected-window)))
+      ;; Always open flycheck errors buffer first
+      (flycheck-list-errors)
+      ;; Check if the errors buffer exists and has content
+      (let ((flycheck-buffer (get-buffer "*Flycheck errors*")))
+        (if (and flycheck-buffer (get-buffer-window "*Flycheck errors*"))
+            (progn
+              ;; Switch to errors buffer
+              (select-window (get-buffer-window "*Flycheck errors*"))
+              ;; Copy all buffer contents
+              (mark-whole-buffer)
+              (copy-region-as-kill (point-min) (point-max))
+              ;; Close the window
+              (quit-window)
+              ;; Return to original window
+              (select-window original-window)
+              (message "Flycheck errors copied to kill ring"))
+          (progn
+            ;; If buffer still doesn't exist or has no window, return to original
+            (select-window original-window)
+            (message "No flycheck errors found"))))))
+#+END_SRC
+*** COMMENT Beatiful flycheck, flyover
+https://github.com/konrad1977/flyover
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flyover
+  :ensure (flyover :host github :repo "konrad1977/flyover")
+  :config
+  (add-hook 'flycheck-mode-hook #'flyover-mode)
+  ;; Use theme colors for error/warning/info faces
+  (setq flyover-use-theme-colors t)
+
+  ;; Adjust background lightness (lower values = darker)
+  (setq flyover-background-lightness 85)
+
+  ;; Make icon background darker than foreground
+  (setq flyover-percent-darker 15)
+
+  (setq flyover-text-tint 'lighter) ;; or 'darker or nil
+
+  ;; "Percentage to lighten or darken the text when tinting is enabled."
+  (setq flyover-text-tint-percent 50)
+  ;; Choose which checkers to use (flycheck, flymake, or both)
+  (setq flyover-checkers '(flycheck flymake))
+
+  ;; Enable debug messages
+  (setq flyover-debug nil)
+  ;; Time in seconds to wait before checking and displaying errors after a change
+  (setq flyover-debounce-interval 0.2)
+  ;; Number of lines below the error line to display the overlay
+  ;; Default is 1 (next line), set to 0 for same line, 2 for two lines below, etc.
+  (setq flyover-line-position-offset 1)
+  ;;; Icons
+  (setq flyover-info-icon "")
+  (setq flyover-warning-icon "⚠")
+  (setq flyover-error-icon "✘")
+  
+  (setq flyover-show-at-eol nil)
+  (setq flyover-hide-when-cursor-is-on-same-line t)
+  (setq flyover-hide-checker-name t)
+  (setq flyover-show-virtual-line nil)
+
+;;; Icon padding
+
+;;; You might want to adjust this setting if you icons are not centererd or if you more or less space.fs
+  (setq flyover-icon-left-padding 0.9)
+  (setq flyover-icon-right-padding 0.9)
+  (custom-set-faces
+   '(flyover-error
+     ((t :background "#453246"
+         :foreground "#ea8faa"
+         :height 1
+         :weight normal)))
+   
+   '(flyover-warning
+     ((t :background "#331100"
+         :foreground "#DCA561"
+         :height 1
+         :weight normal)))
+   
+   '(flyover-info
+     ((t :background "#374243"
+         :foreground "#a8e3a9"
+         :height 1
+         :weight normal)))))
+#+End_Src
+*** COMMENT Consult flycheck
+#+BEGIN_SRC emacs-lisp
+(use-package consult-flycheck
+  :after consult)
+#+END_SRC
+
+** COMMENT Flymake
 *** Functions
 **** Flymake, copy errors
 #+BEGIN_SRC emacs-lisp 
@@ -4388,6 +4548,9 @@ Requires Emacs 30+
 #+END_SRC
 *** Package
 #+BEGIN_SRC emacs-lisp 
+(setq flymake-allowed-file-name-masks nil)
+(setq flymake-err-line-patterns nil)
+
 (use-package eca
   :defer t
   :ensure (:type git :host github :repo "editor-code-assistant/eca-emacs" :files (:defaults "*.el"))
@@ -4414,6 +4577,7 @@ Requires Emacs 30+
          ("C-S-j" . eca-chat-go-to-next-expandable-block)
          ("C-S-k" . eca-chat-go-to-prev-expandable-block))
   :config
+
   (add-to-list
    'display-buffer-alist
    '("<eca-chat.*"
