@@ -4619,6 +4619,13 @@ Requires Emacs 30+
      org-babel-load-languages))
   )
 #+END_SRC
+** Dotnet
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package nxml-mode
+  :ensure nil
+  :mode
+  ("\\.csproj\\'" . nxml-mode))
+#+END_SRC
 * AI
 ** ECA. Agnostic code assistant
 *** Functions
