@@ -2016,6 +2016,7 @@ The format is:
 (use-package auto-rename-tag
   :hook ((html-mode . auto-rename-tag-mode)
          (ng2-html-mode . auto-rename-tag-mode)
+         (vue-ts-mode . auto-rename-tag-mode)
          (web-mode . auto-rename-tag-mode))
   :defer t)
 #+END_SRC
@@ -2287,6 +2288,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
    `(("h" "~/"                          "Home")
      ("d" "~/Downloads/"                "Downloads")
      ("p" "~/projects/pet"              "Pet")
+     ("o" "~/projects/pet/orgnote"      "Orgnote")
      ("e" "~/projects/pet/emacs"        "Emacs")
      ("a" ,my/agenda-dir                "Agenda")))
   (dirvish-side-width 45)
@@ -4989,6 +4991,7 @@ Automatically creates parent directories if needed."
      (typescript . t)
      (js . t)
      (python . t)
+     (rust . t)
      (restclient . t)
      (shell . t)))
 
