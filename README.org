@@ -534,6 +534,17 @@ unreadable. Returns the names of envvars that were changed."
 
     (browse-url (concat my/youtrack-url "/" task-name))))
  #+END_SRC
+
+*** Try package from github
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/try-package-from-github (repo)
+  "Try package from github REPO.
+REPO should be in format 'owner/repo-name'."
+  (interactive "sGitHub repo (owner/name): ")
+  (let* ((repo-name (car (last (split-string repo "/"))))
+         (package-sym (intern repo-name)))
+    (elpaca-try `(,package-sym :host github :repo ,repo))))
+#+END_SRC
 * UI
 ** Faces
 *** Color getters functions
@@ -734,6 +745,8 @@ Temporary disabled due to performance issues on macos
   ;; All customisations here.
   (setq modus-themes-mixed-fonts nil)
   (setq modus-themes-italic-constructs t)
+
+  (add-hook 'after-load-theme-hook #'my/fix-modus-fringes)
 
   (modus-themes-with-colors
       (custom-set-faces
