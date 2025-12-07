@@ -559,19 +559,19 @@ REPO should be in format 'owner/repo-name'."
 Modeline background colors
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/get-modeline-background-color ()
-  "Get modeline background color from catppuccin theme."
-  (if (fboundp 'catppuccin-get-color)
-      (catppuccin-get-color 'surface0)
-    (face-attribute 'mode-line :background nil 'mode-line)))
+  "Get modeline background color from current theme."
+  (or (face-background 'region nil t)
+      (face-attribute 'mode-line :background nil 'default)))
 #+END_SRC
 
 Modeline inactive color
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/get-modeline-inactive-color ()
-  "Get modeline inactive background color from catppuccin theme."
-  (if (fboundp 'catppuccin-get-color)
-      (catppuccin-get-color 'crust)
-    (face-attribute 'mode-line-inactive :background nil 'mode-line-inactive)))
+  "Get modeline inactive background color from current theme."
+  (let ((bg (face-background 'default nil t)))
+    (if (and bg (fboundp 'color-darken-name))
+        (color-darken-name bg 5)
+      (face-attribute 'mode-line-inactive :background nil 'default))))
 #+END_SRC
 
 *** Function to apply frame fonts
@@ -613,7 +613,6 @@ Modeline inactive color
 (defun my/setup-modeline (&optional frame)
   "Configure the modeline and header-line for FRAME (or the current one)."
   (interactive)
-
   (let* ((fr (or frame (selected-frame)))
          (bg-inactive (my/get-modeline-inactive-color))
          (bg (my/get-modeline-background-color)))
@@ -663,18 +662,13 @@ Modeline inactive color
   :hook
   (after-load-theme . my/setup-divider)
   (after-load-theme . my/setup-modeline)
+  ;; (spacious-padding-mode . my/setup-modeline)
   (after-make-frame-functions . my/setup-divider)
   (after-make-frame-functions . my/setup-fonts-to-frame)
   :config
-;;   ;; When not daemon just run fns
-;; (set-face-attribute 'font-lock-string-face  nil :inherit nil :family 'unspecified :font 'unspecified)
-;; (set-face-attribute 'font-lock-comment-face nil :inherit nil :family 'unspecified :font 'unspecified)
-;; (set-face-attribute 'font-lock-keyword-face nil :inherit nil :family 'unspecified :font 'unspecified)
-
   (unless (daemonp)
     (my/setup-fonts-to-frame)
-    (my/setup-divider)
-    (my/setup-modeline)))
+    (my/setup-divider)))
 #+END_SRC
 
 *** COMMENT Ligatures
@@ -745,8 +739,6 @@ Temporary disabled due to performance issues on macos
   ;; All customisations here.
   (setq modus-themes-mixed-fonts nil)
   (setq modus-themes-italic-constructs t)
-
-  (add-hook 'after-load-theme-hook #'my/fix-modus-fringes)
 
   (modus-themes-with-colors
       (custom-set-faces
@@ -836,11 +828,21 @@ Temporary disabled due to performance issues on macos
   :custom
   (spacious-padding-widths '( :internal-border-width 16
                               :header-line-width 8
-                              :mode-line-width 8
+                              :mode-line-width 0
                               :tab-width 4
                               :scroll-bar-width 0))
+  (spacious-padding-subtle-mode-line nil)
   :config
-  (my/setup-modeline))
+  ;; Advice for solid modeline padding
+  (defun my/spacious-padding-solid-modeline-advice (orig-fn face fallback &optional subtle-key)
+    (if (memq face '(mode-line mode-line-active mode-line-inactive header-line header-line-active))
+        (let ((width (if (boundp 'my/ui-box-padding) my/ui-box-padding 4))
+              (color (face-attribute face :background nil t)))
+          (list :background color
+                :box (list :line-width width :color color :style nil)))
+      (funcall orig-fn face fallback subtle-key)))
+
+  (advice-add 'spacious-padding-set-face-box-padding :around #'my/spacious-padding-solid-modeline-advice))
 #+END_SRC
 
 ** Auto zoom windows
@@ -871,28 +873,14 @@ Temporary disabled due to performance issues on macos
   (add-hook 'ediff-after-setup-windows-hook 'my/fix-ediff-size))
 #+END_SRC
 ** Tab bar (echo area)
-*** Function to setup tabar faces
-#+BEGIN_SRC emacs-lisp
-(defun my/setup-tab-bar-faces ()
-  (let ((bg       (my/get-modeline-background-color))
-        (bg-inact (my/get-modeline-inactive-color)))
-    (custom-set-faces
-     `(tab-bar-echo-area-tab
-       ((t (:inherit mode-line-active :box nil))))
-     `(tab-bar-echo-area-tab-inactive
-       ((t (:inherit tab-bar-tab-inactive :box nil)))))))
-#+END_SRC
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package tab-bar-echo-area
   :hook
   (emacs-startup . tab-bar-echo-area-mode)
-  (after-load-theme-hook . my/setup-tab-bar-faces)
-
   :bind (("C-c TAB TAB" . tab-bar-echo-area-display-tab-names))
   :config
   (tab-bar-mode)
-  (my/run-once-on-init #'my/setup-tab-bar-faces 30)
   (setq tab-bar-echo-area-display-tab-names-format-string "%s"))
 #+END_SRC
 
@@ -901,7 +889,7 @@ Temporary disabled due to performance issues on macos
 (use-package tab-bar-lost-commands :defer t)
 #+END_SRC
 
-** Quick show current file name whens witch
+** COMMENT Quick show current file name whens witch
 *** Function
 TODO: move to package
 #+BEGIN_SRC emacs-lisp :results silent
@@ -986,7 +974,6 @@ TODO: move to package
 #+BEGIN_SRC emacs-lisp
 (use-package hide-mode-line
   :hook
-  (hide-mode-line-mode . my/setup-modeline)
   (conf-mode . hide-mode-line-mode)
   (fundamental-mode . hide-mode-line-mode)
   (compilation-mode . hide-mode-line-mode)
@@ -1083,7 +1070,8 @@ Disable scrolls
 ** Full size from startup
 #+BEGIN_SRC emacs-lisp
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
-(add-to-list 'default-frame-alist '(undecorated . t))
+;; Disable title bar for macos
+;; (add-to-list 'default-frame-alist '(undecorated . t))
 #+END_SRC
 
 ** Reset themes before apply
@@ -3201,6 +3189,7 @@ Function for search in buffer depends or visual or normal line
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package corfu
+  ;; :ensure (:host github :repo "minad/corfu" :ref "6b1ceef882e9809083e660c10d669d132746b975")
   :defer 2
   :custom
   (corfu-auto t)
@@ -3631,7 +3620,7 @@ If nil — search automatically (project -> global -> inside @vue/language-serve
 #+BEGIN_SRC emacs-lisp
 (use-package lsp-ui
   :hook (lsp-mode . lsp-ui-mode)
-  :ensure (:host github :repo "emacs-lsp/lsp-ui" :rev "9d28c2ca1e79614215ea678583435d5d1189e4bc")
+  :ensure (:host github :repo "emacs-lsp/lsp-ui")
   :after lsp-mode
   :bind (:map meow-normal-state-keymap
          ("\\h" . lsp-ui-doc-toggle)
@@ -4707,10 +4696,22 @@ Requires Emacs 30+
 #+END_SRC
 
 ** Copilot
+deps
+#+BEGIN_SRC emacs-lisp
+(use-package track-changes
+  :ensure (track-changes
+           :host github
+           :repo "emacs-mirror/emacs"
+           :branch "master"
+           :files ("lisp/emacs-lisp/track-changes.el")
+           :depth 1       ;; Используем простой shallow clone
+           :inherit nil)) ;; ВАЖНО: Запрещаем слияние с рецептом GNU ELPA (Savannah)
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp
 (use-package copilot
   :defer 5
-  :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el"))
+  ;; :ensure (copilot :host github :repo "copilot-emacs/copilot.el" :files ("*.el") :ref "c42c18e346e1ff8399eb30d40527e593f614e4d3")
   :hook
   (prog-mode . copilot-mode)
   (text-mode . copilot-mode)
