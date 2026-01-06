@@ -556,22 +556,40 @@ REPO should be in format 'owner/repo-name'."
     (face-attribute 'mode-line :background nil 'font-lock-variable-name-face)))
 #+END_SRC
 
+Get safe background
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/get-safe-background (face &optional fallback-face)
+  "Helper to safely get background color. Returns string or nil, never 'unspecified."
+  (let* ((check-face (or fallback-face 'default))
+         (color (face-attribute face :background nil t)))
+    (if (and (stringp color) (not (string= color "unspecified")))
+        color
+      (face-attribute check-face :background nil t))))
+#+END_SRC
+
 Modeline background colors
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/get-modeline-background-color ()
-  "Get modeline background color from current theme."
-  (or (face-background 'region nil t)
-      (face-attribute 'mode-line :background nil 'default)))
+  "Get modeline active background color with safe fallback."
+  (let ((region-bg (face-background 'region nil t))
+        (modeline-bg (face-attribute 'mode-line :background nil t)))
+    (cond
+     ((stringp region-bg) region-bg)
+     ((stringp modeline-bg) modeline-bg)
+     (t "#555555"))))
 #+END_SRC
 
 Modeline inactive color
 #+BEGIN_SRC emacs-lisp :results silent
 (defun my/get-modeline-inactive-color ()
-  "Get modeline inactive background color from current theme."
-  (let ((bg (face-background 'default nil t)))
-    (if (and bg (fboundp 'color-darken-name))
-        (color-darken-name bg 5)
-      (face-attribute 'mode-line-inactive :background nil 'default))))
+  "Get modeline inactive background color with safe fallback."
+  (let ((default-bg (face-background 'default nil t))
+        (inactive-bg (face-attribute 'mode-line-inactive :background nil t)))
+    (cond
+     ((and (stringp default-bg) (fboundp 'color-darken-name))
+      (color-darken-name default-bg 5))
+     ((stringp inactive-bg) inactive-bg)
+     (t "#333333"))))
 #+END_SRC
 
 *** Function to apply frame fonts
@@ -610,28 +628,28 @@ Modeline inactive color
 
 *** Mode line and header line faces
 #+BEGIN_SRC emacs-lisp
-(defun my/setup-modeline (&optional frame)
-  "Configure the modeline and header-line for FRAME (or the current one)."
+(defun my/setup-modeline (&optional _frame &rest _)
+  "Configure the modeline and header-line globally."
   (interactive)
-  (let* ((fr (or frame (selected-frame)))
-         (bg-inactive (my/get-modeline-inactive-color))
+  (let* ((bg-inactive (my/get-modeline-inactive-color))
          (bg (my/get-modeline-background-color)))
-    (set-face-attribute 'mode-line fr
+    ;; (message "Setup modeline, bg: %s, inactive: %s" bg bg-inactive)
+    (set-face-attribute 'mode-line nil
                         :background bg
                         :box (list :line-width my/ui-box-padding :color bg))
     (when (facep 'mode-line-active)
-      (set-face-attribute 'mode-line-active fr
+      (set-face-attribute 'mode-line-active nil
                           :background bg
                           :box (list :line-width my/ui-box-padding :color bg)))
-    (set-face-attribute 'mode-line-inactive fr
+    (set-face-attribute 'mode-line-inactive nil
                         :background bg-inactive
                         :box (list :line-width my/ui-box-padding :color bg-inactive))
     (when (facep 'header-line)
-      (set-face-attribute 'header-line fr
+      (set-face-attribute 'header-line nil
                           :background bg
                           :box (list :line-width my/ui-box-padding :color bg)))
     (when (facep 'header-line-inactive)
-      (set-face-attribute 'header-line-inactive fr
+      (set-face-attribute 'header-line-inactive nil
                           :background bg-inactive
                           :box (list :line-width my/ui-box-padding :color bg-inactive)))))
 #+END_SRC
@@ -700,6 +718,10 @@ Temporary disabled due to performance issues on macos
   (ns-auto-titlebar-mode))
 #+END_SRC
 ** Theme
+*** Safe themes
+#+BEGIN_SRC emacs-lisp
+(setq custom-safe-themes t)
+#+END_SRC
 *** Hook for theme loading
 #+BEGIN_SRC emacs-lisp
 (defvar after-load-theme-hook nil
@@ -740,35 +762,29 @@ Temporary disabled due to performance issues on macos
   (setq modus-themes-mixed-fonts nil)
   (setq modus-themes-italic-constructs t)
 
-  (modus-themes-with-colors
+
+  (defun my/fix-modus-fringes ()
+    "Make sure fringes are the same as the background."
+    (modus-themes-with-colors
       (custom-set-faces
        `(git-gutter-fr:added ((t :foreground ,green-intense :background nil)))
 
        `(git-gutter-fr:modified ((t :foreground ,yellow-intense :background nil)))
 
-       `(git-gutter-fr:deleted ((t :foreground ,red-intense :background nil)))))
+       `(git-gutter-fr:deleted ((t :foreground ,red-intense :background nil))))))
 
-  (setq modus-themes-common-palette-overrides
-        '(;; Make the fringe not have its own background
-          (fringe unspecified)
-
-          ;; Do not use a background for line numbers (current and others)
-          (bg-line-number-inactive unspecified)
-          (bg-line-number-active unspecified)
-
-
-          ;; Make the mode lines not have a background
-          (bg-mode-line-inactive unspecified)
-          (bg-mode-line-active unspecified)))
+  (add-hook 'after-load-theme-hook #'my/fix-modus-fringes)
 
   (modus-themes-load-theme 'ef-duo-dark))
 #+END_SRC
 *** Modern themes
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package modern-themes
-  :ensure (modern-themes :host github :repo "artawower/modern-themes"))
+  :ensure (modern-themes :host github :repo "artawower/modern-themes")
+  :config
+  (load-theme 'modern-catppuccin-frappe t))
 #+END_SRC
-*** Catppuccin theme
+*** COMMENT Catppuccin theme
 #+BEGIN_SRC emacs-lisp
 (use-package catppuccin-theme
   :config
@@ -786,7 +802,6 @@ Temporary disabled due to performance issues on macos
 (defun my/set-catppuccin-theme ()
   "Set Catppuccin theme based on dark mode state."
   (interactive)
-  (message "SETUP CATPPUCCIN THEME!")
   (when (boundp 'auto-dark--last-dark-mode-state)
     (setq catppuccin-flavor
           (if (eq auto-dark--last-dark-mode-state 'dark)
@@ -800,25 +815,31 @@ Temporary disabled due to performance issues on macos
 *** Auto dark mode
 #+BEGIN_SRC emacs-lisp
 (use-package auto-dark
-  :defer t
-  :init
-  (auto-dark-mode)
-  (my/run-once-on-init #'auto-dark-mode -95)
-  :hook
-  (auto-dark-dark-mode . my/set-catppuccin-theme)
-  (auto-dark-light-mode . my/set-catppuccin-theme)
-  :custom
-  (auto-dark-allow-osascript t)
-  (auto-dark-dark-theme 'catppuccin)
-  (auto-dark-light-theme 'catppuccin)
-  (auto-dark-themes '((catppuccin) (catppuccin)))
-
-
-  (auto-dark-polling-interval-seconds 5)
-  (auto-dark-allow-powershell nil)
+  ;; :init
+  ;; (auto-dark-mode)
+  ;; :hook
+  ;; (after-make-frame-functions . #'my/server-auto-dark)
+  ;; (auto-dark-dark-mode . my/set-catppuccin-theme)
+  ;; (auto-dark-light-mode . my/set-catppuccin-theme)
   :config
-  (my/set-catppuccin-theme)
-  (setq auto-dark-allow-osascript t))
+  (setq auto-dark-allow-osascript nil)
+  (setq auto-dark-polling-interval-seconds 5)
+  (setq auto-dark-themes
+   '((modern-catppuccin-frappe)
+     (modern-nano-light)))
+  ;; (my/set-catppuccin-theme)
+  (setq auto-dark-allow-osascript t)
+  (add-hook 'after-make-frame-functions #'my/server-auto-dark))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/server-auto-dark (frame)
+  (with-selected-frame frame
+    (when (display-graphic-p)
+      (auto-dark-mode 1)
+      ;; Remove hook so it only runs once
+      (remove-hook 'after-make-frame-functions #'my/server-auto-dark)
+      (my/setup-modeline))))
 #+END_SRC
 ** Fringes via spacious padding
 #+BEGIN_SRC emacs-lisp
@@ -833,18 +854,16 @@ Temporary disabled due to performance issues on macos
                               :scroll-bar-width 0))
   (spacious-padding-subtle-mode-line nil)
   :config
-  ;; Advice for solid modeline padding
-  (defun my/spacious-padding-solid-modeline-advice (orig-fn face fallback &optional subtle-key)
-    (if (memq face '(mode-line mode-line-active mode-line-inactive header-line header-line-active))
-        (let ((width (if (boundp 'my/ui-box-padding) my/ui-box-padding 4))
-              (color (face-attribute face :background nil t)))
-          (list :background color
-                :box (list :line-width width :color color :style nil)))
-      (funcall orig-fn face fallback subtle-key)))
-
-  (advice-add 'spacious-padding-set-face-box-padding :around #'my/spacious-padding-solid-modeline-advice))
+  (advice-add 'custom-theme-set-faces :after (lambda (&rest _) (my/setup-modeline))))
 #+END_SRC
 
+** Olivetti mode
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package olivetti
+  :defer t
+  :hook ((markdown-mode org-mode text-mode) . olivetti-mode)
+  :custom (olivetti-minimum-body-width 120))
+#+END_SRC
 ** Auto zoom windows
 #+BEGIN_SRC emacs-lisp
 (use-package zoom
@@ -1463,7 +1482,6 @@ Move to husky
 
 #+END_SRC
 
-
 *** Meow thing register for better selection
 #+BEGIN_SRC emacs-lisp
 (defun my/meow-thing-register ()
@@ -1595,9 +1613,9 @@ Move to husky
   (my/meow-setup-custom-modes)
   (my/meow-setup-state-per-modes)
   (advice-add #'meow-change :after
-              (lambda ()
-                (when (string-match-p "^\\s-*$" (thing-at-point 'line t))
-                  (indent-for-tab-command))))
+              (lambda (&rest _)
+                (when (and (bolp) (eolp))
+                  (indent-according-to-mode))))
   (meow-global-mode 1))
 #+END_SRC
 
@@ -2079,6 +2097,7 @@ The format is:
   ("\\.ts\\'" . typescript-ts-mode)
   ("\\.go\\'" . go-ts-mode)
   ("\\.json\\'" . json-ts-mode)
+  ("\\.rs\\'" . rust-ts-mode)
   ("\\.html\\'" . html-ts-mode)
   ("\\.cs\\'" . csharp-ts-mode)
   :custom
@@ -2372,6 +2391,29 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
       (vterm-send-return)))
 #+END_SRC
 
+*** Open vterm in right window
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/vterm-right ()
+  "Open vterm in right window and cd to current buffer dir or project root."
+  (interactive)
+  (let* ((dir (expand-file-name
+               (or (when-let ((file (buffer-file-name)))
+                     (file-name-directory file))
+                   (when-let ((proj (project-current)))
+                     (project-root proj))
+                   default-directory)))
+         (cmd (concat "cd " (shell-quote-argument dir)))
+         (vterm-buf (or (get-buffer "*vterm*")
+                        (vterm)))
+         (win (or (window-in-direction 'right)
+                  (split-window-right))))
+    (select-window win)
+    (switch-to-buffer vterm-buf)
+    (with-current-buffer vterm-buf
+      (vterm-send-string cmd)
+      (vterm-send-return))))
+#+END_SRC
+
 ** Vterm
 #+BEGIN_SRC emacs-lisp
 (use-package vterm
@@ -2380,6 +2422,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
          ("C-c o T" . my/vterm-change-current-directory-to-active-buffer-pwd)
          ("C-c o v" . vterm)
          ("C-c o V" . my/vterm-open-here)
+         ("C-c o R" . my/vterm-right)
          :map vterm-mode-map
          ("C-u" . vterm--self-insert)
          ("C-c m c" . vterm-copy-mode))
@@ -2486,6 +2529,8 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
    ("z z" . recenter)
    ("C-j" . magit-section-forward)
    ("C-k" . magit-section-backward)
+   ("M-n" . husky-lsp-repeat-consult-search-forward)
+   ("M-p" . husky-lsp-repeat-consult-search-backward)
    :map magit-diff-mode-map
    ("C-j" . magit-section-forward)
    ("C-k" . magit-section-backward))
@@ -2571,6 +2616,51 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
          ("C-c t l" . magit-todos-list)))
 #+END_SRC
 
+*** Visit next dirty file
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/git-visit-next-dirty-file ()
+  "Switch to next buffer visiting a Git unstaged or untracked file."
+  (interactive)
+  (require 'vc-git)
+  (let* ((repo-root (vc-git-root default-directory)))
+    (unless repo-root
+      (user-error "Not inside a Git repository"))
+    (let* ((root (expand-file-name repo-root))
+           (status-output
+            (shell-command-to-string
+             (format "git -C %s status --porcelain=v1"
+                     (shell-quote-argument root))))
+           ;; Collect interesting files
+           (interesting-files
+            (let (files)
+              (dolist (line (split-string status-output "\n" t))
+                (when (> (length line) 3)
+                  (let ((status (substring line 0 2))
+                        (path   (substring line 3)))
+                    ;; include:
+                    ;; ??  untracked
+                    ;;  M  unstaged
+                    ;; MM  staged + unstaged
+                    (when (or (string= status "??")
+                              (string= status " M")
+                              (string= status "MM"))
+                      ;; handle rename: "old -> new"
+                      (when (string-match " -> " path)
+                        (setq path (cadr (split-string path " -> " t))))
+                      (push (expand-file-name path root) files)))))
+              files))
+           (buffers (buffer-list))
+           (start (current-buffer))
+           (rotated (append (cdr (memq start buffers)) buffers)))
+      (catch 'done
+        (dolist (buf rotated)
+          (let ((file (buffer-file-name buf)))
+            (when (and file
+                       (member (expand-file-name file) interesting-files))
+              (switch-to-buffer buf)
+              (throw 'done t))))
+        (message "No unstaged or untracked Git buffers")))))
+#+END_SRC
 ** Git gutter
 *** Core package
 #+BEGIN_SRC emacs-lisp
@@ -2659,10 +2749,26 @@ Setup blamer face
                           ("<mouse-1>" . blamer-callback-show-commit-diff))))
 #+END_SRC
 
-** Diff hl
+** COMMENT Diff hl
 #+BEGIN_SRC emacs-lisp
 ;; Diff faces customization - relying on theme for colors
-(use-package diff-hl)
+(use-package diff-hl
+  :custom
+  (diff-hl-draw-borders nil)
+  :bind (("C-M-[" . diff-hl-previous-hunk)
+         ("C-M-]" . diff-hl-next-hunk)
+         ("C-M-r" . diff-hl-revert-hunk)
+         ("C-M-s" . diff-hl-stage-current-hunk))
+  :config
+  (setq diff-hl-show-staged-changes nil)
+  (setq diff-hl-update-async t)
+  (setq diff-hl-margin-symbols-alist
+        '((insert . " ")
+          (delete . " ")
+          (change . " ")))
+  (setq diff-hl-margin-width 1)
+  (global-diff-hl-mode)
+  (diff-hl-margin-mode))
 #+END_SRC
 
 ** Ediff
@@ -3283,7 +3389,7 @@ Function for search in buffer depends or visual or normal line
   :config
   (mason-ensure))
 #+END_SRC
-** LSP mode
+** COMMENT LSP mode
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package lsp-mode
@@ -3332,6 +3438,7 @@ Function for search in buffer depends or visual or normal line
   (setq lsp-volar-take-over-mode nil)
   (setq lsp-headerline-breadcrumb-enable nil)
   :custom
+  (lsp-rust-analyzer-server-display-inlay-hints nil)
   (lsp-log-io nil)
   (lsp-idle-delay 0.3)
   (lsp-auto-guess-root t)
@@ -3365,7 +3472,8 @@ Function for search in buffer depends or visual or normal line
    ;; (setenv "DOTNET_ROOT" "/usr/local/share/dotnet")
    ;; (setenv "DOTNET_ROLL_FORWARD" "Major")
 
-  (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
+  ;; (setq lsp-pyright-venv-path (concat (getenv "HOME") "/.virtualenvs"))
+  ;; (setq lsp-pyright-venv-path "./venv")
   (setq lsp-clients-angular-language-server-command
         '("node" "./node_modules/@angular/language-server/index.js"
           "--stdio"
@@ -3400,6 +3508,7 @@ Function for search in buffer depends or visual or normal line
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\pyenv\\'")
   (add-to-list 'lsp-file-watch-ignored "[/\\\\]\\.cache\\'")
   (set-face-attribute 'lsp-face-highlight-textual nil :background "#c0caf5")
+  (set-face-attribute 'lsp-flycheck-info-unnecessary-face nil :inherit 'shadow :foreground nil)
   (my/setup-compilation-errors)
   (setq lsp-volar-hybrid-mode nil)
 
@@ -3686,7 +3795,7 @@ Installation instructions:
   :config
   (add-hook 'lsp-biome-active-hook #'my/lsp-biome-active-hook))
 #+END_SRC
-** Flycheck
+** COMMENT Flycheck
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
@@ -3706,7 +3815,7 @@ Installation instructions:
   (flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
   (flycheck-checker-error-threshold 120)
   (flycheck-highlighting-mode 'columns)
-  (flycheck-idle-change-delay 1.0)
+  (flycheck-idle-change-delay 0.3)
   :config
   (global-flycheck-mode)
   (add-to-list 'flycheck-disabled-checkers 'javascript-eslint)
@@ -3833,7 +3942,77 @@ https://github.com/konrad1977/flyover
   :after consult)
 #+END_SRC
 
-** COMMENT Flymake
+** Lsp (Eglot)
+*** Eglot package
+ [[https://github.com/joaotavora/eglot/issues/257][Vue js configuration example]]
+ Eglot is unused right now. Because it has lack of debugger functionality
+#+BEGIN_SRC emacs-lisp
+(use-package eglot
+  :ensure nil
+  :defer t
+  :bind (("C-c g i" . eglot-find-implementation)
+         ;; find reference
+         ("C-c l r" . eglot-rename)
+         ("C-c r l" . eglot)
+         ("C-c l f" . xref-find-references)
+         :map meow-normal-state-keymap
+         ("\\l" . eglot-code-actions))
+  :hook
+  ((web-mode
+    ng2-mode
+    typescript-ts-mode
+    python-ts-mode
+    html-ts-mode
+    html-mode
+    go-ts-mode
+    vue-mode
+    python-ts-mode
+    yaml-mode
+    ng2-ts-mode) . eglot-ensure)
+  :custom
+  (eglot-confirm-server-initiated-edits nil)
+  :config                               ;
+  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
+  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
+  ;; Volar
+
+  (add-to-list 'eglot-server-programs
+               `(vue-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+  (add-to-list 'eglot-server-programs
+               `(vue-ts-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+
+
+  (add-to-list 'eglot-server-programs
+               `(web-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+
+
+  (add-to-list 'eglot-server-programs
+               '(html-mode "node"
+                           "/opt/homebrew/lib/node_modules/@angular/language-server"
+                           "--ngProbeLocations"
+                           "/opt/homebrew/lib/node_modules"
+                           "--tsProbeLocations"
+                           "/opt/homebrew/lib/node_modules"
+                           "--stdio"))
+
+  (add-to-list 'eglot-server-programs
+               '(html-ts-mode "node"
+                              "/opt/homebrew/lib/node_modules/@angular/language-server"
+                              "--ngProbeLocations"
+                              "/opt/homebrew/lib/node_modules"
+                              "--tsProbeLocations"
+                              "/opt/homebrew/lib/node_modules"
+                              "--stdio"))
+  (add-to-list 'eglot-server-programs
+               '(ng2-html-mode "node"
+                               "/opt/homebrew/lib/node_modules/@angular/language-server"
+                               "--ngProbeLocations"
+                               "/opt/homebrew/lib/node_modules"
+                               "--tsProbeLocations"
+                               "/opt/homebrew/lib/node_modules"
+                               "--stdio")))
+#+END_SRC
+** Flymake
 *** Functions
 **** Flymake, copy errors
 #+BEGIN_SRC emacs-lisp
@@ -3906,22 +4085,17 @@ https://github.com/konrad1977/flyover
 (advice-add #'lsp-diagnostics--flymake-update-diagnostics
               :override #'my/lsp-diagnostics--flymake-update-diagnostics)
 #+END_SRC
-*** Core Package
+*** Patches
 Patch
-#+BEGIN_SRC emacs-lisp :results silent
-(setq flymake-allowed-file-name-masks nil)
-(setq flymake-err-line-patterns nil)
-#+END_SRC
-
-
+# #+BEGIN_SRC emacs-lisp :results silent
+# (setq flymake-allowed-file-name-masks nil)
+# (setq flymake-err-line-patterns nil)
+# #+END_SRC
+*** Core Package
 #+BEGIN_SRC emacs-lisp  :noweb yes
 (use-package flymake
-  ;; :ensure t
-  ;; :after (lsp-mode)
-  :ensure (flymake
-           :repo "https://github.com/emacs-mirror/emacs.git" ;; или git://git.savannah.gnu.org/emacs.git
-           :branch "master"
-           :files ("lisp/progmodes/flymake.el"))
+  :defer 10
+  :ensure nil
   :bind
   (("C-j" . flymake-goto-next-error)
    ("C-k" . flymake-goto-prev-error)
@@ -4209,6 +4383,13 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 
 
 * Programming languages
+** Gleam
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package gleam-ts-mode
+  :defer 10
+  :hook ((gleam-ts-mode . lsp-mode))
+  :mode ("\\.gleam\\'" . gleam-ts-mode))
+#+END_SRC
 ** Python
 *** Repl
 #+BEGIN_SRC emacs-lisp
@@ -4237,33 +4418,16 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   (add-to-list 'display-buffer-alist '("^\\*Python\\*$" . (display-buffer-same-window))))
 #+END_SRC
 
-*** Pipenv
-#+BEGIN_SRC emacs-lisp
-(use-package pipenv
-  :defer t
-  :hook (python-mode . pipenv-mode)
-  :config
-  (setenv "WORKON_HOME" (concat (getenv "HOME") "/.virtualenvs"))
-
-
-  (add-hook 'pyvenv-post-activate-hooks #'lsp-restart-workspace)
-  ;; This hook will copy venv from pyvenv to lsp pyright
-  (add-hook 'pyvenv-post-activate-hooks (lambda ()
-                                           (setq lsp-pyright-venv-directory pyvenv-virtual-env)
-                                           (lsp-restart-workspace))))
+*** UV mode
+**** Auto activation
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package uv-mode 
+  :defer t 
+  :hook (pythons-ts-mode . uv-mode))
 #+END_SRC
-
-*** Pyvenv
-#+BEGIN_SRC emacs-lisp
-(use-package pyvenv :defer t)
-#+END_SRC
-*** TODO COMMENT Auto virtualenv
-#+BEGIN_SRC emacs-lisp
-(use-package auto-virtualenv
-  :after pyvenv
-  :defer t
-  :hook ((python-mode . auto-virtualenv-setup)
-         (python-ts-mode . auto-virtualenv-setup)))
+*** COMMENT Virtualenv
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package virtualenv :defer t)
 #+END_SRC
 
 ** Nix
@@ -4302,6 +4466,11 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
   :hook (emacs-lisp-mode . semel-mode))
 #+END_SRC
 
+*** COMMENT UI library :dev:
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package vui
+  :ensure (:host github :repo "d12frosted/vui.el"))
+#+END_SRC
 ** Clojure
 *** Main mode
 #+BEGIN_SRC emacs-lisp
@@ -4312,10 +4481,25 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+BEGIN_SRC emacs-lisp
 (use-package cider
   :hook (clojure-mode . cider-mode)
+  :bind ( :map cider-repl-mode-map
+         ("<return>" . cider-repl-newline-and-indent)
+         ("s-<return>" . cider-repl-return)
+         ("C-k" . cider-repl-previous-input)
+         ("C-j" . cider-repl-next-input))
   :defer t)
 #+END_SRC
 
 ** Typescript
+*** Pretty ts error
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package pretty-ts-errors
+  :defer t
+  :bind (:map meow-normal-state-keymap
+              ("\\e" . pretty-ts-errors-show-error-at-point))
+  :ensure (pretty-ts-errors :host github :repo "artawower/pretty-ts-errors.el")
+  :custom
+  (pretty-ts-errors-hide-on-point-move nil))
+#+END_SRC
 *** Typescript package
 #+BEGIN_SRC emacs-lisp
 (use-package typescript-ts-mode
@@ -4459,6 +4643,7 @@ Requires Emacs 30+
 #+END_SRC
 
 ** Rust
+*** COMMENT Rust language
 #+BEGIN_SRC emacs-lisp
 (use-package rustic
   :defer t
@@ -4467,6 +4652,23 @@ Requires Emacs 30+
   :custom
   (rustic-format-on-save t)
   (rustic-format-display-method 'ignore))
+#+END_SRC
+*** Rust playground
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package rust-playground :defer 8)
+#+END_SRC
+*** Cargo
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package cargo-transient 
+  :defer 10
+  :bind (:map rust-ts-mode
+              ("C-c s r" . cargo-transient)))
+#+END_SRC
+*** Rust ts mode
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package rust-ts-mode
+  :ensure nil
+  :defer 10)
 #+END_SRC
 ** Flutter
 *** Dart
@@ -4630,6 +4832,11 @@ Requires Emacs 30+
   :mode
   ("\\.csproj\\'" . nxml-mode))
 #+END_SRC
+** Justfile
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package just-ts-mode
+   :defer t)
+#+END_SRC
 * AI
 ** ECA. Agnostic code assistant
 *** Functions
@@ -4661,8 +4868,9 @@ Requires Emacs 30+
 (setq flymake-err-line-patterns nil)
 
 (use-package eca
-  :defer t
+  :defer 10
   :ensure (:type git :host github :repo "editor-code-assistant/eca-emacs" :files (:defaults "*.el"))
+  ;; :ensure (:type git :host github :repo "artawower/eca-emacs" :files (:defaults "*.el"))
   :custom
   (eca-chat-diff-tool 'ediff)
   (eca-chat-use-side-window nil)
@@ -4697,15 +4905,15 @@ Requires Emacs 30+
 
 ** Copilot
 deps
-#+BEGIN_SRC emacs-lisp
+#+BEGIN_SRC emacs-lisp :tangle no
 (use-package track-changes
   :ensure (track-changes
            :host github
            :repo "emacs-mirror/emacs"
            :branch "master"
            :files ("lisp/emacs-lisp/track-changes.el")
-           :depth 1       ;; Используем простой shallow clone
-           :inherit nil)) ;; ВАЖНО: Запрещаем слияние с рецептом GNU ELPA (Savannah)
+           :depth 1
+           :inherit nil))
 #+END_SRC
 
 #+BEGIN_SRC emacs-lisp
@@ -4878,6 +5086,20 @@ Automatically creates parent directories if needed."
   (push '("#+END_HIDDEN" . "") prettify-symbols-alist)
   (prettify-symbols-mode))
 #+END_SRC
+** Org mode, tab indent
+#+BEGIN_SRC emacs-lisp :results silent
+
+(defun my/org-indent-dwim ()
+  (interactive)
+  (when (org-in-src-block-p)
+      (org-indent-line))
+  (funcall orig-command))
+
+(define-key org-mode-map (kbd "TAB") 'my/org-indent-dwim)
+(define-key org-mode-map
+  (kbd "<tab>") #'my/org-indent-dwim)
+
+#+END_SRC
 ** Org core package
 #+BEGIN_SRC emacs-lisp
 (use-package org
@@ -4973,6 +5195,7 @@ Automatically creates parent directories if needed."
   (org-hide-emphasis-markers t)
   (org-use-property-inheritance t)
   :config
+  (require 'ob-clojure)
   (setq org-capture-templates
         `(("t" "Task → Inbox" entry
            (file ,(expand-file-name "inbox.org" my/agenda-dir))
@@ -5215,7 +5438,7 @@ Automatically creates parent directories if needed."
 My own package for publish roam files
 #+BEGIN_SRC emacs-lisp
 (use-package orgnote
-  :ensure (:host github :repo "Artawower/orgnote.el")
+  :ensure (:host github :repo "Artawower/orgnote.el" :branch "dev")
   :bind
   (("C-c n p" . orgnote-publish-file)
    ("C-c n F" . orgnote-force-sync)
@@ -5225,7 +5448,7 @@ My own package for publish roam files
    ("C-c n L" . orgnote-load))
   :custom
   (orgnote-debug-p t)
-  (orgnote-execution-script "node /Users/darkawower/projects/pet/orgnote/orgnote-cli/dist/index.js"))
+  (orgnote-execution-script "bun /Users/darkawower/projects/pet/orgnote/orgnote-cli/dist/index.js"))
 
 #+END_SRC
 
