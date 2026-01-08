@@ -1,3 +1,4 @@
+
 #+STARTUP: content
 #+DESCRIPTION: Minimalistic emacs.
 #+PROPERTY: header-args :results silent :tangle-mode (identity #o644) :mkdirp yes
@@ -850,6 +851,7 @@ Temporary disabled due to performance issues on macos
   (spacious-padding-widths '( :internal-border-width 16
                               :header-line-width 8
                               :mode-line-width 0
+                              :fringe-width 20
                               :tab-width 4
                               :scroll-bar-width 0))
   (spacious-padding-subtle-mode-line nil)
@@ -858,11 +860,28 @@ Temporary disabled due to performance issues on macos
 #+END_SRC
 
 ** Olivetti mode
+*** Function for dynamic body width
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/count-visible-windows ()
+  (length (window-list nil 'no-minibuf)))
+
+(defun my/adjust-olivetti-body-width ()
+  (when (bound-and-true-p olivetti-mode)
+    (let ((inhibit-message t)
+          (message-log-max nil))
+      (olivetti-set-width
+       (if (> (my/count-visible-windows) 1)
+           80
+         120)))))
+#+END_SRC
+*** Core olivetty package
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package olivetti
   :defer t
-  :hook ((markdown-mode org-mode text-mode) . olivetti-mode)
-  :custom (olivetti-minimum-body-width 120))
+  :hook ((markdown-mode org-mode text-mode prog-mode) . olivetti-mode)
+  :custom (olivetti-minimum-body-width 80)
+  :config (add-hook 'window-configuration-change-hook
+                    #'my/adjust-olivetti-body-width))
 #+END_SRC
 ** Auto zoom windows
 #+BEGIN_SRC emacs-lisp
@@ -2671,10 +2690,15 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
          ("C-M-r" . git-gutter:revert-hunk)
          ("C-M-s" . git-gutter:stage-hunk))
   :custom
-  (git-gutter:update-interval 2))
+  (git-gutter:update-interval 2)
+  :config
+  (setq git-gutter:added-sign " "
+      git-gutter:modified-sign " "
+      git-gutter:deleted-sign " ")
+  (setq git-gutter:window-width 1))
 #+END_SRC
 
-*** Better gitgutter fringe :ui:
+*** COMMENT Better gitgutter fringe :ui:
 #+BEGIN_SRC emacs-lisp
 (use-package git-gutter-fringe
   :config
@@ -2755,6 +2779,7 @@ Setup blamer face
 (use-package diff-hl
   :custom
   (diff-hl-draw-borders nil)
+  (diff-hl-show-staged-changes nil)
   :bind (("C-M-[" . diff-hl-previous-hunk)
          ("C-M-]" . diff-hl-next-hunk)
          ("C-M-r" . diff-hl-revert-hunk)
@@ -3557,140 +3582,6 @@ See [[https://github.com/blahgeek/emacs-lsp-booster][detail]]
 (advice-add 'lsp-resolve-final-command :around #'lsp-booster--advice-final-command)
 #+END_SRC
 
-*** COMMENT Custom vujs server
-#+BEGIN_SRC emacs-lisp
-;;;; Vue Take Over Mode via tsserver + @vue/typescript-plugin
-;;;; Paste into init.el / config.el  -*- lexical-binding: t; -*-
-
-(with-eval-after-load 'lsp-mode
-
-;; -------- USER OPTIONS --------
-(defvar my/vue-ts-plugin-location nil
-  "Absolute path to @vue/typescript-plugin directory (where package.json is).
-If nil — search automatically (project -> global -> inside @vue/language-server).")
-
-(defvar my/vue-root-markers
-  '("pnpm-workspace.yaml" "yarn.lock" "bun.lockb" "package.json"
-    "tsconfig.json" "jsconfig.json" ".git")
-  "Files/folders to determine project root.")
-
-(setq lsp-auto-guess-root t
-      lsp-enable-file-watchers t
-      lsp-clients-typescript-max-ts-server-memory 4096)
-
-(require 'lsp-mode)
-(require 'subr-x)
-
-;; -------- helpers --------
-(defun my/trim (s) (string-trim (or s "")))
-
-(defun my/vue-project-root ()
-  (or (when (fboundp 'project-current)
-        (when-let* ((pr (project-current nil))) (car (project-roots pr))))
-      (when (fboundp 'lsp-workspace-root) (lsp-workspace-root))
-      default-directory))
-
-(defun my/find-up (start markers)
-  (seq-some (lambda (m)
-              (let ((dir (locate-dominating-file start m)))
-                (when dir (expand-file-name dir))))
-            markers))
-
-(defun my/vue-find-root ()
-  (or (my/find-up (or buffer-file-name default-directory) my/vue-root-markers)
-      (file-name-directory (or buffer-file-name default-directory))
-      default-directory))
-
-(defun my/vue-find-plugin-in-project ()
-  (when-let* ((root (my/vue-project-root))
-              (nm   (locate-dominating-file root "node_modules")))
-    (let* ((p1 (expand-file-name "node_modules/@vue/typescript-plugin" nm))
-           (p2 (expand-file-name "node_modules/@vue/language-server/node_modules/@vue/typescript-plugin" nm)))
-      (cond ((file-exists-p p1) p1)
-            ((file-exists-p p2) p2)))))
-
-(defun my/npm-root-global ()
-  (when-let* ((npm (executable-find "npm")))
-    (my/trim (with-temp-buffer
-               (ignore-errors (call-process npm nil t nil "root" "-g"))
-               (buffer-string)))))
-
-(defun my/vue-find-plugin-global ()
-  (when-let* ((root (my/npm-root-global)))
-    (let* ((p1 (expand-file-name "@vue/typescript-plugin" root))
-           (p2 (expand-file-name "@vue/language-server/node_modules/@vue/typescript-plugin" root)))
-      (cond ((file-exists-p p1) p1)
-            ((file-exists-p p2) p2)))))
-
-(defun my/vue-plugin-location ()
-  (or my/vue-ts-plugin-location
-      (my/vue-find-plugin-in-project)
-      (my/vue-find-plugin-global)))
-
-(defun my/vue-plugins-vector ()
-  (let ((loc (my/vue-plugin-location)))
-    (unless (and loc (file-exists-p loc))
-      (message "[vue-takeover] WARN: @vue/typescript-plugin not found. Set `my/vue-ts-plugin-location` or install it."))
-    (vector (list :name "@vue/typescript-plugin"
-                  :location (or loc (my/vue-project-root))
-                  :languages ["vue"]))))
-
-;; -------- language-ids & tsserver defaults --------
-(with-eval-after-load 'lsp-mode
-  ;; *.vue should have id "vue"
-  (dolist (pair '((vue-ts-mode . "vue") (vue-mode . "vue") (web-mode . "vue")))
-    (add-to-list 'lsp-language-id-configuration pair))
-  ;; ensure TS/JS mapping
-  (dolist (pair '((typescript-mode     . "typescript")
-                  (typescript-ts-mode  . "typescript")
-                  (tsx-ts-mode         . "typescriptreact")
-                  (js-mode             . "javascript")
-                  (js2-mode            . "javascript")
-                  (js-ts-mode          . "javascript")
-                  (rjsx-mode           . "javascriptreact")))
-    (add-to-list 'lsp-language-id-configuration pair)))
-
-(with-eval-after-load 'lsp-javascript
-  (setq lsp-clients-typescript-prefer-use-project-ts-server t
-        lsp-clients-typescript-plugins (my/vue-plugins-vector)))
-
-;; -------- Vue buffers: start ts-ls, disable Volar/VLS --------
-(defun my/vue-buffer-p ()
-  (and buffer-file-name (string-equal (file-name-extension buffer-file-name) "vue")))
-
-(defun my/disable-vue-servers ()
-  (setq-local lsp-disabled-clients '(vue-semantic-server volar vls vetur-ls)))
-
-(with-eval-after-load 'lsp-mode
-  (lsp-register-client
-   (make-lsp-client
-    :new-connection (lsp-stdio-connection '("typescript-language-server" "--stdio"))
-    :server-id 'ts-ls-vue
-    :multi-root t
-    :priority -1
-    :add-on? nil
-    :activation-fn (lambda (&rest _) (my/vue-buffer-p))
-    :initialization-options (lambda ()
-                              (list :plugins (vconcat (or lsp-clients-typescript-plugins
-                                                          (my/vue-plugins-vector)))))
-    :language-id "vue"))
-
-  (defun my/vue-ensure-lsp ()
-    (when (my/vue-buffer-p)
-      (my/disable-vue-servers)
-      (let* ((root (my/vue-find-root))
-             (tru-root (file-truename root))
-             (session (lsp-session)))
-        (unless (seq-some (lambda (f) (string-equal (file-truename f) tru-root))
-                          (lsp-session-folders session))
-          (lsp-workspace-folders-add tru-root))
-        (let ((default-directory tru-root))
-          (lsp-deferred)))))
-
-  (dolist (hook '(vue-ts-mode-hook vue-mode-hook web-mode-hook))
-    (add-hook hook #'my/vue-ensure-lsp)))
-)
-#+END_SRC
 *** Tailwind css
 #+BEGIN_SRC emacs-lisp
 (use-package lsp-tailwindcss
@@ -3795,7 +3686,7 @@ Installation instructions:
   :config
   (add-hook 'lsp-biome-active-hook #'my/lsp-biome-active-hook))
 #+END_SRC
-** COMMENT Flycheck
+** Flycheck
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
@@ -3876,143 +3767,184 @@ Installation instructions:
 https://github.com/konrad1977/flyover
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package flyover
-  :ensure (flyover :host github :repo "konrad1977/flyover")
-  :config
-  (add-hook 'flycheck-mode-hook #'flyover-mode)
-  ;; Use theme colors for error/warning/info faces
-  (setq flyover-use-theme-colors t)
+  :hook ((flycheck-mode . flyover-mode)
+         (flymake-mode . flyover-mode))
+  :custom
+  ;; Checker settings
+  (flyover-checkers '(flycheck flymake))
+  (flyover-levels '(error warning info))
 
-  ;; Adjust background lightness (lower values = darker)
-  (setq flyover-background-lightness 85)
+  ;; Appearance
+  (flyover-use-theme-colors t)
+  (flyover-background-lightness 45)
+  (flyover-percent-darker 40)
+  (flyover-text-tint 'lighter)
+  (flyover-text-tint-percent 50)
 
-  ;; Make icon background darker than foreground
-  (setq flyover-percent-darker 15)
+  ;; Icons
+  (flyover-info-icon " ")
+  (flyover-warning-icon " ")
+  (flyover-error-icon " ")
 
-  (setq flyover-text-tint 'lighter) ;; or 'darker or nil
+  ;; Border styles: none, pill, arrow, slant, slant-inv, flames, pixels
+  (flyover-border-style 'none)
+  (flyover-border-match-icon t)
 
-  ;; "Percentage to lighten or darken the text when tinting is enabled."
-  (setq flyover-text-tint-percent 50)
-  ;; Choose which checkers to use (flycheck, flymake, or both)
-  (setq flyover-checkers '(flycheck flymake))
+  ;; Display settings
+  (flyover-hide-checker-name t)
+  (flyover-show-virtual-line t)
+  (flyover-virtual-line-type 'curved-dotted-arrow)
+  (flyover-line-position-offset 1)
 
-  ;; Enable debug messages
-  (setq flyover-debug nil)
-  ;; Time in seconds to wait before checking and displaying errors after a change
-  (setq flyover-debounce-interval 0.2)
-  ;; Number of lines below the error line to display the overlay
-  ;; Default is 1 (next line), set to 0 for same line, 2 for two lines below, etc.
-  (setq flyover-line-position-offset 1)
-  ;;; Icons
-  (setq flyover-info-icon "")
-  (setq flyover-warning-icon "⚠")
-  (setq flyover-error-icon "✘")
+  ;; Message wrapping
+  (flyover-wrap-messages t)
+  (flyover-max-line-length 80)
 
-  (setq flyover-show-at-eol nil)
-  (setq flyover-hide-when-cursor-is-on-same-line t)
-  (setq flyover-hide-checker-name t)
-  (setq flyover-show-virtual-line nil)
+  ;; Performance
+  (flyover-debounce-interval 0.2)
+  (flyover-cursor-debounce-interval 0.3)
 
-;;; Icon padding
+  ;; Icon
 
-;;; You might want to adjust this setting if you icons are not centererd or if you more or less space.fs
-  (setq flyover-icon-left-padding 0.9)
-  (setq flyover-icon-right-padding 0.9)
-  (custom-set-faces
-   '(flyover-error
-     ((t :background "#453246"
-         :foreground "#ea8faa"
-         :height 1
-         :weight normal)))
+  (flyover-info-icon "🛈")
+  (flyover-warning-icon "⚠")
+  (flyover-error-icon "✘")
 
-   '(flyover-warning
-     ((t :background "#331100"
-         :foreground "#DCA561"
-         :height 1
-         :weight normal)))
-
-   '(flyover-info
-     ((t :background "#374243"
-         :foreground "#a8e3a9"
-         :height 1
-         :weight normal)))))
+  ;; Display mode (controls cursor-based visibility)
+  (flyover-display-mode 'show-only-on-same-line))
 #+End_Src
 *** COMMENT Consult flycheck
 #+BEGIN_SRC emacs-lisp
 (use-package consult-flycheck
   :after consult)
 #+END_SRC
+*** Flyckec posframe
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flycheck-posframe
+  :after flycheck
+  :hook (flycheck-mode . flycheck-posframe-mode)
+  :custom
+  (flycheck-posframe-position 'window-top-right-corner)
+  :config
+  (set-face-attribute 'flycheck-posframe-error-face nil :inherit 'error)
+  (setq flycheck-posframe-warning-prefix "\u26a0 "))
+#+END_SRC
 
 ** Lsp (Eglot)
+*** Rassumfrassum - LSP multiplexer
+[[https://github.com/joaotavora/rassumfrassum][rassumfrassum]] connects multiple LSP servers to one client.
+
+#+BEGIN_SRC shell :tangle no
+pip install rassumfrassum
+npm install -g typescript-language-server vscode-langservers-extracted
+#+END_SRC
+
+**** Angular/TypeScript preset
+Create =~/.config/rassumfrassum/angular.py=:
+#+BEGIN_SRC python :tangle ~/.config/rassumfrassum/angular.py
+"""Angular/TypeScript preset: typescript-language-server + eslint."""
+
+def servers():
+    return [
+        ['typescript-language-server', '--stdio'],
+        ['vscode-eslint-language-server', '--stdio'],
+    ]
+#+END_SRC
+
+*** Eglot boosted
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eglot-booster
+	:ensure ( eglot-booster :type git :host nil :repo "https://github.com/jdtsmith/eglot-booster")
+	:after eglot
+	:config (eglot-booster-mode))
+#+END_SRC
+*** Eglot flycheck
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flycheck-eglot
+  :after (flycheck eglot)
+  :config
+  (global-flycheck-eglot-mode 1))
+#+END_SRC
+
+*** COMMENT Flycheck sidelined
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package sideline
+  :hook (flycheck-mode . sideline-mode)
+  :init
+  (setq flycheck-display-errors-function nil)
+  (setq sideline-backends-right '(sideline-flycheck)))
+
+(use-package sideline-flycheck :hook (flycheck-mode . sideline-flycheck-setup))
+#+END_SRC
 *** Eglot package
- [[https://github.com/joaotavora/eglot/issues/257][Vue js configuration example]]
- Eglot is unused right now. Because it has lack of debugger functionality
 #+BEGIN_SRC emacs-lisp
 (use-package eglot
   :ensure nil
   :defer t
   :bind (("C-c g i" . eglot-find-implementation)
-         ;; find reference
          ("C-c l r" . eglot-rename)
          ("C-c r l" . eglot)
+         ("C-c l i" . eglot-find-implementation)
+         ("C-c l d" . eglot-find-typeDefinition)
          ("C-c l f" . xref-find-references)
          :map meow-normal-state-keymap
+         ("\\i" . my/eglot-toggle-inlay-hints)
          ("\\l" . eglot-code-actions))
   :hook
-  ((web-mode
-    ng2-mode
-    typescript-ts-mode
+  ((typescript-ts-mode
+    tsx-ts-mode
+    js-ts-mode
+    ng2-ts-mode
     python-ts-mode
-    html-ts-mode
-    html-mode
     go-ts-mode
-    vue-mode
-    python-ts-mode
-    yaml-mode
-    ng2-ts-mode) . eglot-ensure)
+    vue-ts-mode) . eglot-ensure)
   :custom
   (eglot-confirm-server-initiated-edits nil)
-  :config                               ;
-  (add-to-list 'eglot-server-programs '(ng2-mode . ("typescript-language-server" "--stdio")))
-  (add-to-list 'eglot-server-programs '(python-mode . ("pyright-langserver" "--stdio")))
-  ;; Volar
+  (eglot-events-buffer-config '(:size 0 :format nil))
+  :config
+
+  (defun my/eglot-disable-inline-hints ()
+    "Disable inline hints in eglot."
+    (when (bound-and-true-p eglot-inlay-hints-mode)
+      (eglot-inlay-hints-mode -1)))
+
+  (add-hook 'eglot-managed-mode-hook #'my/eglot-disable-inline-hints)
+  (add-to-list 'eglot-server-programs
+               '((typescript-ts-mode tsx-ts-mode js-ts-mode ng2-ts-mode)
+                 . ("typescript-language-server" "--stdio")))
+
+  ;; https://github.com/joaotavora/eglot/discussions/1184
+  (defun my/vue-eglot-init-options ()
+    (let* ((root (when (project-current) (project-root (project-current))))
+           (local (when root (expand-file-name "node_modules/typescript/lib" root)))
+           (global (expand-file-name "~/.volta/tools/image/packages/typescript/lib/node_modules/typescript/lib"))
+           (tsdk (if (and local (file-exists-p (expand-file-name "typescript.js" local))) local global)))
+      `(:typescript (:tsdk ,tsdk) :vue (:hybridMode :json-false))))
 
   (add-to-list 'eglot-server-programs
-               `(vue-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
-  (add-to-list 'eglot-server-programs
-               `(vue-ts-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+               `(vue-ts-mode . ("vue-language-server" "--stdio"
+                                :initializationOptions ,(my/vue-eglot-init-options))))
 
-
+  ;; Python via rassumfrassum
   (add-to-list 'eglot-server-programs
-               `(web-mode . ("vue-language-server" "--stdio" :initializationOptions ,(vue-eglot-init-options))))
+               '(python-ts-mode . ("rass" "python")))
 
-
+  ;; Go (single server, no rass needed)
   (add-to-list 'eglot-server-programs
-               '(html-mode "node"
-                           "/opt/homebrew/lib/node_modules/@angular/language-server"
-                           "--ngProbeLocations"
-                           "/opt/homebrew/lib/node_modules"
-                           "--tsProbeLocations"
-                           "/opt/homebrew/lib/node_modules"
-                           "--stdio"))
-
-  (add-to-list 'eglot-server-programs
-               '(html-ts-mode "node"
-                              "/opt/homebrew/lib/node_modules/@angular/language-server"
-                              "--ngProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--tsProbeLocations"
-                              "/opt/homebrew/lib/node_modules"
-                              "--stdio"))
-  (add-to-list 'eglot-server-programs
-               '(ng2-html-mode "node"
-                               "/opt/homebrew/lib/node_modules/@angular/language-server"
-                               "--ngProbeLocations"
-                               "/opt/homebrew/lib/node_modules"
-                               "--tsProbeLocations"
-                               "/opt/homebrew/lib/node_modules"
-                               "--stdio")))
+               '(go-ts-mode . ("gopls"))))
 #+END_SRC
-** Flymake
+
+*** Toggle eglot inline hints
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/eglot-toggle-inlay-hints ()
+  "Toggle eglot inlay hints."
+  (interactive)
+  (if (fboundp 'eglot-inlay-hints-mode)
+      (eglot-inlay-hints-mode (if eglot-inlay-hints-mode -1 1))
+    (user-error "Eglot is not loaded")))
+#+END_SRC
+
+** COMMENT Flymake
 *** Functions
 **** Flymake, copy errors
 #+BEGIN_SRC emacs-lisp
@@ -4050,7 +3982,7 @@ https://github.com/konrad1977/flyover
         (message "Copied %d Flymake diagnostics from %s" (length diags) header)))))
 #+END_SRC
 
-*** Flymake, lsp mode patch
+*** COMMENT Flymake, lsp mode patch
 #+NAME: lsp-flymake-patch
 #+BEGIN_SRC emacs-lisp  :tangle no
 (defun my/lsp-diagnostics--flymake-update-diagnostics ()
@@ -4085,12 +4017,6 @@ https://github.com/konrad1977/flyover
 (advice-add #'lsp-diagnostics--flymake-update-diagnostics
               :override #'my/lsp-diagnostics--flymake-update-diagnostics)
 #+END_SRC
-*** Patches
-Patch
-# #+BEGIN_SRC emacs-lisp :results silent
-# (setq flymake-allowed-file-name-masks nil)
-# (setq flymake-err-line-patterns nil)
-# #+END_SRC
 *** Core Package
 #+BEGIN_SRC emacs-lisp  :noweb yes
 (use-package flymake
@@ -4105,19 +4031,49 @@ Patch
    ("C-c e C" . my/flymake-kill-errors))
   :hook
   (prog-mode . flymake-mode)
+  (flymake-timer )
   (flymake-diagnostics-buffer-mode . meow-normal-mode)
+  (flymake-no-changes-timeout 0.5)
+  (flymake-start-on-flymake-mode t)
+  (flymake-start-on-save-buffer t)
+  (flymake-start-on-newline t)
   :config
   (setq lsp-diagnostics-provider :flymake)
-  (setq flymake-show-diagnostics-at-end-of-line nil)
+  ;; (setq flymake-show-diagnostics-at-end-of-line nil)
 
-  <<lsp-flymake-patch>>
-  (setq flymake-start-on-flymake-mode t
-        flymake-start-on-save-buffer t
-        flymake-start-on-newline t
-        flymake-no-changes-timeout 0.1)
-
-  )
+  ;; <<lsp-flymake-patch>>
+  (defun my/inhibit-message-advice (orig-fn &rest args)
+    "Prevent display messag en the echo area!"
+    (let ((inhibit-message t))
+      (apply orig-fn args)))
+  
+  (advice-add 'flymake-goto-next-error :around #'my/inhibit-message-advice)
+  (advice-add 'flymake-goto-prev-error :around #'my/inhibit-message-advice))
 #+END_SRC
+*** Flymake sideline UI
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package sideline-flymake
+  :hook (flymake-mode . sideline-mode)
+  :init
+  (setq sideline-flymake-display-mode 'point
+        sideline-backends-right '(sideline-flymake))
+  :config
+  (setq sideline-delay 0.5)
+  (setq sideline-inhibit-display-function
+        (lambda ()
+          (or (minibufferp)
+              (region-active-p)))))
+#+END_SRC
+
+#+END_SRC
+*** Flymake, eslint
+ESLint via flymake-eslint (separate from LSP, since vscode-eslint-language-server uses pull diagnostics which Eglot doesn't support)
+#+BEGIN_SRC emacs-lisp
+(use-package flymake-jsts
+  :ensure '(flymake-jsts :type git :host github :repo "orzechowskid/flymake-jsts" :branch "main")
+  :hook (eglot-managed-mode . flymake-jsts-eslint-enable))
+#+END_SRC
+
 *** Flymake, stylelint
 #+BEGIN_SRC emacs-lisp
 (use-package flymake-stylelint
@@ -4133,14 +4089,50 @@ Patch
   (setq flymake-stylelint-executable "stylelint"))
 #+END_SRC
 ** Eldoc
+*** Toggle eldoc buffer
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/toggle-eldoc-buffer ()
+  "Toggle Eldoc documentation buffer."
+  (interactive)
+  (let ((buf (get-buffer "*eldoc*")))
+    (if (and buf (get-buffer-window buf))
+        (delete-windows-on buf)
+      (eldoc-doc-buffer t))))
+#+END_SRC
+*** Main package
 #+BEGIN_SRC emacs-lisp
 (use-package eldoc
   :ensure nil
+  :commands (my/toggle-eldoc-buffer)
+  :bind ( :map meow-normal-state-keymap 
+          ("\\b" . my/toggle-eldoc-buffer))
   :custom
-  (eldoc-idle-delay 0)
+  (eldoc-echo-area-use-multiline-p nil)
+  (eldoc-echo-area-display-truncation-message nil)
+  (eldoc-idle-delay 0.3)
   :config
-  (setq eldoc-message-function (lambda (&rest params) nil))
+  (setq-default eldoc-display-functions '(eldoc-display-in-buffer))
+  (advice-add 'eldoc-display-in-echo-area :override #'ignore)
+  (add-to-list
+   'display-buffer-alist
+   '("*eldoc*"
+     (my/display-buffer-right-smart)
+     (select . nil)
+     (window-width . 0.4)))
   (global-eldoc-mode))
+#+END_SRC
+*** Better eldoc UI
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package eldoc-box
+  :bind (:map meow-normal-state-keymap
+              ("\\h" . eldoc-box-help-at-point))
+  :custom-face
+  (eldoc-box-border ((t (:background unspecified :inherit default))))
+  :config
+  (setf (alist-get 'internal-border-width eldoc-box-frame-parameters) 15)
+  (setf (alist-get 'left-fringe eldoc-box-frame-parameters) 10)
+  (setf (alist-get 'right-fringe eldoc-box-frame-parameters) 10)
+  (add-hook 'eldoc-box-buffer-setup-hook #'eldoc-box-prettify-ts-errors 0 t))
 #+END_SRC
 
 ** Compilation
@@ -4651,7 +4643,9 @@ Requires Emacs 30+
               ("C-c C-c s" . lsp-rust-analyzer-status))
   :custom
   (rustic-format-on-save t)
-  (rustic-format-display-method 'ignore))
+  (rustic-format-display-method 'ignore)
+  :config
+  (setenv "CARGO_TERM_COLOR" "never"))
 #+END_SRC
 *** Rust playground
 #+BEGIN_SRC emacs-lisp :results silent
@@ -4661,8 +4655,8 @@ Requires Emacs 30+
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package cargo-transient 
   :defer 10
-  :bind (:map rust-ts-mode
-              ("C-c s r" . cargo-transient)))
+  :bind ( :map rust-ts-mode-map
+          ("C-c s r" . cargo-transient)))
 #+END_SRC
 *** Rust ts mode
 #+BEGIN_SRC emacs-lisp :results silent
@@ -4738,10 +4732,9 @@ Requires Emacs 30+
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package markdown-mode
   :mode (("\\.md\\'" . markdown-mode)
-         ("\\.markdown\\'" . markdown-mode)))
-  ;; :hook
-  ;; (markdown-mode . #'outline-minor-mode)
-;; )
+         ("\\.markdown\\'" . markdown-mode))
+  :config
+  (setq markdown-fontify-code-blocks-natively nil))
 #+END_SRC
 *** Realtime preview
 #+BEGIN_SRC emacs-lisp
@@ -5088,12 +5081,11 @@ Automatically creates parent directories if needed."
 #+END_SRC
 ** Org mode, tab indent
 #+BEGIN_SRC emacs-lisp :results silent
-
 (defun my/org-indent-dwim ()
   (interactive)
-  (when (org-in-src-block-p)
-      (org-indent-line))
-  (funcall orig-command))
+  (if (org-in-src-block-p)
+      (org-indent-line)
+    (org-cycle)))
 
 (define-key org-mode-map (kbd "TAB") 'my/org-indent-dwim)
 (define-key org-mode-map
