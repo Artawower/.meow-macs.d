@@ -2688,17 +2688,20 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
   :bind (("C-M-[" . git-gutter:previous-hunk)
          ("C-M-]" . git-gutter:next-hunk)
          ("C-M-r" . git-gutter:revert-hunk)
-         ("C-M-s" . git-gutter:stage-hunk))
+         ("C-M-s" . git-gutter:stage-hunk)
+         :map meow-normal-state-keymap
+         ("g]" . git-gutter:next-hunk)
+         ("g[" . git-gutter:previous-hunk))
   :custom
   (git-gutter:update-interval 2)
   :config
   (setq git-gutter:added-sign " "
-      git-gutter:modified-sign " "
-      git-gutter:deleted-sign " ")
+        git-gutter:modified-sign " "
+        git-gutter:deleted-sign " ")
   (setq git-gutter:window-width 1))
 #+END_SRC
 
-*** COMMENT Better gitgutter fringe :ui:
+*** Better gitgutter fringe :ui:
 #+BEGIN_SRC emacs-lisp
 (use-package git-gutter-fringe
   :config
