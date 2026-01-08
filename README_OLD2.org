@@ -5009,12 +5009,23 @@ Improved styles for git changes
 ** Diff hl
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package diff-hl
-  :ensure nil
+  :custom
+  (diff-hl-draw-borders nil)
+  (diff-hl-show-staged-changes nil)
+  :bind (("C-M-[" . diff-hl-previous-hunk)
+         ("C-M-]" . diff-hl-next-hunk)
+         ("C-M-r" . diff-hl-revert-hunk)
+         ("C-M-s" . diff-hl-stage-current-hunk))
   :config
-  (set-face-attribute 'diff-added nil :extend t :background "light green")
-  (set-face-attribute 'diff-removed nil :extend t :background "tomato")
-  (set-face-attribute 'diff-refine-added nil :extend t :background "light green" :inherit 'diff-added)
-  (set-face-attribute 'diff-refine-removed nil :extend t :background "tomato" :inherit 'diff-removed))
+  (setq diff-hl-show-staged-changes nil)
+  (setq diff-hl-update-async t)
+  (setq diff-hl-margin-symbols-alist
+        '((insert . " ")
+          (delete . " ")
+          (change . " ")))
+  (setq diff-hl-margin-width 1)
+  (global-diff-hl-mode)
+  (diff-hl-margin-mode))
 #+END_SRC
 
 ** Ediff

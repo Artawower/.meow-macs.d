@@ -2702,9 +2702,23 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
 #+BEGIN_SRC emacs-lisp
 (use-package git-gutter-fringe
   :config
-  (define-fringe-bitmap 'git-gutter-fr:added [224] nil nil '(center repeated))
-  (define-fringe-bitmap 'git-gutter-fr:modified [224] nil nil '(center repeated))
-  (define-fringe-bitmap 'git-gutter-fr:deleted [128 192 224 240] nil nil 'bottom))
+  (require 'cl-lib)
+  (defmacro git-gutter-fr-define-glyph (count pattern)
+    `(progn
+       ,@(cl-loop
+          for kind in '(added modified deleted)
+          collect
+          `(fringe-helper-define
+             ',(intern (format "git-gutter-fr:%s" kind))
+             nil
+             ,@(cl-loop repeat count collect pattern)))))
+
+
+  (git-gutter-fr-define-glyph 30 "XX......"))
+;; :config
+;; (define-fringe-bitmap 'git-gutter-fr:added [224] nil nil '(center repeated))
+;; (define-fringe-bitmap 'git-gutter-fr:modified [224] nil nil '(center repeated))
+;; (define-fringe-bitmap 'git-gutter-fr:deleted [128 192 224 240] nil nil 'bottom))
 #+END_SRC
 
 ** Blamer
@@ -2771,29 +2785,6 @@ Setup blamer face
 
   (setq blamer-bindings '(("<mouse-3>" . blamer-callback-open-remote)
                           ("<mouse-1>" . blamer-callback-show-commit-diff))))
-#+END_SRC
-
-** COMMENT Diff hl
-#+BEGIN_SRC emacs-lisp
-;; Diff faces customization - relying on theme for colors
-(use-package diff-hl
-  :custom
-  (diff-hl-draw-borders nil)
-  (diff-hl-show-staged-changes nil)
-  :bind (("C-M-[" . diff-hl-previous-hunk)
-         ("C-M-]" . diff-hl-next-hunk)
-         ("C-M-r" . diff-hl-revert-hunk)
-         ("C-M-s" . diff-hl-stage-current-hunk))
-  :config
-  (setq diff-hl-show-staged-changes nil)
-  (setq diff-hl-update-async t)
-  (setq diff-hl-margin-symbols-alist
-        '((insert . " ")
-          (delete . " ")
-          (change . " ")))
-  (setq diff-hl-margin-width 1)
-  (global-diff-hl-mode)
-  (diff-hl-margin-mode))
 #+END_SRC
 
 ** Ediff
