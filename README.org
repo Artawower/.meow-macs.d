@@ -2751,6 +2751,7 @@ Setup blamer face
 #+BEGIN_SRC emacs-lisp
 (use-package blamer
   :defer t
+  :ensure (:host github :repo "artawower/blamer.el" :branch "fix/async-overlays")
   :hook
   (prog-mode . blamer-mode)
   (meow-insert-mode . my/disable-blamer-mode)
@@ -3818,7 +3819,7 @@ https://github.com/konrad1977/flyover
   :after flycheck
   :hook (flycheck-mode . flycheck-posframe-mode)
   :custom
-  (flycheck-posframe-position 'window-top-right-corner)
+  (flycheck-posframe-position 'window-bottom-right-corner)
   :config
   (set-face-attribute 'flycheck-posframe-error-face nil :inherit 'error)
   (setq flycheck-posframe-warning-prefix "\u26a0 "))
@@ -4629,6 +4630,16 @@ Requires Emacs 30+
 #+END_SRC
 
 ** Rust
+*** Quick jump to documentation
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/rust-std-docs-open ()
+  "Get the type under cursor and open the browser with documentation for this type."
+  (interactive)
+  (let ((symbol (thing-at-point 'symbol t)))
+    (if symbol
+        (browse-url (format "https://doc.rust-lang.org/std/?search=%s" symbol))
+      (browse-url "https://doc.rust-lang.org/std/"))))
+#+END_SRC
 *** COMMENT Rust language
 #+BEGIN_SRC emacs-lisp
 (use-package rustic
@@ -4637,6 +4648,7 @@ Requires Emacs 30+
               ("C-c C-c s" . lsp-rust-analyzer-status))
   :custom
   (rustic-format-on-save t)
+  (rustic-lsp-client 'eglot)
   (rustic-format-display-method 'ignore)
   :config
   (setenv "CARGO_TERM_COLOR" "never"))
@@ -5182,6 +5194,8 @@ Automatically creates parent directories if needed."
   (org-use-property-inheritance t)
   :config
   (require 'ob-clojure)
+  (add-to-list 'org-src-lang-modes
+               '("rust" . rust-ts))
   (setq org-capture-templates
         `(("t" "Task → Inbox" entry
            (file ,(expand-file-name "inbox.org" my/agenda-dir))
