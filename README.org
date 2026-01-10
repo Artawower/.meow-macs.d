@@ -888,7 +888,7 @@ Temporary disabled due to performance issues on macos
 (use-package zoom
   :defer t
   :bind (("C-c z m" . zoom-mode))
-  ;; :custom
+  :custom
   (zoom-size '(0.618 . 0.618))
   ;; (zoom-ignored-buffer-name-regexps '("^\\*calc" "^\\*vterm" "^\\*combobulate-query-builder" "^\\*dape" "^\\*claude" "^\\*Ediff" "<eca-chat"))
   ;; (zoom-ignored-major-modes '(dired-mode markdown-mode vterm-mode claude-code-prompt-mode ediff-mode eca-mode eca-chat-mode))
@@ -1855,10 +1855,11 @@ Bookmark for navigation inside file
 #+BEGIN_SRC emacs-lisp
 (use-package bm
   :defer t
-  ;; :custom-face
-  ;; (bm-face ((t (:inherit font-lock-builtin-face :background unspecified))))
+  :custom-face
+  (bm-face ((t (:inherit font-lock-warning-face :background unspecified))))
   :custom
   (bm-in-lifo-order t)
+  (bm-highlight-fringe 'bm-highlight-line-and-fringe)
   :bind (("M-s-n" . bm-next)
          ("M-s-p" . bm-previous)
          ("s-b" . bm-toggle)
@@ -2705,7 +2706,9 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
 #+BEGIN_SRC emacs-lisp
 (use-package git-gutter-fringe
   :config
+  (git-gutter-mode 1)
   (require 'cl-lib)
+
   (defmacro git-gutter-fr-define-glyph (count pattern)
     `(progn
        ,@(cl-loop
@@ -2716,12 +2719,7 @@ Allow to transform PASCAL_CASE -> camelCase -> snake_case
              nil
              ,@(cl-loop repeat count collect pattern)))))
 
-
-  (git-gutter-fr-define-glyph 30 "XX......"))
-;; :config
-;; (define-fringe-bitmap 'git-gutter-fr:added [224] nil nil '(center repeated))
-;; (define-fringe-bitmap 'git-gutter-fr:modified [224] nil nil '(center repeated))
-;; (define-fringe-bitmap 'git-gutter-fr:deleted [128 192 224 240] nil nil 'bottom))
+  (git-gutter-fr-define-glyph 30 "XX...."))
 #+END_SRC
 
 ** Blamer
@@ -3681,7 +3679,7 @@ Installation instructions:
   :config
   (add-hook 'lsp-biome-active-hook #'my/lsp-biome-active-hook))
 #+END_SRC
-** Flycheck
+** COMMENT Flycheck
 *** Core package
 #+BEGIN_SRC emacs-lisp
 (use-package flycheck
@@ -3696,6 +3694,8 @@ Installation instructions:
   :init
   (global-flycheck-mode)
   :custom
+  ;; Sometimes the macos emacs version is very laggy with fringes ;C
+  (flycheck-indication-mode nil)
   (flycheck-display-errors-delay 0)
   (flycheck-mode-line nil)
   (flycheck-check-syntax-automatically '(save idle-change new-line mode-enabled))
@@ -3853,7 +3853,7 @@ def servers():
 	:after eglot
 	:config (eglot-booster-mode))
 #+END_SRC
-*** Eglot flycheck
+*** COMMENT Eglot flycheck
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package flycheck-eglot
   :after (flycheck eglot)
@@ -3871,7 +3871,7 @@ def servers():
 
 (use-package sideline-flycheck :hook (flycheck-mode . sideline-flycheck-setup))
 #+END_SRC
-*** Eglot package
+*** Eglot, core package
 #+BEGIN_SRC emacs-lisp
 (use-package eglot
   :ensure nil
@@ -3890,6 +3890,7 @@ def servers():
     tsx-ts-mode
     js-ts-mode
     ng2-ts-mode
+    rust-ts-mode
     python-ts-mode
     go-ts-mode
     vue-ts-mode) . eglot-ensure)
@@ -3926,7 +3927,11 @@ def servers():
 
   ;; Go (single server, no rass needed)
   (add-to-list 'eglot-server-programs
-               '(go-ts-mode . ("gopls"))))
+               '(go-ts-mode . ("gopls")))
+
+  ;; Rust
+  (add-to-list 'eglot-server-programs
+               '((rust-ts-mode rust-mode) . ("rust-analyzer"))))
 #+END_SRC
 
 *** Toggle eglot inline hints
@@ -3939,7 +3944,7 @@ def servers():
     (user-error "Eglot is not loaded")))
 #+END_SRC
 
-** COMMENT Flymake
+** Flymake
 *** Functions
 **** Flymake, copy errors
 #+BEGIN_SRC emacs-lisp
@@ -4013,9 +4018,8 @@ def servers():
               :override #'my/lsp-diagnostics--flymake-update-diagnostics)
 #+END_SRC
 *** Core Package
-#+BEGIN_SRC emacs-lisp  :noweb yes
+#+BEGIN_SRC emacs-lisp
 (use-package flymake
-  :defer 10
   :ensure nil
   :bind
   (("C-j" . flymake-goto-next-error)
@@ -4026,8 +4030,8 @@ def servers():
    ("C-c e C" . my/flymake-kill-errors))
   :hook
   (prog-mode . flymake-mode)
-  (flymake-timer )
   (flymake-diagnostics-buffer-mode . meow-normal-mode)
+  :custom
   (flymake-no-changes-timeout 0.5)
   (flymake-start-on-flymake-mode t)
   (flymake-start-on-save-buffer t)
@@ -4045,7 +4049,7 @@ def servers():
   (advice-add 'flymake-goto-next-error :around #'my/inhibit-message-advice)
   (advice-add 'flymake-goto-prev-error :around #'my/inhibit-message-advice))
 #+END_SRC
-*** Flymake sideline UI
+*** COMMENT Flymake sideline UI
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package sideline-flymake
   :hook (flymake-mode . sideline-mode)
@@ -4060,6 +4064,12 @@ def servers():
               (region-active-p)))))
 #+END_SRC
 
+*** Flymake posframe
+#+BEGIN_SRC emacs-lisp :results silent
+(use-package flymake-posframe
+  :defer 10
+  :hook (flymake-mode . flymake-posframe-mode)
+  :ensure (flymake-posframe :host github :repo "Ladicle/flymake-posframe"))
 #+END_SRC
 *** Flymake, eslint
 ESLint via flymake-eslint (separate from LSP, since vscode-eslint-language-server uses pull diagnostics which Eglot doesn't support)
@@ -4098,13 +4108,13 @@ ESLint via flymake-eslint (separate from LSP, since vscode-eslint-language-serve
 #+BEGIN_SRC emacs-lisp
 (use-package eldoc
   :ensure nil
-  :commands (my/toggle-eldoc-buffer)
-  :bind ( :map meow-normal-state-keymap 
-          ("\\b" . my/toggle-eldoc-buffer))
+  :after meow
+  :bind (:map meow-normal-state-keymap
+              ("\\b" . my/toggle-eldoc-buffer))
   :custom
   (eldoc-echo-area-use-multiline-p nil)
   (eldoc-echo-area-display-truncation-message nil)
-  (eldoc-idle-delay 0.3)
+  (eldoc-idle-delay 0.7)
   :config
   (setq-default eldoc-display-functions '(eldoc-display-in-buffer))
   (advice-add 'eldoc-display-in-echo-area :override #'ignore)
@@ -4348,6 +4358,7 @@ By default ~compile-goto-error~ open new window. It's redundant.
 Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
 #+BEGIN_SRC emacs-lisp
 (use-package dape
+  :demand t
   :ensure (dape :type git :host github :repo "svaante/dape")
   :bind (("C-c d d" . dape)
          ("C-c d n" . dape-next)
@@ -4363,7 +4374,6 @@ Clone this repo for js debug git@github.com:microsoft/vscode-js-debug.git
          ("C-c d t" . dape-select-thread)
          ("C-c d x" . dape-breakpoint-remove-all))
   :config
-
   (setq dape-buffer-window-arrangment 'right)
   (setq dape-inline-variables t))
 #+END_SRC
@@ -4659,16 +4669,19 @@ Requires Emacs 30+
 #+END_SRC
 *** Cargo
 #+BEGIN_SRC emacs-lisp :results silent
-(use-package cargo-transient 
-  :defer 10
-  :bind ( :map rust-ts-mode-map
-          ("C-c s r" . cargo-transient)))
+(use-package cargo-transient
+  :after rust-ts-mode
+  :bind (:map rust-ts-mode-map
+              ("C-c s r" . cargo-transient)))
 #+END_SRC
 *** Rust ts mode
 #+BEGIN_SRC emacs-lisp :results silent
 (use-package rust-ts-mode
   :ensure nil
-  :defer 10)
+  :mode "\\.rs\\'"
+  :hook (rust-ts-mode . (lambda ()
+                          ;; Disable built-in rust-ts-flymake, eglot provides diagnostics
+                          (remove-hook 'flymake-diagnostic-functions 'rust-ts-flymake t))))
 #+END_SRC
 ** Flutter
 *** Dart
