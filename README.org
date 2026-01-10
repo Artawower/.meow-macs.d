@@ -5387,6 +5387,28 @@ Automatically creates parent directories if needed."
   :hook (org-mode . org-superstar-mode))
 #+END_SRC
 
+** Custom org creation function
+#+BEGIN_SRC emacs-lisp :results silent
+(defun my/org-node-create-in-current-dir (&rest _)
+  "Create org-node file in current directory, using org-node-proposed-*."
+  (unless (and (boundp 'org-node-proposed-title) org-node-proposed-title
+               (boundp 'org-node-proposed-id)    org-node-proposed-id)
+    (user-error "org-node-proposed-title/id did not set"))
+
+  (let* ((title org-node-proposed-title)
+         (id    org-node-proposed-id)
+         (dir   (file-name-directory (or (buffer-file-name) default-directory)))
+         (safe-title (replace-regexp-in-string "[/\\:*?\"<>|]" "" title))
+         (file  (expand-file-name (concat safe-title ".org") dir)))
+    (unless (file-exists-p file)
+      (with-temp-buffer
+        (insert ":PROPERTIES:\n:ID: " id "\n:END:\n\n")
+        (insert "#+title: " title "\n")
+        (insert "#+filetags:\n\n")
+        (write-file file)))
+    file))
+
+#+END_SRC
 ** Org node. Org roam alternative
 #+BEGIN_SRC emacs-lisp
 (use-package org-mem
@@ -5407,6 +5429,7 @@ Automatically creates parent directories if needed."
   (org-node-file-slug-fn #'org-node-slugify-like-roam-default)
   (org-node-file-timestamp-format "%Y%m%d%H%M%S-")
   :config
+  (setq org-node-creation-fn #'my/org-node-create-in-current-dir)
   (org-node-cache-mode)
   (org-node-roam-accelerator-mode)
   (setq org-node-affixation-fn
